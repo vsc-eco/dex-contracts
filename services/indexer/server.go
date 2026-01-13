@@ -33,6 +33,9 @@ func NewServer(svc *Service, port string) *Server {
 	r.HandleFunc("/api/v1/transactions", s.handleGetTransactions).Methods("GET")
 	r.HandleFunc("/api/v1/transactions/{id}", s.handleGetTransaction).Methods("GET")
 
+	// Schema endpoint
+	r.HandleFunc("/api/v1/schema", s.handleGetSchema).Methods("GET")
+
 	// Health check
 	r.HandleFunc("/health", s.handleHealth).Methods("GET")
 
@@ -214,6 +217,22 @@ func (s *Server) handleGetTransaction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Error(w, "Transaction not found", http.StatusNotFound)
+}
+
+// handleGetSchema returns the current instruction schema based on registered pools
+func (s *Server) handleGetSchema(w http.ResponseWriter, r *http.Request) {
+	// Get the first read model that supports schema queries
+	for _, reader := range s.indexer.readers {
+		if dexReader, ok := reader.(*DexReadModel); ok {
+			schema := dexReader.GetSchema()
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(schema)
+			return
+		}
+	}
+
+	// Fallback: return basic schema if no read model available
+	http.Error(w, "Schema data not available", http.StatusInternalServerError)
 }
 
 // handleHealth provides health check endpoint

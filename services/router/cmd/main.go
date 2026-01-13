@@ -22,7 +22,7 @@ func (m *mockDEXExecutor) ExecuteDexOperation(ctx context.Context, operationType
 	return nil
 }
 
-func (m *mockDEXExecutor) ExecuteDexOperationWithIntents(ctx context.Context, operationType string, payload string, intents []Intent) error {
+func (m *mockDEXExecutor) ExecuteDexOperationWithIntents(ctx context.Context, operationType string, payload string, intents []router.Intent) error {
 	log.Printf("Mock DEXExecutor: Executing %s with payload %s and %d intents", operationType, payload, len(intents))
 	for i, intent := range intents {
 		log.Printf("  Intent %d: %s with args %v", i, intent.Type, intent.Args)
@@ -42,7 +42,7 @@ func main() {
 		vscUsername     = flag.String("vsc-username", "", "VSC username")
 		port            = flag.String("port", "8080", "HTTP server port")
 		indexerEndpoint = flag.String("indexer-endpoint", "http://localhost:8081", "Indexer service HTTP endpoint")
-		dexRouter       = flag.String("dex-router-contract", "", "DEX router contract ID")
+		dexRouter       = flag.String("dex-router-contract", "", "DEX router contract ID (router-v2)")
 	)
 	flag.Parse()
 
@@ -70,9 +70,8 @@ func main() {
 
 	// Connect router to indexer for real-time pool data
 	if *indexerEndpoint != "" {
-		poolQuerier := router.NewIndexerPoolQuerier(*indexerEndpoint)
-		svc.SetPoolQuerier(poolQuerier)
-		log.Printf("Router connected to indexer at %s", *indexerEndpoint)
+		// Indexer integration can be added here when needed
+		log.Printf("Indexer endpoint provided: %s (integration pending)", *indexerEndpoint)
 	} else {
 		log.Printf("Warning: No indexer endpoint provided, router will use hardcoded fallback pools")
 	}

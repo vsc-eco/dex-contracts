@@ -251,10 +251,14 @@ VSC DEX Mapping uses a standardized JSON schema for all DEX operations. This ens
     "return_address": {
       "type": "object",
       "properties": {
-        "chain": {"type": "string", "enum": ["HIVE"]},
+        "chain": {
+          "type": "string",
+          "description": "Blockchain chain identifier. Enum is dynamically generated from registered pools. Query GET /api/v1/schema for current values."
+        },
         "address": {"type": "string"}
       },
-      "required": ["chain", "address"]
+      "required": ["chain", "address"],
+      "description": "Return address for refunds in case of swap failure. Chain must match the source asset's chain or be a supported return chain."
     },
     "metadata": {"type": "object"}
   }
@@ -272,7 +276,7 @@ VSC DEX Mapping uses a standardized JSON schema for all DEX operations. This ens
 - **`min_amount_out`**: Minimum acceptable output amount (prevents front-running)
 - **`beneficiary`**: Optional referral beneficiary address
 - **`ref_bps`**: Referral fee in basis points (0-10000)
-- **`return_address`**: Cross-chain return address for failed operations
+- **`return_address`**: Cross-chain return address for failed operations (object with `chain` and `address` fields). Chain enum is dynamically generated from registered pools.
 - **`metadata`**: Additional operation metadata
 
 ### Usage Examples
@@ -573,7 +577,6 @@ vsc-dex-mapping/
 ├── cli/               # Command-line tools
 ├── docs/              # Documentation
 │   ├── architecture.md
-│   ├── getting-started.md
 │   └── migration-guide.md
 ├── schemas/           # JSON schema specifications
 └── scripts/           # Build and deployment scripts
@@ -951,6 +954,5 @@ curl -X POST http://localhost:8080/api/v1/contract/dex-router/execute \
 ## Additional Documentation
 
 - [Architecture Details](docs/architecture.md) - Detailed architecture documentation
-- [Getting Started Guide](docs/getting-started.md) - Extended setup and development guide
 - [Migration Guide](docs/migration-guide.md) - Migration from go-vsc-node internal DEX
 - [E2E Test Examples](docs/examples/) - Comprehensive test scenarios and API examples

@@ -201,3 +201,61 @@ func TestServer_WithCustomReader(t *testing.T) {
 	}
 	assert.True(t, found, "Custom pool should be included in response")
 }
+
+func TestServer_handleGetSchema(t *testing.T) {
+	svc := NewService("http://localhost:4000", ":8081")
+
+	// Add test assets and chains to the DEX reader
+	dexReader := svc.readers[0].(*DexReadModel)
+	dexReader.assets["BTC"] = "BTC"
+	dexReader.assets["ETH"] = "ETH"
+	dexReader.assets["HBD"] = "HIVE"
+	dexReader.chains["BTC"] = true
+	dexReader.chains["ETH"] = true
+	dexReader.chains["HIVE"] = true
+
+	server := NewServer(svc, "8081")
+
+	// Create request
+	req := httptest.NewRequest("GET", "/api/v1/schema", nil)
+	w := httptest.NewRecorder()
+
+	// Call handler
+	server.handleGetSchema(w, req)
+
+	// Verify response
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var schema map[string]interface{}
+	err := json.NewDecoder(w.Body).Decode(&schema)
+	require.NoError(t, err)
+
+	// Verify schema structure
+	assert.Equal(t, "object", schema["type"])
+
+	// Verify supported chains
+	supportedChains, ok := schema["supported_chains"].([]interface{})
+	require.True(t, ok)
+	assert.Contains(t, supportedChains, "BTC")
+	assert.Contains(t, supportedChains, "ETH")
+	assert.Contains(t, supportedChains, "HIVE")
+}
+
+func TestServer_handleGetSchema_NoReader(t *testing.T) {
+	// Create service with no readers
+	svc := &Service{
+		readers: []ReadModel{},
+	}
+	server := NewServer(svc, "8081")
+
+	// Create request
+	req := httptest.NewRequest("GET", "/api/v1/schema", nil)
+	w := httptest.NewRecorder()
+
+	// Call handler
+	server.handleGetSchema(w, req)
+
+	// Should return error
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}

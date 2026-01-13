@@ -8,3 +8,10 @@ require (
 )
 
 replace vsc-node => ../../../go-vsc-node
+
+
+
+
+
+
+

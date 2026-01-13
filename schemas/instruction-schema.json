@@ -15,11 +15,16 @@
     "return_address": {
       "type": "object",
       "properties": {
-        "chain": {"type": "string", "enum": ["BTC", "HIVE"]},
+        "chain": {
+          "type": "string",
+          "description": "Blockchain chain identifier (dynamically generated from registered pools). Use GET /api/v1/schema to get current enum values."
+        },
         "address": {"type": "string"}
       },
-      "required": ["chain", "address"]
+      "required": ["chain", "address"],
+      "description": "Return address for refunds in case of swap failure. Chain must match the source asset's chain or be a supported return chain."
     },
     "metadata": {"type": "object"}
-  }
+  },
+  "note": "This is a static template schema. For the actual dynamic schema with current chain enum values, query GET /api/v1/schema endpoint."
 }

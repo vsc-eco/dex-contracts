@@ -25,7 +25,14 @@ The instruction schema uses snake_case field names and follows JSON Schema Draft
     "min_amount_out": {"type": "integer", "minimum": 0},
     "beneficiary": {"type": "string"},
     "ref_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
-    "return_address": {"type": "string"},
+    "return_address": {
+      "type": "object",
+      "properties": {
+        "chain": {"type": "string"},
+        "address": {"type": "string"}
+      },
+      "required": ["chain", "address"]
+    },
     "metadata": {"type": "object"}
   }
 }
@@ -217,17 +224,30 @@ The system provides detailed error messages for validation failures:
 3. Receive swap result
 4. Handle success/failure responses
 
-## Supported Assets
+## Supported Assets and Chains
 
-### Input Assets (from external chains)
-- `"BTC"`: Bitcoin
-- `"ETH"`: Ethereum (future)
-- `"SOL"`: Solana (future)
+### Dynamic Schema Generation
 
-### Output Assets (VSC)
-- `"HBD"`: Hive Backed Dollars
-- `"HBD_SAVINGS"`: HBD Savings (with APR)
-- `"HIVE"`: Hive tokens
+The instruction schema is **dynamically generated** based on registered DEX pools. Chains are automatically added to the `return_address.chain` enum when pools are registered.
+
+**Get Current Schema:**
+```bash
+curl http://localhost:8081/api/v1/schema
+```
+
+### Asset Registration
+
+Assets and their chains are determined from:
+1. **Mapping Contracts** (utxo-mapping pattern): Cross-chain assets (BTC, ETH, SOL, etc.) are registered via mapping contracts
+2. **Token Registry**: VSC native tokens are registered with `ContractId = nil` → automatically recognized as chain "HIVE"
+3. **Pool Registration**: When pools are registered, router queries token registry to determine chains
+4. **Future-proof**: New VSC native tokens work automatically when registered in token registry with `ContractId = nil`
+
+### Return Address Chains
+
+The `return_address.chain` enum is **dynamically generated** from registered pools. When a new chain is added (e.g., via utxo-mapping contract), it automatically appears in the schema after pools using that chain are registered.
+
+**Example**: When a SUI mapping contract is deployed and a SUI/HBD pool is registered, "SUI" automatically appears in the `return_address.chain` enum.
 
 ## Security Considerations
 

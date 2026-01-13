@@ -187,6 +187,67 @@ Returns detailed information for a specific transaction.
 }
 ```
 
+### Schema Endpoint
+
+#### Get Instruction Schema
+```http
+GET /api/v1/schema
+```
+
+Returns the current instruction schema dynamically generated from registered DEX pools. The schema includes all supported chains for `return_address` based on assets registered in pools.
+
+**Response:**
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["type", "version", "asset_in", "asset_out", "recipient"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["swap", "deposit", "withdrawal"]
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "asset_in": {
+      "type": "string"
+    },
+    "asset_out": {
+      "type": "string"
+    },
+    "recipient": {
+      "type": "string"
+    },
+    "return_address": {
+      "type": "object",
+      "properties": {
+        "chain": {
+          "type": "string",
+          "enum": ["BTC", "ETH", "SOL", "HIVE", "SUI"]
+        },
+        "address": {
+          "type": "string"
+        }
+      },
+      "required": ["chain", "address"]
+    }
+  },
+  "registered_assets": ["BTC", "ETH", "HBD", "HIVE"],
+  "supported_chains": ["BTC", "ETH", "SOL", "HIVE", "SUI"],
+  "note": "This schema is dynamically generated based on registered DEX pools. Chains are automatically added when pools are registered."
+}
+```
+
+**Notes:**
+- The `return_address.chain` enum is dynamically generated from registered pools
+- Chains are automatically added when pools are registered
+- Chains come from mapping contracts (utxo-mapping pattern) or pool registration
+- Only chains that have registered pools appear in the enum
+- The schema updates in real-time as pools are registered
+- **Future-proof**: New chains (SUI, etc.) work automatically when mapping contracts are deployed and pools are registered
+
 ### Health Check
 
 #### Service Health
@@ -288,3 +349,10 @@ curl http://localhost:8081/api/v1/transactions/tx-12345
 ```bash
 curl "http://localhost:8081/api/v1/pools/1/richlist?limit=20"
 ```
+
+
+
+
+
+
+

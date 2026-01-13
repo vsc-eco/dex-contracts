@@ -86,6 +86,7 @@ func (r *Service) ExecuteSwap(params SwapParams) (*SwapResult, error) {
 		"type":           "swap",
 		"version":        "1.0.0",
 		"asset_in":       params.AssetIn,
+		"amount_in":      params.AmountIn,
 		"asset_out":      params.AssetOut,
 		"recipient":      params.Sender,
 		"min_amount_out": params.MinAmountOut,
