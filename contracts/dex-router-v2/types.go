@@ -2,11 +2,11 @@ package main
 
 //tinyjson:json
 type RegisterPoolParams struct {
-	Asset0        string   `json:"asset0"`
-	Asset1        string   `json:"asset1"`
-	DexContractId string   `json:"dex_contract_id"`
-	Asset0Chain   *string  `json:"asset0_chain,omitempty"` // Optional: chain for asset0 (from mapping contract)
-	Asset1Chain   *string  `json:"asset1_chain,omitempty"` // Optional: chain for asset1 (from mapping contract)
+	Asset0        string  `json:"asset0"`
+	Asset1        string  `json:"asset1"`
+	DexContractId string  `json:"dex_contract_id"`
+	Asset0Chain   *string `json:"asset0_chain,omitempty"` // Optional: chain for asset0 (from mapping contract)
+	Asset1Chain   *string `json:"asset1_chain,omitempty"` // Optional: chain for asset1 (from mapping contract)
 }
 
 //tinyjson:json
@@ -79,12 +79,28 @@ type ReturnAddress struct {
 
 //tinyjson:json
 type FailureLog struct {
-	Reason        string `json:"reason"`
-	FailedAtHop   int    `json:"failed_at_hop"` // 1 = first hop, 2 = second hop
-	OriginalAsset string `json:"original_asset"`
-	OriginalAmount uint64 `json:"original_amount"`
-	IntermediateAsset string `json:"intermediate_asset,omitempty"`
-	IntermediateAmount uint64 `json:"intermediate_amount,omitempty"`
-	ReturnAddress *ReturnAddress `json:"return_address,omitempty"`
-	Timestamp     string `json:"timestamp"`
+	Reason             string         `json:"reason"`
+	FailedAtHop        int            `json:"failed_at_hop"` // 1 = first hop, 2 = second hop
+	OriginalAsset      string         `json:"original_asset"`
+	OriginalAmount     uint64         `json:"original_amount"`
+	IntermediateAsset  string         `json:"intermediate_asset,omitempty"`
+	IntermediateAmount uint64         `json:"intermediate_amount,omitempty"`
+	ReturnAddress      *ReturnAddress `json:"return_address,omitempty"`
+	Timestamp          string         `json:"timestamp"`
+}
+
+//tinyjson:json
+type ReturnRequest struct {
+	Chain   string
+	Address string
+	Asset   string
+	Amount  uint64
+	Log     FailureLog
+}
+
+//tinyjson:json
+type SchemaReturn struct {
+	SupportedChains     []string
+	ReturnAddressChains []string
+	Note                string
 }

@@ -1,7 +1,9 @@
 package sdk
 
+//tinyjson:json
 type EnvMap map[string]any
 
+//tinyjson:json
 type Env struct {
 	ContractId string `json:"contract.id"`
 

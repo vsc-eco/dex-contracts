@@ -15,7 +15,7 @@ var (
 	_ tinyjson.Marshaler
 )
 
-func tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex(in *jlexer.Lexer, out *ReturnAddress) {
+func tinyjson2ff7060fDecodeDexRouterTinyjsonTmp(in *jlexer.Lexer, out *ReturnAddress) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -48,7 +48,7 @@ func tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex(in *jlexer.Lexer, out *
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex(out *jwriter.Writer, in ReturnAddress) {
+func tinyjson2ff7060fEncodeDexRouterTinyjsonTmp(out *jwriter.Writer, in ReturnAddress) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -67,14 +67,14 @@ func tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex(out *jwriter.Writer, in
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v ReturnAddress) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex(w, v)
+	tinyjson2ff7060fEncodeDexRouterTinyjsonTmp(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *ReturnAddress) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex(l, v)
+	tinyjson2ff7060fDecodeDexRouterTinyjsonTmp(l, v)
 }
-func tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex1(in *jlexer.Lexer, out *PoolInfo) {
+func tinyjson2ff7060fDecodeDexRouterTinyjsonTmp1(in *jlexer.Lexer, out *PoolInfo) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -115,7 +115,7 @@ func tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex1(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex1(out *jwriter.Writer, in PoolInfo) {
+func tinyjson2ff7060fEncodeDexRouterTinyjsonTmp1(out *jwriter.Writer, in PoolInfo) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -154,14 +154,14 @@ func tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex1(out *jwriter.Writer, i
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v PoolInfo) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex1(w, v)
+	tinyjson2ff7060fEncodeDexRouterTinyjsonTmp1(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *PoolInfo) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex1(l, v)
+	tinyjson2ff7060fDecodeDexRouterTinyjsonTmp1(l, v)
 }
-func tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex2(in *jlexer.Lexer, out *DexInstruction) {
+func tinyjson2ff7060fDecodeDexRouterTinyjsonTmp2(in *jlexer.Lexer, out *DexInstruction) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -270,7 +270,7 @@ func tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex2(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex2(out *jwriter.Writer, in DexInstruction) {
+func tinyjson2ff7060fEncodeDexRouterTinyjsonTmp2(out *jwriter.Writer, in DexInstruction) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -348,14 +348,14 @@ func tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex2(out *jwriter.Writer, i
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v DexInstruction) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex2(w, v)
+	tinyjson2ff7060fEncodeDexRouterTinyjsonTmp2(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *DexInstruction) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex2(l, v)
+	tinyjson2ff7060fDecodeDexRouterTinyjsonTmp2(l, v)
 }
-func tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex3(in *jlexer.Lexer, out *CreatePoolParams) {
+func tinyjson2ff7060fDecodeDexRouterTinyjsonTmp3(in *jlexer.Lexer, out *CreatePoolParams) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -390,7 +390,7 @@ func tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex3(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex3(out *jwriter.Writer, in CreatePoolParams) {
+func tinyjson2ff7060fEncodeDexRouterTinyjsonTmp3(out *jwriter.Writer, in CreatePoolParams) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -414,10 +414,10 @@ func tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex3(out *jwriter.Writer, i
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v CreatePoolParams) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeExampleComBuildingTinyjsonDex3(w, v)
+	tinyjson2ff7060fEncodeDexRouterTinyjsonTmp3(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *CreatePoolParams) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeExampleComBuildingTinyjsonDex3(l, v)
+	tinyjson2ff7060fDecodeDexRouterTinyjsonTmp3(l, v)
 }
