@@ -115,9 +115,9 @@ func TestCreatePool(t *testing.T) {
 			"asset1": "HIVE",
 			"fee_bps": 8
 		}`)),
-		RcLimit:    10000,
-		Intents:    []contracts.Intent{},
-		Caller:     "hive:alice",
+		RcLimit: 10000,
+		Intents: []contracts.Intent{},
+		Caller:  "hive:alice",
 	})
 
 	if result.Err != nil {
@@ -349,9 +349,9 @@ func setupDexTest(ct *test_utils.ContractTest, contractId string) {
 			"asset1": "HIVE",
 			"fee_bps": 8
 		}`)),
-		RcLimit:    10000,
-		Intents:    []contracts.Intent{},
-		Caller:     "hive:alice",
+		RcLimit: 10000,
+		Intents: []contracts.Intent{},
+		Caller:  "hive:alice",
 	})
 }
 

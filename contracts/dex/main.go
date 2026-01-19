@@ -3,7 +3,6 @@ package main
 import (
 	sdk "dex/sdk"
 	"math/bits"
-	"strconv"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
 )
