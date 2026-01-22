@@ -2,18 +2,22 @@ package main
 
 import (
 	sdk "dex-router-v2/sdk"
+	"slices"
 	"strconv"
+	"strings"
+
+	. "dex-router-v2/router-internal"
 )
 
 // Keys for state storage
 const (
 	keyVersion       = "version"
-	keyPoolPrefix    = "pool/"        // pool/{asset0}/{asset1}
-	keyStatePrefix   = "state/"       // state/{pool_id} - cached pool state
-	keyFailurePrefix = "failure_log/" // failure_log/{tx_id}
+	keyPoolPrefix    = "pool/"           // pool/{asset0}/{asset1}
+	keyStatePrefix   = "state/"          // state/{pool_id} - cached pool state
+	keyFailurePrefix = "failure_log/"    // failure_log/{tx_id}
 	keyReturnPrefix  = "return_request/" // return_request/{tx_id}
-	keyAssetPrefix   = "asset/"       // asset/{symbol} -> chain
-	keyChainsList    = "chains"       // comma-separated list of supported chains
+	keyAssetPrefix   = "asset/"          // asset/{symbol} -> chain
+	keyChainsList    = "chains"          // comma-separated list of supported chains
 )
 
 // State helpers
@@ -58,7 +62,7 @@ func getPoolState(poolId string) PoolInfo {
 	if stateStr == "" {
 		return PoolInfo{} // Empty state
 	}
-	
+
 	// Parse pool state from stored string
 	// In a real implementation, we'd use tinyjson to unmarshal
 	// For now, return empty - will be populated from swap results
@@ -92,7 +96,7 @@ func registerAssetForSchema(asset string) {
 	// 2. Token registry with chain metadata
 	// 3. Pool registration payload with explicit chain
 	chain := getAssetChain(asset)
-	
+
 	// Only register if we have a valid chain
 	// Unknown assets will need to be registered via mapping contracts first
 	if chain != "" {
@@ -105,22 +109,18 @@ func registerAssetForSchema(asset string) {
 // updateChainsList adds a chain to the supported chains list if not already present
 func updateChainsList(chain string) {
 	chainsStr := getStr(keyChainsList)
-	if chainsStr == "" {
-		setStr(keyChainsList, chain)
-		return
-	}
 
 	// Check if chain already in list
 	// Simple check - in production, use proper parsing
 	if len(chainsStr) > 0 {
-		// For now, just append if not present (simplified)
-		// In production, parse comma-separated list and check
-		if len(chainsStr) < 100 { // Simple check to avoid infinite growth
-			// Check if chain is already in the list
-			// This is simplified - in production, parse and check properly
+		chains := strings.Split(chainsStr, ",")
+
+		if !slices.Contains(chains, chain) {
 			newChains := chainsStr + "," + chain
 			setStr(keyChainsList, newChains)
 		}
+	} else {
+		setStr(keyChainsList, chain)
 	}
 }
 
@@ -141,12 +141,12 @@ func getAssetChain(asset string) string {
 	// 1. Call token registry contract to check if ContractId == nil
 	// 2. Store native asset list in contract state
 	// 3. Receive chain info from pool registration
-	
+
 	// For now, return empty - chain must be provided via:
 	// 1. Pool registration with explicit chain (asset0_chain, asset1_chain)
 	// 2. Previous registration from mapping contract
 	// 3. Token registry query (if we add contract call capability)
-	
+
 	// Unknown asset - return empty to indicate it needs registration
 	// Caller should provide chain via pool registration or query token registry
 	return ""

@@ -4,6 +4,8 @@ import (
 	sdk "dex/sdk"
 	"math/bits"
 
+	. "dex/dex-internal"
+
 	tinyjson "github.com/CosmWasm/tinyjson"
 )
 

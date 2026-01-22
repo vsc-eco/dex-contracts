@@ -2,7 +2,11 @@ package main
 
 import (
 	sdk "dex-router-v2/sdk"
+	"fmt"
 	"strconv"
+	"strings"
+
+	. "dex-router-v2/router-internal"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
 )
@@ -677,9 +681,9 @@ func GetSchema(payload *string) *string {
 
 	chainsStr := getStr(keyChainsList)
 	chains := []string{"BTC", "ETH", "SOL", "HIVE"} // Default chains
+	sdk.Log(fmt.Sprintf("chainsStr: %s", chainsStr))
 	if chainsStr != "" {
-		// Parse chains (simplified - in production, use proper parsing)
-		// For now, use defaults
+		chains = strings.Split(chainsStr, ",")
 	}
 
 	// Build schema response

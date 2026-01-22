@@ -1,4 +1,4 @@
-package main
+package routerinternal
 
 //tinyjson:json
 type RegisterPoolParams struct {

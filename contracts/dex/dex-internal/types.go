@@ -1,4 +1,4 @@
-package main
+package dexinternal
 
 //tinyjson:json
 type InitParams struct {

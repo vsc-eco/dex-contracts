@@ -51,7 +51,8 @@ contracts:
 			( \
 				cd $$dir && \
 				$(TINYGO) build $(WASM_FLAGS) \
-					-o $(ARTIFACTS_DIR)/$$wasm_file . \
+					-o $$wasm_file . && \
+				echo "  ✅ $$name compiled"; \
 			) || echo "  ⚠️  Failed to build $$name (continuing)"; \
 		fi; \
 	done
@@ -140,7 +141,7 @@ tinyjson:
 			done && \
 			cd .. && \
 			rm -rf .tinyjson-tmp); then \
-			echo "  ✅  tinyjson created for $$dir" \
+			echo "  ✅  tinyjson created for $$dir" ; \
 		else \
 			echo "  ⚠️  tinyjson failed for $$dir (continuing)"; \
 			rm -rf "$$dir/.tinyjson-tmp" 2>/dev/null; \
