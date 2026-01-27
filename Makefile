@@ -1,6 +1,5 @@
 ROOT_DIR := $(abspath .)
 BIN_DIR			:= $(ROOT_DIR)/bin
-ARTIFACTS_DIR	:= $(ROOT_DIR)/artifacts
 CONTRACTS_DIR	:= contracts
 
 TINYGO			:= tinygo
@@ -34,12 +33,12 @@ sdk:
 
 # Build contracts
 contracts:
-	@mkdir -p $(ARTIFACTS_DIR)
+	@mkdir -p $(BIN_DIR)
 	@set +e; \
 	for dir in $(CONTRACTS_DIR)/*; do \
 		if [ -d "$$dir" ] && [ -f "$$dir/main.go" ]; then \
 			name=$$(basename $$dir); \
-			wasm_file="$(ARTIFACTS_DIR)/$$name.wasm"; \
+			wasm_file="$(BIN_DIR)/$$name.wasm"; \
 			\
 			# Check if wasm exists and find if any file in 'dir' is newer \
 			if [ -f "$$wasm_file" ] && [ -z "$$(find $$dir -type f -newer $$wasm_file)" ]; then \

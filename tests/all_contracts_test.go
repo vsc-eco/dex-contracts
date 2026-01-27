@@ -30,7 +30,7 @@ func TestRegisterToken(t *testing.T) {
 		id: routerContractId,
 	}
 
-	r := router.initRouterV2(id, owner)
+	r := router.initRouterV2(t, id, owner)
 	if r.Err != "" {
 		t.Fatalf("error initializing router: %s", r.Err)
 	}
@@ -47,7 +47,7 @@ func TestRegisterToken(t *testing.T) {
 	payload, _ := tinyjson.Marshal(tokenParams)
 
 	resp := ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(owner),
+		Self:       *basicSelf(t, owner),
 		NetId:      "vsc.mainnet",
 		ContractId: routerContractId,
 		Action:     "register_token",
@@ -60,8 +60,8 @@ func TestRegisterToken(t *testing.T) {
 	if r.Err != "" {
 		t.Error("error registering token", r.Err, r.ErrMsg)
 	}
-	dumpLogs(r.Logs)
-	logStateDiff(r.StateDiff)
+	dumpLogs(t, r.Logs)
+	logStateDiff(t, r.StateDiff)
 }
 
 func TestRegisterPool(t *testing.T) {
@@ -80,7 +80,7 @@ func TestRegisterPool(t *testing.T) {
 		id: routerContractId,
 	}
 
-	r := router.initRouterV2(id, owner)
+	r := router.initRouterV2(t, id, owner)
 	if r.Err != "" {
 		t.Fatalf("error initializing router: %s", r.Err)
 	}
@@ -94,7 +94,7 @@ func TestRegisterPool(t *testing.T) {
 		Asset1Chain:   &[]string{"HIVE"}[0],
 	}
 
-	r = router.registerPool(id, owner, poolParams)
+	r = router.registerPool(t, id, owner, poolParams)
 	if r.Err != "" {
 		t.Fatalf("error registering pool: %s", r.Err)
 	}
@@ -113,14 +113,14 @@ func TestRegisterPool(t *testing.T) {
 	asset1State := ct.StateGet(routerContractId, "asset/"+poolParams.Asset1)
 	t.Log("asset 1 state:", asset1State)
 	assert.Equal(t, *poolParams.Asset1Chain, asset1State)
-	logStateDiff(r.StateDiff)
+	logStateDiff(t, r.StateDiff)
 
-	r = router.getSchema(id, owner)
+	r = router.getSchema(t, id, owner)
 	if r.Err != "" {
 		t.Fatalf("error getting schema: %s", r.Err)
 	}
 	t.Log("router schema:", r.Ret)
-	dumpLogs(r.Logs)
+	dumpLogs(t, r.Logs)
 
 	var routerSchema routerV2.SchemaReturn
 	tinyjson.Unmarshal([]byte(r.Ret), &routerSchema)
@@ -163,7 +163,7 @@ func TestAddLiquidityNativePool(t *testing.T) {
 	payload, _ := tinyjson.Marshal(input)
 
 	rnp := ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(owner),
+		Self:       *basicSelf(t, owner),
 		Caller:     owner,
 		ContractId: btchbdDexContractId,
 		Action:     "add_liquidity",
@@ -191,8 +191,8 @@ func TestAddLiquidityNativePool(t *testing.T) {
 	if r.Err != "" {
 		t.Errorf("error adding liquidity: %s: %s", r.Err, r.ErrMsg)
 	}
-	dumpLogs(r.Logs)
-	logStateDiff(r.StateDiff)
+	dumpLogs(t, r.Logs)
+	logStateDiff(t, r.StateDiff)
 }
 
 func TestAddLiquidityMappedPool(t *testing.T) {
@@ -231,8 +231,8 @@ func TestAddLiquidityMappedPool(t *testing.T) {
 	if r.Err != "" {
 		t.Errorf("error adding liquidity: %s: %s", r.Err, r.ErrMsg)
 	}
-	dumpLogs(r.Logs)
-	logStateDiff(r.StateDiff)
+	dumpLogs(t, r.Logs)
+	logStateDiff(t, r.StateDiff)
 }
 
 func TestOneHopNative(t *testing.T) {
@@ -266,7 +266,7 @@ func TestOneHopNative(t *testing.T) {
 		Asset1Chain:   &[]string{"hive"}[0],
 	}
 
-	r := router.registerPool(id, owner, poolParams)
+	r := router.registerPool(t, id, owner, poolParams)
 	if r.Err != "" {
 		t.Fatalf("error registering pool: %s", r.Err)
 	}
@@ -301,7 +301,7 @@ func TestOneHopNative(t *testing.T) {
 		t.Errorf("error executing swap: %s: %s", r.Err, r.ErrMsg)
 	}
 
-	logStateDiff(r.StateDiff)
+	logStateDiff(t, r.StateDiff)
 	assert.True(t, r.Success)
 	t.Log("return:", r.Ret)
 }
@@ -339,7 +339,7 @@ func TestOneHopMapped(t *testing.T) {
 		Asset1Chain:   &[]string{"hive"}[0],
 	}
 
-	r := router.registerPool(id, owner, poolParams)
+	r := router.registerPool(t, id, owner, poolParams)
 	if r.Err != "" {
 		t.Fatalf("error registering pool: %s", r.Err)
 	}
@@ -376,7 +376,7 @@ func TestOneHopMapped(t *testing.T) {
 		t.Errorf("error executing swap: %s", r.Err)
 	}
 
-	logStateDiff(r.StateDiff)
+	logStateDiff(t, r.StateDiff)
 	assert.True(t, r.Success)
 	t.Log("return:", r.Ret)
 }

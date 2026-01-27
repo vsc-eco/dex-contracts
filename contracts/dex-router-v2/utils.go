@@ -18,7 +18,7 @@ const (
 	keyStatePrefix   = "state/"          // state/{pool_id} - cached pool state
 	keyFailurePrefix = "failure_log/"    // failure_log/{tx_id}
 	keyReturnPrefix  = "return_request/" // return_request/{tx_id}
-	keyAssetPrefix   = "asset/"          // token/{symbol} -> TokenInfo
+	keyAssetPrefix   = "asset/"          // asset/{symbol} -> AssetInfo
 	keyChainsList    = "chains"          // comma-separated list of supported chains
 )
 

@@ -34,7 +34,8 @@ type DexInfo struct {
 
 var txId int64 = 0
 
-func dumpLogs(logs map[string]contract_session.LogOutput) {
+func dumpLogs(t *testing.T, logs map[string]contract_session.LogOutput) {
+	t.Helper()
 	for name, output := range logs {
 		log.Println("logs for", name)
 		for _, log := range output.Logs {
@@ -43,7 +44,8 @@ func dumpLogs(logs map[string]contract_session.LogOutput) {
 	}
 }
 
-func logStateDiff(sdm map[string]contract_session.StateDiff) {
+func logStateDiff(t *testing.T, sdm map[string]contract_session.StateDiff) {
+	t.Helper()
 	for name, sd := range sdm {
 		log.Println("state diff for", name)
 		for del := range sd.Deletions {
@@ -55,7 +57,8 @@ func logStateDiff(sdm map[string]contract_session.StateDiff) {
 	}
 }
 
-func basicSelf(caller string) *state_engine.TxSelf {
+func basicSelf(t *testing.T, caller string) *state_engine.TxSelf {
+	t.Helper()
 	return &state_engine.TxSelf{
 		TxId:                 strconv.FormatInt(txId, 10),
 		BlockId:              strconv.FormatInt(txId, 10),
@@ -68,11 +71,14 @@ func basicSelf(caller string) *state_engine.TxSelf {
 }
 
 func (c RouterInfo) initRouterV2(
+	t *testing.T,
 	txId int,
 	caller string,
 ) *test_utils.ContractTestCallResult {
+	t.Helper()
+
 	r := c.ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(caller),
+		Self:       *basicSelf(t, caller),
 		ContractId: c.id,
 		Action:     "init",
 		Payload:    []byte{},
@@ -84,13 +90,16 @@ func (c RouterInfo) initRouterV2(
 }
 
 func (c *RouterInfo) registerPool(
+	t *testing.T,
 	txId int,
 	caller string,
 	pool routerV2.RegisterPoolParams,
 ) *test_utils.ContractTestCallResult {
+	t.Helper()
+
 	payload, _ := json.Marshal(pool)
 	r := c.ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(caller),
+		Self:       *basicSelf(t, caller),
 		ContractId: c.id,
 		Action:     "register_pool",
 		Payload:    payload,
@@ -102,11 +111,14 @@ func (c *RouterInfo) registerPool(
 }
 
 func (c *RouterInfo) getSchema(
+	t *testing.T,
 	txId int,
 	caller string,
 ) *test_utils.ContractTestCallResult {
+	t.Helper()
+
 	r := c.ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(caller),
+		Self:       *basicSelf(t, caller),
 		ContractId: c.id,
 		Action:     "get_schema",
 		Payload:    []byte{},
@@ -126,7 +138,7 @@ func (c *RouterInfo) execute(
 
 	payload, _ := tinyjson.Marshal(instruction)
 	callOpts := state_engine.TxVscCallContract{
-		Self:       *basicSelf(caller),
+		Self:       *basicSelf(t, caller),
 		ContractId: c.id,
 		Action:     "execute",
 		Payload:    payload,
@@ -158,7 +170,7 @@ func (d *DexInfo) initPool(
 	d.asset0 = instruction.Asset0
 	d.asset1 = instruction.Asset1
 	r := d.ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(caller),
+		Self:       *basicSelf(t, caller),
 		ContractId: d.id,
 		Action:     "init",
 		Payload:    payload,
@@ -187,7 +199,7 @@ func (d *DexInfo) addLiquidity(
 	payload, _ := tinyjson.Marshal(input)
 
 	r := d.ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(owner),
+		Self:       *basicSelf(t, owner),
 		Caller:     owner,
 		ContractId: d.id,
 		Action:     "add_liquidity",
