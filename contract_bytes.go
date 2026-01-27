@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-//go:embed artifacts
+//go:embed bin
 var artifactsFS embed.FS
 
 const artifactsDir = "bin"
