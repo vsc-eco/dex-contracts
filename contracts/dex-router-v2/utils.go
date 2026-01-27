@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	. "dex-router-v2/router-internal"
+
+	"github.com/CosmWasm/tinyjson"
 )
 
 // Keys for state storage
@@ -16,7 +18,7 @@ const (
 	keyStatePrefix   = "state/"          // state/{pool_id} - cached pool state
 	keyFailurePrefix = "failure_log/"    // failure_log/{tx_id}
 	keyReturnPrefix  = "return_request/" // return_request/{tx_id}
-	keyAssetPrefix   = "asset/"          // asset/{symbol} -> chain
+	keyAssetPrefix   = "asset/"          // token/{symbol} -> TokenInfo
 	keyChainsList    = "chains"          // comma-separated list of supported chains
 )
 
@@ -48,7 +50,7 @@ func setUint(key string, val uint64) {
 
 // Pool key helpers
 func poolKeyForAssets(asset0, asset1 string) string {
-	return keyPoolPrefix + asset0 + "/" + asset1
+	return keyPoolPrefix + strings.ToUpper(asset0) + "/" + strings.ToUpper(asset1)
 }
 
 func poolStateKey(poolId string) string {
@@ -78,7 +80,7 @@ func setPoolState(poolId string, state PoolInfo) {
 
 // Asset registry helpers for schema generation
 func assetKey(asset string) string {
-	return keyAssetPrefix + asset
+	return keyAssetPrefix + strings.ToUpper(asset)
 }
 
 // registerAssetForSchema registers an asset and its chain for schema generation
@@ -131,9 +133,17 @@ func updateChainsList(chain string) {
 // If asset not found, returns empty string (caller should handle)
 func getAssetChain(asset string) string {
 	// First, check if we've stored chain info for this asset
-	chain := getStr(assetKey(asset))
-	if chain != "" {
-		return chain
+	infoStr := getStr(assetKey(asset))
+	if infoStr == "" {
+		return ""
+	}
+	var tokenInfo TokenInfo
+	err := tinyjson.Unmarshal([]byte(infoStr), &tokenInfo)
+	if err != nil {
+		return ""
+	}
+	if tokenInfo.Chain != "" {
+		return tokenInfo.Chain
 	}
 
 	// TODO: Query token registry to check if asset is native VSC token

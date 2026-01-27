@@ -2,6 +2,7 @@ package main
 
 import (
 	sdk "dex-router-v2/sdk"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -59,18 +60,71 @@ func RegisterPool(payload *string) *string {
 	// If chains are provided in registration, use them
 	// Otherwise, try to determine from existing registrations
 	if params.Asset0Chain != nil {
-		setStr(assetKey(params.Asset0), *params.Asset0Chain)
+		tokenInfo := TokenInfo{
+			Chain: *params.Asset0Chain,
+		}
+		info, err := tinyjson.Marshal(tokenInfo)
+		if err != nil {
+			sdk.Abort("error marshaling token info")
+		}
+		setStr(assetKey(params.Asset0), string(info))
 		updateChainsList(*params.Asset0Chain)
-	} else {
-		registerAssetForSchema(params.Asset0)
 	}
+	// else {
+	// 	registerAssetForSchema(params.Asset0)
+	// }
 
 	if params.Asset1Chain != nil {
-		setStr(assetKey(params.Asset1), *params.Asset1Chain)
+		tokenInfo := TokenInfo{
+			Chain: *params.Asset1Chain,
+		}
+		info, err := tinyjson.Marshal(tokenInfo)
+		if err != nil {
+			sdk.Abort("error marshaling token info")
+		}
+		setStr(assetKey(params.Asset1), string(info))
 		updateChainsList(*params.Asset1Chain)
-	} else {
-		registerAssetForSchema(params.Asset1)
 	}
+	// else {
+	// 	registerAssetForSchema(params.Asset1)
+	// }
+
+	return nil
+}
+
+// Register a token
+//
+//go:wasmexport register_token
+func RegisterToken(payload *string) *string {
+	if payload == nil {
+		sdk.Abort("error payload required")
+	}
+
+	var params RegisterTokenParams
+	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
+		sdk.Abort("error invalid payload")
+	}
+
+	if len(params.Name) == 0 {
+		sdk.Abort("asset name required")
+	}
+
+	current := getStr(assetKey(params.Name))
+	if current != "" {
+		sdk.Abort("asset already registered")
+	}
+
+	info, err := json.Marshal(params.TokenInfo)
+	if err != nil {
+		sdk.Abort(fmt.Sprintf("error marshaling token info: %s", err.Error()))
+	}
+
+	// TODO: add a check for whether the mapping contract exists
+	// result := sdk.ContractCall(params.MappingContract, "", "", nil)
+	// sdk.Log(fmt.Sprintf("ContractStateGet result: %s", *result))
+
+	setStr(assetKey(params.Name), string(info))
+	updateChainsList(params.Chain)
 
 	return nil
 }

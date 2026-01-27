@@ -1,10 +1,14 @@
 package dexinternal
 
+import "dex/sdk"
+
 //tinyjson:json
 type InitParams struct {
-	Asset0 string `json:"asset0"`
-	Asset1 string `json:"asset1"`
-	FeeBps uint64 `json:"fee_bps"`
+	Asset0                string `json:"asset0"`
+	Asset1                string `json:"asset1"`
+	FeeBps                uint64 `json:"fee_bps"`
+	Asset0MappingContract string `json:"asset0_mapping_contract,omitempty"`
+	Asset1MappingContract string `json:"asset1_mapping_contract,omitempty"`
 }
 
 //tinyjson:json
@@ -42,7 +46,25 @@ type PoolInfo struct {
 }
 
 //tinyjson:json
+type TokenInfo struct {
+	MappingContract string `json:"mapping_contract,omitempty"`
+	Chain           string `json:"string"`
+	Description     string `json:"description,omitempty"`
+}
+
+//tinyjson:json
 type SwapResult struct {
 	AmountOut uint64   `json:"amount_out"`
 	PoolState PoolInfo `json:"pool_state"` // Current pool state after swap
+}
+
+// type for the ENV that only queries the env if actually needed, saving gas if not
+type MaybeEnv struct {
+	Env *sdk.Env
+}
+
+//tinyjson:json
+type MappingContractInput struct {
+	Amount  int64  `json:"amount"`
+	Address string `json:"address"`
 }

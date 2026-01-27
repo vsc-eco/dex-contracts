@@ -53,6 +53,19 @@ type PoolInfo struct {
 }
 
 //tinyjson:json
+type TokenInfo struct {
+	MappingContract string `json:"mapping_contract,omitempty"`
+	Chain           string `json:"string"`
+	Description     string `json:"description,omitempty"`
+}
+
+//tinyjson:json
+type RegisterTokenParams struct {
+	Name string `json:"name"`
+	TokenInfo
+}
+
+//tinyjson:json
 type AddLiquidityParams struct {
 	Amount0   uint64 `json:"amount0"`
 	Amount1   uint64 `json:"amount1"`
