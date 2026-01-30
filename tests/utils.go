@@ -50,12 +50,12 @@ type DexInfo struct {
 
 var txId int64 = 0
 
-func dumpLogs(t *testing.T, logs map[string][]string) {
+func dumpLogs(t *testing.T, logs map[string]contract_session.LogOutput) {
 	t.Helper()
 	for name, output := range logs {
 		log.Println("logs for", name)
-		for _, l := range output {
-			fmt.Printf("    %s\n", l)
+		for _, log := range output.Logs {
+			fmt.Printf("    %s\n", log)
 		}
 	}
 }
@@ -90,9 +90,9 @@ func (c RouterInfo) initRouterV2(
 	t *testing.T,
 	txId int,
 	caller string,
-) *CallResult {
+) *test_utils.ContractTestCallResult {
 	t.Helper()
-	txResult, _, logs := c.ct.Call(state_engine.TxVscCallContract{
+	txResult := c.ct.Call(state_engine.TxVscCallContract{
 		Self:       *basicSelf(t, caller),
 		ContractId: c.id,
 		Action:     "init",
@@ -101,17 +101,17 @@ func (c RouterInfo) initRouterV2(
 		Intents:    []contracts.Intent{},
 		Caller:     caller,
 	})
-	return callResult(txResult, logs)
+	return &txResult
 }
 
 func (c *RouterInfo) registerToken(
 	t *testing.T,
 	caller string,
 	token routerV2.RegisterTokenParams,
-) *CallResult {
+) *test_utils.ContractTestCallResult {
 	t.Helper()
 	payload, _ := tinyjson.Marshal(token)
-	txResult, _, logs := c.ct.Call(state_engine.TxVscCallContract{
+	txResult := c.ct.Call(state_engine.TxVscCallContract{
 		Self:       *basicSelf(t, caller),
 		ContractId: c.id,
 		Action:     "register_token",
@@ -120,7 +120,7 @@ func (c *RouterInfo) registerToken(
 		Intents:    []contracts.Intent{},
 		Caller:     caller,
 	})
-	return callResult(txResult, logs)
+	return &txResult
 }
 
 func (c *RouterInfo) registerPool(
@@ -128,11 +128,11 @@ func (c *RouterInfo) registerPool(
 	txId int,
 	caller string,
 	pool routerV2.RegisterPoolParams,
-) *CallResult {
+) *test_utils.ContractTestCallResult {
 	t.Helper()
 
 	payload, _ := json.Marshal(pool)
-	txResult, _, logs := c.ct.Call(state_engine.TxVscCallContract{
+	txResult := c.ct.Call(state_engine.TxVscCallContract{
 		Self:       *basicSelf(t, caller),
 		ContractId: c.id,
 		Action:     "register_pool",
@@ -141,17 +141,17 @@ func (c *RouterInfo) registerPool(
 		Intents:    []contracts.Intent{},
 		Caller:     caller,
 	})
-	return callResult(txResult, logs)
+	return &txResult
 }
 
 func (c *RouterInfo) getSchema(
 	t *testing.T,
 	txId int,
 	caller string,
-) *CallResult {
+) *test_utils.ContractTestCallResult {
 	t.Helper()
 
-	txResult, _, logs := c.ct.Call(state_engine.TxVscCallContract{
+	txResult := c.ct.Call(state_engine.TxVscCallContract{
 		Self:       *basicSelf(t, caller),
 		ContractId: c.id,
 		Action:     "get_schema",
@@ -160,7 +160,7 @@ func (c *RouterInfo) getSchema(
 		Intents:    []contracts.Intent{},
 		Caller:     caller,
 	})
-	return callResult(txResult, logs)
+	return &txResult
 }
 
 func (c *RouterInfo) execute(
@@ -190,8 +190,8 @@ func (c *RouterInfo) execute(
 	}
 
 	fmt.Println("intents", callOpts.Intents)
-	txResult, _, logs := c.ct.Call(callOpts)
-	return callResult(txResult, logs)
+	txResult := c.ct.Call(callOpts)
+	return &txResult
 }
 
 func (d *DexInfo) initPool(
@@ -203,7 +203,7 @@ func (d *DexInfo) initPool(
 	payload, _ := tinyjson.Marshal(instruction)
 	d.asset0 = instruction.Asset0
 	d.asset1 = instruction.Asset1
-	txResult, _, logs := d.ct.Call(state_engine.TxVscCallContract{
+	r := d.ct.Call(state_engine.TxVscCallContract{
 		Self:       *basicSelf(t, caller),
 		ContractId: d.id,
 		Action:     "init",
@@ -219,7 +219,7 @@ func (d *DexInfo) addLiquidity(
 	t *testing.T,
 	owner string,
 	amount0, amount1 uint64,
-) *CallResult {
+) *test_utils.ContractTestCallResult {
 	t.Helper()
 
 	d.ct.Deposit(owner, int64(amount0), ledger_db.Asset(d.asset0))
@@ -257,10 +257,9 @@ func (d *DexInfo) addLiquidity(
 		},
 	})
 
-	r := callResult(txResult, logs)
 	if !r.Success {
 		t.Fatalf("error adding liquidity: %s", r.Ret)
 	}
 
-	return r
+	return &r
 }

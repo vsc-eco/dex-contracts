@@ -3,8 +3,6 @@ package tests
 import (
 	"testing"
 	"vsc-node/lib/test_utils"
-	"vsc-node/modules/db/vsc/contracts"
-	state_engine "vsc-node/modules/state-processing"
 
 	dexcontracts "vsc-dex-mapping"
 
@@ -108,14 +106,14 @@ func TestRegisterPool(t *testing.T) {
 
 	// Tokens MUST be registered before pool
 	r = router.registerToken(t, owner, routerV2.RegisterTokenParams{
-		Name: "BTC",
+		Name:      "BTC",
 		TokenInfo: routerV2.TokenInfo{Chain: "BTC"},
 	})
 	if !r.Success {
 		t.Fatalf("error registering BTC: %s", r.Ret)
 	}
 	r = router.registerToken(t, owner, routerV2.RegisterTokenParams{
-		Name: "HBD",
+		Name:      "HBD",
 		TokenInfo: routerV2.TokenInfo{Chain: "HIVE"},
 	})
 	if !r.Success {
@@ -188,13 +186,6 @@ func TestAddLiquidityNativePool(t *testing.T) {
 		t.Fatalf("error initializing HIVE/HBD pool: %s", r.Ret)
 	}
 	id++
-
-	input := dex.AddLiquidityParams{
-		Amount0:   900,
-		Amount1:   1000,
-		Recipient: owner,
-	}
-	payload, _ := tinyjson.Marshal(input)
 
 	r = btchbdDex.addLiquidity(t, owner, 900, 1000)
 
@@ -270,14 +261,14 @@ func TestOneHopNative(t *testing.T) {
 
 	// Tokens MUST be registered before pool
 	r := router.registerToken(t, owner, routerV2.RegisterTokenParams{
-		Name: "HIVE",
+		Name:      "HIVE",
 		TokenInfo: routerV2.TokenInfo{Chain: "HIVE"},
 	})
 	if !r.Success {
 		t.Fatalf("error registering HIVE: %s", r.Ret)
 	}
 	r = router.registerToken(t, owner, routerV2.RegisterTokenParams{
-		Name: "HBD",
+		Name:      "HBD",
 		TokenInfo: routerV2.TokenInfo{Chain: "HIVE"},
 	})
 	if !r.Success {
@@ -357,14 +348,14 @@ func TestOneHopMapped(t *testing.T) {
 
 	// Tokens MUST be registered before pool
 	r := router.registerToken(t, owner, routerV2.RegisterTokenParams{
-		Name: "BTC",
+		Name:      "BTC",
 		TokenInfo: routerV2.TokenInfo{Chain: "BTC"},
 	})
 	if !r.Success {
 		t.Fatalf("error registering BTC: %s", r.Ret)
 	}
 	r = router.registerToken(t, owner, routerV2.RegisterTokenParams{
-		Name: "HBD",
+		Name:      "HBD",
 		TokenInfo: routerV2.TokenInfo{Chain: "HIVE"},
 	})
 	if !r.Success {
