@@ -22,9 +22,40 @@ func Init(payload *string) *string {
 	return nil
 }
 
-// Register a DEX contract for a pool
-// Payload: JSON with pool registration
-// {"asset0": "HBD", "asset1": "HIVE", "dex_contract_id": "dex-hbd-hive-123"}
+// Register a token in the token registry. MUST be called before any pool can use the token.
+// Payload: JSON {"symbol": "HBD", "chain": "HIVE"} or {"symbol": "BTC", "chain": "BTC"}
+// Chains: HIVE (for HIVE/HBD native), MAGI (for MAGI native tokens), BTC, ETH, etc. (for mapped assets)
+//
+//go:wasmexport register_token
+func RegisterToken(payload *string) *string {
+	if payload == nil {
+		return &[]string{"error", "payload required"}[1]
+	}
+
+	var params RegisterTokenParams
+	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
+		return &[]string{"error", "invalid payload"}[1]
+	}
+
+	if params.Symbol == "" || params.Chain == "" {
+		return &[]string{"error", "symbol and chain required"}[1]
+	}
+
+	// Validate chain - support HIVE, MAGI, and common mapped chains
+	validChains := map[string]bool{
+		chainHIVE: true, chainMAGI: true,
+		"BTC": true, "ETH": true, "SOL": true, "SUI": true,
+	}
+	if !validChains[params.Chain] {
+		return &[]string{"error", "unsupported chain: " + params.Chain}[1]
+	}
+
+	storeAssetChain(params.Symbol, params.Chain)
+	return nil
+}
+
+// Register a DEX contract for a pool. Both assets MUST be registered via register_token first.
+// Payload: JSON {"asset0": "HBD", "asset1": "HIVE", "dex_contract_id": "dex-hbd-hive-123"}
 //
 //go:wasmexport register_pool
 func RegisterPool(payload *string) *string {
@@ -42,6 +73,14 @@ func RegisterPool(payload *string) *string {
 		return &[]string{"error", "assets must be different"}[1]
 	}
 
+	// Enforce: both assets must be registered before pool can use them
+	if !isAssetRegistered(params.Asset0) {
+		return &[]string{"error", "asset " + params.Asset0 + " not registered - call register_token first"}[1]
+	}
+	if !isAssetRegistered(params.Asset1) {
+		return &[]string{"error", "asset " + params.Asset1 + " not registered - call register_token first"}[1]
+	}
+
 	// Normalize asset order (alphabetical)
 	if params.Asset0 > params.Asset1 {
 		params.Asset0, params.Asset1 = params.Asset1, params.Asset0
@@ -50,23 +89,6 @@ func RegisterPool(payload *string) *string {
 	// Store pool mapping
 	poolKey := poolKeyForAssets(params.Asset0, params.Asset1)
 	setStr(poolKey, params.DexContractId)
-
-	// Track assets for schema generation
-	// If chains are provided in registration, use them
-	// Otherwise, try to determine from existing registrations
-	if params.Asset0Chain != nil {
-		setStr(assetKey(params.Asset0), *params.Asset0Chain)
-		updateChainsList(*params.Asset0Chain)
-	} else {
-		registerAssetForSchema(params.Asset0)
-	}
-
-	if params.Asset1Chain != nil {
-		setStr(assetKey(params.Asset1), *params.Asset1Chain)
-		updateChainsList(*params.Asset1Chain)
-	} else {
-		registerAssetForSchema(params.Asset1)
-	}
 
 	return nil
 }
@@ -149,8 +171,12 @@ func executeDirectSwap(dexContractId string, instruction DexInstruction) *string
 		return &[]string{"error", "failed to marshal swap params"}[1]
 	}
 
+	// Clone user's intents into the call - intents don't pass through inter-contract calls by default,
+	// so the dex can't spend user money without this. Temporary workaround until VSC passes intents.
+	swapOpts := contractCallOptionsWithUserIntents()
+
 	// Call DEX contract's swap method
-	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), nil)
+	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), swapOpts)
 	if result == nil {
 		return &[]string{"error", "swap failed"}[1]
 	}
@@ -212,9 +238,12 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 		)
 	}
 
+	// Clone user's intents - dex needs them to spend user funds (user->router->dex flow)
+	opts := contractCallOptionsWithUserIntents()
+
 	// Call first DEX contract - VSC will validate intents
 	// If swap fails (slippage, insufficient liquidity, etc.), VSC rolls back automatically
-	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), nil)
+	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), opts)
 	if firstResult == nil {
 		// First swap failed - VSC rolled back, return original asset via return_address
 		return handleSwapFailure(
@@ -274,8 +303,8 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 		return handlePartialSwap(swapResult1.AmountOut, "HBD", instruction)
 	}
 
-	// Call second DEX contract
-	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), nil)
+	// Call second DEX contract (intents cloned above, reuse for second hop)
+	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), opts)
 	if secondResult == nil {
 		// Second swap failed - return intermediate HBD
 		return handlePartialSwap(swapResult1.AmountOut, "HBD", instruction)
@@ -499,8 +528,9 @@ func trySwapBackToOriginal(
 		}
 	}
 
-	// Execute reverse swap
-	reverseResult := sdk.ContractCall(reversePoolId, "swap", string(reverseSwapPayload), nil)
+	// Execute reverse swap (clone intents for dex to spend)
+	reverseOpts := contractCallOptionsWithUserIntents()
+	reverseResult := sdk.ContractCall(reversePoolId, "swap", string(reverseSwapPayload), reverseOpts)
 	if reverseResult == nil {
 		// Reverse swap failed
 		return &SwapBackResult{
@@ -583,8 +613,9 @@ func executeDeposit(instruction DexInstruction) *string {
 		return &[]string{"error", "failed to marshal add liquidity params"}[1]
 	}
 
-	// Call DEX contract's add_liquidity method
-	result := sdk.ContractCall(poolId, "add_liquidity", string(addLiqPayload), nil)
+	// Call DEX contract's add_liquidity method (clone intents for dex to spend user funds)
+	addLiqOpts := contractCallOptionsWithUserIntents()
+	result := sdk.ContractCall(poolId, "add_liquidity", string(addLiqPayload), addLiqOpts)
 	if result == nil {
 		return &[]string{"error", "add liquidity failed"}[1]
 	}
@@ -628,8 +659,9 @@ func executeWithdrawal(instruction DexInstruction) *string {
 		return &[]string{"error", "failed to marshal remove liquidity params"}[1]
 	}
 
-	// Call DEX contract's remove_liquidity method
-	result := sdk.ContractCall(poolId, "remove_liquidity", string(removeLiqPayload), nil)
+	// Call DEX contract's remove_liquidity method (clone intents for dex to spend)
+	removeLiqOpts := contractCallOptionsWithUserIntents()
+	result := sdk.ContractCall(poolId, "remove_liquidity", string(removeLiqPayload), removeLiqOpts)
 	if result == nil {
 		return &[]string{"error", "remove liquidity failed"}[1]
 	}
@@ -676,10 +708,13 @@ func GetSchema(payload *string) *string {
 	// In production, this would query all registered assets
 
 	chainsStr := getStr(keyChainsList)
-	chains := []string{"BTC", "ETH", "SOL", "HIVE"} // Default chains
+	chains := []string{"BTC", "ETH", "SOL", chainHIVE, chainMAGI} // Default chains (HIVE, MAGI for native tokens)
 	if chainsStr != "" {
-		// Parse chains (simplified - in production, use proper parsing)
-		// For now, use defaults
+		// Parse chains from registry (comma-separated)
+		parts := splitChains(chainsStr)
+		if len(parts) > 0 {
+			chains = parts
+		}
 	}
 
 	// Build schema response

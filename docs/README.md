@@ -20,6 +20,9 @@ Complete summary of the V2 system with all features and implementation status.
 ### [Schema Consistency](./SCHEMA-CONSISTENCY.md)
 Verification checklist ensuring all documentation is consistent with chain-aware return addresses.
 
+### [Docs to Tests Mapping](./docs-to-tests-mapping.md)
+Maps published features and user journeys from the docs to their test coverage. Use to verify all documented functionality is tested.
+
 ## Key Features
 
 ### Dynamic Schema Generation

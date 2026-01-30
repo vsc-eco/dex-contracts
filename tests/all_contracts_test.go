@@ -1,29 +1,16 @@
 package tests
 
 import (
-	"fmt"
 	"testing"
 
 	dexcontracts "github.com/vsc-eco/vsc-dex-mapping"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestContractLoading(t *testing.T) {
-	dex := dexcontracts.DexWasm
-	if dex != nil {
-		fmt.Println("successfully imported dex")
-	} else {
-		fmt.Println("failed to load dex")
-	}
-	dexRouterV1 := dexcontracts.DexRouterWasm
-	if dexRouterV1 != nil {
-		fmt.Println("successfully imported dex router v1")
-	} else {
-		fmt.Println("failed to load dex router v1")
-	}
-	dexRouterV2 := dexcontracts.DexRouterV2Wasm
-	if dexRouterV2 != nil {
-		fmt.Println("successfully imported dex router v2")
-	} else {
-		fmt.Println("failed to load dex router v2")
-	}
+	assert.NotNil(t, dexcontracts.DexWasm, "dex wasm should load")
+	assert.NotNil(t, dexcontracts.DexRouterWasm, "dex router v1 wasm should load")
+	assert.NotNil(t, dexcontracts.DexRouterV2Wasm, "dex router v2 wasm should load")
+	assert.NotNil(t, dexcontracts.BtcMappingWasm, "btc-mapping wasm should load")
 }

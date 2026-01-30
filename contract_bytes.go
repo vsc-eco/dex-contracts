@@ -15,12 +15,14 @@ var (
 	DexRouterV2Wasm []byte
 	DexRouterWasm   []byte
 	DexWasm         []byte
+	BtcMappingWasm  []byte
 )
 
 func init() {
 	DexRouterV2Wasm, _ = loadWasmFile("dex-router-v2.wasm")
 	DexRouterWasm, _ = loadWasmFile("dex-router.wasm")
 	DexWasm, _ = loadWasmFile("dex.wasm")
+	BtcMappingWasm, _ = loadWasmFile("btc-mapping.wasm")
 }
 
 // loadWasmFile reads a WASM file from the embedded artifacts directory

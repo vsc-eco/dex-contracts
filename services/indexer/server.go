@@ -96,6 +96,11 @@ func (s *Server) handleGetPoolAccounts(w http.ResponseWriter, r *http.Request) {
 	// Get the first read model that supports pool queries
 	for _, reader := range s.indexer.readers {
 		if dexReader, ok := reader.(*DexReadModel); ok {
+			// Return 404 if pool doesn't exist (consistent with handleGetPool)
+			if _, exists := dexReader.GetPool(poolID); !exists {
+				http.Error(w, "Pool not found", http.StatusNotFound)
+				return
+			}
 			accounts, err := dexReader.QueryLiquidityPositions(poolID)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -141,6 +146,11 @@ func (s *Server) handleGetPoolRichList(w http.ResponseWriter, r *http.Request) {
 	// Get the first read model that supports pool queries
 	for _, reader := range s.indexer.readers {
 		if dexReader, ok := reader.(*DexReadModel); ok {
+			// Return 404 if pool doesn't exist (consistent with handleGetPool)
+			if _, exists := dexReader.GetPool(poolID); !exists {
+				http.Error(w, "Pool not found", http.StatusNotFound)
+				return
+			}
 			richList, err := dexReader.QueryRichList(poolID, offset, limit)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -520,7 +520,66 @@ func (v RemoveLiquidityParams) MarshalTinyJSON(w *jwriter.Writer) {
 func (v *RemoveLiquidityParams) UnmarshalTinyJSON(l *jlexer.Lexer) {
 	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp5(l, v)
 }
-func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp6(in *jlexer.Lexer, out *RegisterPoolParams) {
+func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp6(in *jlexer.Lexer, out *RegisterTokenParams) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "symbol":
+			out.Symbol = string(in.String())
+		case "chain":
+			out.Chain = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp6(out *jwriter.Writer, in RegisterTokenParams) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"symbol\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Symbol))
+	}
+	{
+		const prefix string = ",\"chain\":"
+		out.RawString(prefix)
+		out.String(string(in.Chain))
+	}
+	out.RawByte('}')
+}
+
+// MarshalTinyJSON supports tinyjson.Marshaler interface
+func (v RegisterTokenParams) MarshalTinyJSON(w *jwriter.Writer) {
+	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp6(w, v)
+}
+
+// UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
+func (v *RegisterTokenParams) UnmarshalTinyJSON(l *jlexer.Lexer) {
+	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp6(l, v)
+}
+func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp7(in *jlexer.Lexer, out *RegisterPoolParams) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -545,26 +604,6 @@ func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp6(in *jlexer.Lexer, out *Regist
 			out.Asset1 = string(in.String())
 		case "dex_contract_id":
 			out.DexContractId = string(in.String())
-		case "asset0_chain":
-			if in.IsNull() {
-				in.Skip()
-				out.Asset0Chain = nil
-			} else {
-				if out.Asset0Chain == nil {
-					out.Asset0Chain = new(string)
-				}
-				*out.Asset0Chain = string(in.String())
-			}
-		case "asset1_chain":
-			if in.IsNull() {
-				in.Skip()
-				out.Asset1Chain = nil
-			} else {
-				if out.Asset1Chain == nil {
-					out.Asset1Chain = new(string)
-				}
-				*out.Asset1Chain = string(in.String())
-			}
 		default:
 			in.SkipRecursive()
 		}
@@ -575,7 +614,7 @@ func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp6(in *jlexer.Lexer, out *Regist
 		in.Consumed()
 	}
 }
-func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp6(out *jwriter.Writer, in RegisterPoolParams) {
+func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp7(out *jwriter.Writer, in RegisterPoolParams) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -594,29 +633,19 @@ func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp6(out *jwriter.Writer, in Regis
 		out.RawString(prefix)
 		out.String(string(in.DexContractId))
 	}
-	if in.Asset0Chain != nil {
-		const prefix string = ",\"asset0_chain\":"
-		out.RawString(prefix)
-		out.String(string(*in.Asset0Chain))
-	}
-	if in.Asset1Chain != nil {
-		const prefix string = ",\"asset1_chain\":"
-		out.RawString(prefix)
-		out.String(string(*in.Asset1Chain))
-	}
 	out.RawByte('}')
 }
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v RegisterPoolParams) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp6(w, v)
+	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp7(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *RegisterPoolParams) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp6(l, v)
+	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp7(l, v)
 }
-func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp7(in *jlexer.Lexer, out *PoolInfo) {
+func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp8(in *jlexer.Lexer, out *PoolInfo) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -657,7 +686,7 @@ func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp7(in *jlexer.Lexer, out *PoolIn
 		in.Consumed()
 	}
 }
-func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp7(out *jwriter.Writer, in PoolInfo) {
+func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp8(out *jwriter.Writer, in PoolInfo) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -696,14 +725,14 @@ func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp7(out *jwriter.Writer, in PoolI
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v PoolInfo) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp7(w, v)
+	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp8(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *PoolInfo) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp7(l, v)
+	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp8(l, v)
 }
-func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp8(in *jlexer.Lexer, out *GetPoolParams) {
+func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp9(in *jlexer.Lexer, out *GetPoolParams) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -736,7 +765,7 @@ func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp8(in *jlexer.Lexer, out *GetPoo
 		in.Consumed()
 	}
 }
-func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp8(out *jwriter.Writer, in GetPoolParams) {
+func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp9(out *jwriter.Writer, in GetPoolParams) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -755,14 +784,14 @@ func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp8(out *jwriter.Writer, in GetPo
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v GetPoolParams) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp8(w, v)
+	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp9(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *GetPoolParams) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp8(l, v)
+	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp9(l, v)
 }
-func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp9(in *jlexer.Lexer, out *FailureLog) {
+func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp10(in *jlexer.Lexer, out *FailureLog) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -815,7 +844,7 @@ func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp9(in *jlexer.Lexer, out *Failur
 		in.Consumed()
 	}
 }
-func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp9(out *jwriter.Writer, in FailureLog) {
+func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp10(out *jwriter.Writer, in FailureLog) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -864,14 +893,14 @@ func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp9(out *jwriter.Writer, in Failu
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v FailureLog) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp9(w, v)
+	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp10(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *FailureLog) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp9(l, v)
+	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp10(l, v)
 }
-func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp10(in *jlexer.Lexer, out *DexInstruction) {
+func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp11(in *jlexer.Lexer, out *DexInstruction) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -982,7 +1011,7 @@ func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp10(in *jlexer.Lexer, out *DexIn
 		in.Consumed()
 	}
 }
-func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp10(out *jwriter.Writer, in DexInstruction) {
+func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp11(out *jwriter.Writer, in DexInstruction) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1065,14 +1094,14 @@ func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp10(out *jwriter.Writer, in DexI
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v DexInstruction) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp10(w, v)
+	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp11(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *DexInstruction) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp10(l, v)
+	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp11(l, v)
 }
-func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp11(in *jlexer.Lexer, out *AddLiquidityParams) {
+func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp12(in *jlexer.Lexer, out *AddLiquidityParams) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1107,7 +1136,7 @@ func tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp11(in *jlexer.Lexer, out *AddLi
 		in.Consumed()
 	}
 }
-func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp11(out *jwriter.Writer, in AddLiquidityParams) {
+func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp12(out *jwriter.Writer, in AddLiquidityParams) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1131,10 +1160,10 @@ func tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp11(out *jwriter.Writer, in AddL
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v AddLiquidityParams) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp11(w, v)
+	tinyjson2ff7060fEncodeDexRouterV2TinyjsonTmp12(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *AddLiquidityParams) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp11(l, v)
+	tinyjson2ff7060fDecodeDexRouterV2TinyjsonTmp12(l, v)
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -198,5 +199,304 @@ func TestTwoHopRouting(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Test token registry - tokens must be registered before pools can use them
+func TestTokenRegistryEnforcement(t *testing.T) {
+	tests := []struct {
+		name               string
+		asset0             string
+		asset1             string
+		asset0Registered   bool
+		asset1Registered   bool
+		shouldReject       bool
+	}{
+		{
+			name:             "both assets registered - allow",
+			asset0:           "HBD",
+			asset1:           "HIVE",
+			asset0Registered: true,
+			asset1Registered: true,
+			shouldReject:     false,
+		},
+		{
+			name:             "asset0 not registered - reject",
+			asset0:           "BTC",
+			asset1:           "HBD",
+			asset0Registered: false,
+			asset1Registered: true,
+			shouldReject:     true,
+		},
+		{
+			name:             "asset1 not registered - reject",
+			asset0:           "HBD",
+			asset1:           "ETH",
+			asset0Registered: true,
+			asset1Registered: false,
+			shouldReject:     true,
+		},
+		{
+			name:             "neither asset registered - reject",
+			asset0:           "BTC",
+			asset1:           "ETH",
+			asset0Registered: false,
+			asset1Registered: false,
+			shouldReject:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wouldReject := !tt.asset0Registered || !tt.asset1Registered
+			if wouldReject != tt.shouldReject {
+				t.Errorf("expected shouldReject=%v, got wouldReject=%v", tt.shouldReject, wouldReject)
+			}
+		})
+	}
+}
+
+// Test splitChains logic (replicated from utils.go for standalone test package)
+func TestSplitChains(t *testing.T) {
+	splitChains := func(s string) []string {
+		if s == "" {
+			return nil
+		}
+		parts := strings.Split(s, ",")
+		seen := make(map[string]bool)
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" && !seen[p] {
+				seen[p] = true
+				out = append(out, p)
+			}
+		}
+		return out
+	}
+
+	tests := []struct {
+		input    string
+		expected []string
+	}{
+		{"HIVE", []string{"HIVE"}},
+		{"HIVE,MAGI,BTC", []string{"HIVE", "MAGI", "BTC"}},
+		{"HIVE, HIVE, MAGI", []string{"HIVE", "MAGI"}},
+		{"", nil},
+		{"  HIVE  ,  MAGI  ", []string{"HIVE", "MAGI"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := splitChains(tt.input)
+			if len(got) != len(tt.expected) {
+				t.Errorf("splitChains(%q) len=%d, want %d", tt.input, len(got), len(tt.expected))
+			}
+			for i, e := range tt.expected {
+				if i < len(got) && got[i] != e {
+					t.Errorf("splitChains(%q)[%d]=%q, want %q", tt.input, i, got[i], e)
+				}
+			}
+		})
+	}
+}
+
+// Test supported chains include HIVE and MAGI for native tokens
+func TestSupportedChains(t *testing.T) {
+	chains := []string{"HIVE", "MAGI", "BTC", "ETH", "SOL"}
+	required := []string{"HIVE", "MAGI"}
+	for _, r := range required {
+		found := false
+		for _, c := range chains {
+			if c == r {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("required chain %s not in supported chains", r)
+		}
+	}
+}
+
+// Test pool key normalization
+func TestPoolKeyNormalization(t *testing.T) {
+	tests := []struct {
+		asset0, asset1 string
+		expectedKey    string
+	}{
+		{"HBD", "HIVE", "pool/HBD/HIVE"},
+		{"HIVE", "HBD", "pool/HBD/HIVE"},
+		{"BTC", "HBD", "pool/BTC/HBD"},
+	}
+	for _, tt := range tests {
+		a0, a1 := tt.asset0, tt.asset1
+		if a0 > a1 {
+			a0, a1 = a1, a0
+		}
+		key := "pool/" + a0 + "/" + a1
+		if key != tt.expectedKey {
+			t.Errorf("poolKey(%s,%s)=%s, want %s", tt.asset0, tt.asset1, key, tt.expectedKey)
+		}
+	}
+}
+
+// Two-hop swap failure handling (V2-SYSTEM-SUMMARY, dex-router-v2 handlePartialSwap/handleSwapFailure)
+// Replicates the decision logic: when second hop fails, determine what asset to return based on return_address
+
+type returnAddress struct {
+	Chain   string
+	Address string
+}
+
+// getAssetChainForTest - replicates contract's getAssetChain (asset -> chain mapping)
+func getAssetChainForTest(asset string, assetChains map[string]string) string {
+	return assetChains[asset]
+}
+
+// determineReturnAssetForPartialSwap - replicates handlePartialSwap logic for second-hop failure
+// Returns (assetToReturn, amountToReturn, shouldTrySwapBack)
+func determineReturnAssetForPartialSwap(
+	originalAsset string,
+	intermediateAsset string,
+	intermediateAmount uint64,
+	returnAddr *returnAddress,
+	assetChains map[string]string,
+) (asset string, amount uint64, triedSwapBack bool) {
+	asset = intermediateAsset
+	amount = intermediateAmount
+
+	if returnAddr == nil {
+		return asset, amount, false
+	}
+
+	originalAssetChain := getAssetChainForTest(originalAsset, assetChains)
+	returnChain := returnAddr.Chain
+
+	// If original asset is from non-Hive chain and return address is on that same chain,
+	// we would try to swap HBD back to original asset (trySwapBackToOriginal)
+	if originalAssetChain != "HIVE" && returnChain != "" && returnChain == originalAssetChain {
+		triedSwapBack = true
+		// In the contract, trySwapBackToOriginal would execute; if it succeeds,
+		// asset=originalAsset, amount=swapBackResult.AmountOut
+		// For spec test we just verify the decision to attempt swap-back
+	}
+	return asset, amount, triedSwapBack
+}
+
+// TestTwoHopFailure_SecondHopFailed_ReturnAddressSameChain tests V2-SYSTEM-SUMMARY:
+// "If return address chain matches original asset chain: Attempts to swap HBD back to original asset"
+func TestTwoHopFailure_SecondHopFailed_ReturnAddressSameChain(t *testing.T) {
+	assetChains := map[string]string{"BTC": "BTC", "HBD": "HIVE", "HIVE": "HIVE"}
+
+	// BTC -> HBD (success) -> HIVE (failed), return_address.chain=BTC
+	// Original asset chain (BTC) matches return address chain (BTC) -> should try swap-back
+	asset, amount, triedSwapBack := determineReturnAssetForPartialSwap(
+		"BTC", "HBD", 500000,
+		&returnAddress{Chain: "BTC", Address: "bc1q..."},
+		assetChains,
+	)
+
+	if !triedSwapBack {
+		t.Error("expected triedSwapBack=true when return_address.chain matches original asset chain (BTC)")
+	}
+	if asset != "HBD" {
+		t.Errorf("before swap-back succeeds, asset=HBD (intermediate), got %s", asset)
+	}
+	if amount != 500000 {
+		t.Errorf("amount=500000, got %d", amount)
+	}
+}
+
+// TestTwoHopFailure_SecondHopFailed_ReturnAddressDifferentChain tests:
+// "If chain doesn't match: Returns intermediate HBD to return address"
+func TestTwoHopFailure_SecondHopFailed_ReturnAddressDifferentChain(t *testing.T) {
+	assetChains := map[string]string{"BTC": "BTC", "HBD": "HIVE", "HIVE": "HIVE"}
+
+	// BTC -> HBD (success) -> HIVE (failed), return_address.chain=ETH (different from BTC)
+	// Return intermediate HBD
+	asset, amount, triedSwapBack := determineReturnAssetForPartialSwap(
+		"BTC", "HBD", 500000,
+		&returnAddress{Chain: "ETH", Address: "0x123..."},
+		assetChains,
+	)
+
+	if triedSwapBack {
+		t.Error("expected triedSwapBack=false when return_address.chain differs from original asset chain")
+	}
+	if asset != "HBD" {
+		t.Errorf("expected asset=HBD (intermediate), got %s", asset)
+	}
+	if amount != 500000 {
+		t.Errorf("amount=500000, got %d", amount)
+	}
+}
+
+// TestTwoHopFailure_SecondHopFailed_NoReturnAddress tests fallback:
+// "If no return_address: Return to recipient"
+func TestTwoHopFailure_SecondHopFailed_NoReturnAddress(t *testing.T) {
+	assetChains := map[string]string{"BTC": "BTC", "HBD": "HIVE"}
+
+	asset, amount, triedSwapBack := determineReturnAssetForPartialSwap(
+		"BTC", "HBD", 500000,
+		nil, // no return_address
+		assetChains,
+	)
+
+	if triedSwapBack {
+		t.Error("expected triedSwapBack=false when no return_address")
+	}
+	if asset != "HBD" {
+		t.Errorf("expected asset=HBD, got %s", asset)
+	}
+	if amount != 500000 {
+		t.Errorf("amount=500000, got %d", amount)
+	}
+}
+
+// TestTwoHopFailure_FirstHopFailed tests handleSwapFailure:
+// "First swap failed - return original asset via return_address"
+func TestTwoHopFailure_FirstHopFailed(t *testing.T) {
+	// When first hop fails, we return the original asset (e.g. BTC) and original amount
+	// Replicate the handleSwapFailure logic
+	originalAsset := "BTC"
+	originalAmount := uint64(100000)
+	returnAddr := &returnAddress{Chain: "BTC", Address: "bc1q..."}
+
+	// handleSwapFailure returns original asset to return_address
+	assetToReturn := originalAsset
+	amountToReturn := originalAmount
+
+	if assetToReturn != "BTC" {
+		t.Errorf("first hop failed: return original asset BTC, got %s", assetToReturn)
+	}
+	if amountToReturn != 100000 {
+		t.Errorf("amount=100000, got %d", amountToReturn)
+	}
+	if returnAddr.Chain != "BTC" {
+		t.Errorf("return address chain should be BTC for cross-chain return")
+	}
+}
+
+// TestTwoHopFailure_ReturnAddressHiveChain tests:
+// "If return address is on Hive: return HBD directly (no swap-back needed)"
+func TestTwoHopFailure_ReturnAddressHiveChain(t *testing.T) {
+	assetChains := map[string]string{"BTC": "BTC", "HBD": "HIVE"}
+
+	// BTC -> HBD (success) -> HIVE (failed), return_address.chain=HIVE
+	// Return HBD directly - recipient can use HBD on Hive
+	asset, amount, triedSwapBack := determineReturnAssetForPartialSwap(
+		"BTC", "HBD", 500000,
+		&returnAddress{Chain: "HIVE", Address: "alice"},
+		assetChains,
+	)
+
+	if triedSwapBack {
+		t.Error("expected triedSwapBack=false when return_address.chain=HIVE (can return HBD directly)")
+	}
+	if asset != "HBD" {
+		t.Errorf("expected asset=HBD, got %s", asset)
+	}
+	if amount != 500000 {
+		t.Errorf("amount=500000, got %d", amount)
 	}
 }

@@ -130,7 +130,7 @@ func (c *Client) ExecuteDexOperationWithIntents(ctx context.Context, operationTy
 		"contract": "%s",
 		"method": "%s",
 		"args": %s
-	}`, c.config.DexRouter, operationType, payload)
+	}`, c.config.Contracts.DexRouter, operationType, payload)
 
 	return c.broadcastTxWithIntents(ctx, payloadJSON, intents)
 }

@@ -45,7 +45,8 @@ func TestInstructionParsing(t *testing.T) {
 				"asset_in": "HBD",
 				"recipient": "alice"
 			}`,
-			expectError: true,
+			expectError: false, // JSON parsing succeeds, validation happens later
+			expectedType: "swap",
 		},
 		{
 			name: "Invalid JSON",
@@ -220,13 +221,13 @@ func TestPoolReserveUpdates(t *testing.T) {
 		feeBps := uint64(8)
 		amountIn := uint64(100000) // 100 HBD
 
-		// Calculate output using constant product formula
+		// Use same formula as contract: amountOut = (amountInAfterFee * reserveOut) / newReserveIn
 		amountInAfterFee := amountIn * (10000 - feeBps) / 10000 // 99920
-		newReserveIn := reserveIn + amountInAfterFee            // 2000000 + 99920 = 2099920
-		amountOut := reserveOut - (reserveIn * reserveOut / newReserveIn) // 1000000 - (2000000 * 1000000 / 2099920)
+		newReserveIn := reserveIn + amountInAfterFee             // 2099920
+		amountOut := (amountInAfterFee * reserveOut) / newReserveIn
 
-		// Expected: ~47619 HIVE out
-		expectedOutMin, expectedOutMax := uint64(47600), uint64(47700)
+		// Expected: ~47580 HIVE out (99920*1000000/2099920 ≈ 47580)
+		expectedOutMin, expectedOutMax := uint64(47500), uint64(47700)
 
 		if amountOut < expectedOutMin || amountOut > expectedOutMax {
 			t.Errorf("Swap output = %v, want between %v and %v", amountOut, expectedOutMin, expectedOutMax)
@@ -240,28 +241,28 @@ func TestPoolReserveUpdates(t *testing.T) {
 			t.Errorf("Final reserve in = %v, want 2099920", finalReserveIn)
 		}
 
-		// finalReserveOut should be ≈952381
-		if finalReserveOut < 952300 || finalReserveOut > 952400 {
-			t.Errorf("Final reserve out = %v, want ~952381", finalReserveOut)
+		// finalReserveOut should be ≈952420 (1000000 - 47580)
+		if finalReserveOut < 952300 || finalReserveOut > 952500 {
+			t.Errorf("Final reserve out = %v, want ~952420", finalReserveOut)
 		}
 	})
 }
 
 func TestErrorConditions(t *testing.T) {
 	tests := []struct {
-		name        string
-		assetIn     string
-		assetOut    string
-		description string
+		name              string
+		assetIn           string
+		assetOut          string
+		expectValidStruct bool // Would pass JSON+required-fields validation
 	}{
-		{"Same assets", "HBD", "HBD", "should reject identical asset pair"},
-		{"Empty asset names", "", "HBD", "should reject empty asset names"},
-		{"Unknown routing", "UNKNOWN", "HIVE", "should handle unknown asset routing"},
+		{"Same assets - invalid for swap", "HBD", "HBD", true},   // Struct valid but routing fails (no HBD/HBD pool)
+		{"Empty asset_in - invalid", "", "HBD", false},
+		{"Empty asset_out - invalid", "HBD", "", false},
+		{"Unknown routing - struct valid", "UNKNOWN", "HIVE", true}, // Struct valid, routing would fail
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Test instruction validation
 			instruction := DexInstruction{
 				Type:     "swap",
 				Version:  "1.0.0",
@@ -270,16 +271,21 @@ func TestErrorConditions(t *testing.T) {
 				Recipient: "test",
 			}
 
-			// Basic validation checks
-			if tt.assetIn == "" || tt.assetOut == "" {
-				if instruction.AssetIn != "" && instruction.AssetOut != "" {
-					t.Errorf("Should reject empty asset names")
-				}
+			// Replicate contract's required-fields validation (Execute checks this first)
+			hasRequiredFields := instruction.Type != "" && instruction.Version != "" &&
+				instruction.AssetIn != "" && instruction.AssetOut != "" &&
+				instruction.Recipient != ""
+
+			if hasRequiredFields != tt.expectValidStruct {
+				t.Errorf("required-fields validation: got valid=%v, want valid=%v (assetIn=%q, assetOut=%q)",
+					hasRequiredFields, tt.expectValidStruct, tt.assetIn, tt.assetOut)
 			}
 
+			// Same-asset swap: contract would fail (no pool exists for X/X)
 			if tt.assetIn == tt.assetOut && tt.assetIn != "" {
-				// This would be caught by contract logic
-				t.Logf("Contract should reject same asset swap: %s", tt.description)
+				if instruction.AssetIn != instruction.AssetOut {
+					t.Errorf("same-asset case: AssetIn and AssetOut should match")
+				}
 			}
 		})
 	}

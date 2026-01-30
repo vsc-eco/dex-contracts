@@ -236,10 +236,13 @@ func TestDexReadModel_HandleEvent_RegisterPool_WithoutChains(t *testing.T) {
 	err := rm.HandleEvent(event)
 	require.NoError(t, err)
 
-	// VSC native assets should be recognized (HBD, HIVE)
-	// Since we can't query token registry in tests, assets won't be registered
-	// unless chain info is provided
-	// This tests the fallback behavior
+	// Pool should be created even without chain info (registerAsset does nothing when
+	// token registry can't be queried in unit tests)
+	pool, exists := rm.pools["HBD-HIVE"]
+	assert.True(t, exists, "pool HBD-HIVE should be created")
+	assert.Equal(t, "HBD", pool.Asset0)
+	assert.Equal(t, "HIVE", pool.Asset1)
+	assert.Equal(t, "HBD-HIVE", rm.dexContractToPool["dex-hbd-hive-123"])
 }
 
 func TestDexReadModel_GetSchema(t *testing.T) {

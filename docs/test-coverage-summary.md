@@ -1,8 +1,10 @@
 # Test Coverage Summary
 
+> **See [test-audit-report.md](./test-audit-report.md) for the latest comprehensive audit.**
+
 ## Test Results
 
-All tests passing ✅
+7 of 8 test packages passing ✅
 
 ### Indexer Service
 - **Coverage**: 52.3% of statements

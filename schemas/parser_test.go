@@ -1,6 +1,7 @@
 package schemas
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -216,6 +217,19 @@ func TestParseFromMemo(t *testing.T) {
 				Recipient:       "alice",
 			},
 		},
+		{
+			name:        "URL format with return_address (instruction-schema.md)",
+			memo:        "type=swap&version=1.0.0&asset_in=BTC&asset_out=HBD&recipient=alice&return_address.chain=ETH&return_address.address=0x123...",
+			expectError: false,
+			expected: &SwapInstruction{
+				InstructionType: "swap",
+				SchemaVersion:   "1.0.0",
+				AssetIn:         "BTC",
+				AssetOut:        "HBD",
+				Recipient:       "alice",
+				ReturnAddr:      &ReturnAddress{Chain: "ETH", Address: "0x123..."},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -234,6 +248,11 @@ func TestParseFromMemo(t *testing.T) {
 			assert.Equal(t, tt.expected.AssetIn, result.AssetIn)
 			assert.Equal(t, tt.expected.AssetOut, result.AssetOut)
 			assert.Equal(t, tt.expected.Recipient, result.Recipient)
+			if tt.expected.ReturnAddr != nil {
+				require.NotNil(t, result.ReturnAddr)
+				assert.Equal(t, tt.expected.ReturnAddr.Chain, result.ReturnAddr.Chain)
+				assert.Equal(t, tt.expected.ReturnAddr.Address, result.ReturnAddr.Address)
+			}
 		})
 	}
 }
@@ -249,6 +268,77 @@ func int64Ptr(i int64) *int64 {
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+func TestParseFromCustomJSON(t *testing.T) {
+	jsonData := `{"type":"swap","version":"1.0.0","asset_in":"BTC","asset_out":"HBD","recipient":"alice"}`
+	result, err := ParseFromCustomJSON([]byte(jsonData))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "swap", result.InstructionType)
+	assert.Equal(t, "1.0.0", result.SchemaVersion)
+	assert.Equal(t, "BTC", result.AssetIn)
+	assert.Equal(t, "HBD", result.AssetOut)
+	assert.Equal(t, "alice", result.Recipient)
+}
+
+func TestValidateInstructionStruct(t *testing.T) {
+	instruction := &SwapInstruction{
+		InstructionType: "swap",
+		SchemaVersion:   "1.0.0",
+		AssetIn:         "BTC",
+		AssetOut:        "HBD",
+		Recipient:       "alice",
+	}
+	err := ValidateInstructionStruct(instruction)
+	assert.NoError(t, err)
+}
+
+func TestSwapInstruction_Validate(t *testing.T) {
+	tests := []struct {
+		name        string
+		instruction SwapInstruction
+		expectError bool
+	}{
+		{"valid", SwapInstruction{InstructionType: "swap", SchemaVersion: "1.0.0", AssetIn: "BTC", AssetOut: "HBD", Recipient: "alice"}, false},
+		{"missing type", SwapInstruction{SchemaVersion: "1.0.0", AssetIn: "BTC", AssetOut: "HBD", Recipient: "alice"}, true},
+		{"missing version", SwapInstruction{InstructionType: "swap", AssetIn: "BTC", AssetOut: "HBD", Recipient: "alice"}, true},
+		{"missing asset_in", SwapInstruction{InstructionType: "swap", SchemaVersion: "1.0.0", AssetOut: "HBD", Recipient: "alice"}, true},
+		{"missing asset_out", SwapInstruction{InstructionType: "swap", SchemaVersion: "1.0.0", AssetIn: "BTC", Recipient: "alice"}, true},
+		{"missing recipient", SwapInstruction{InstructionType: "swap", SchemaVersion: "1.0.0", AssetIn: "BTC", AssetOut: "HBD"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.instruction.Validate()
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidationError_Error(t *testing.T) {
+	err := &ValidationError{Field: "type", Message: "type is required"}
+	assert.Equal(t, "type is required", err.Error())
+}
+
+func TestSwapInstruction_ToJSON(t *testing.T) {
+	instruction := SwapInstruction{
+		InstructionType: "swap",
+		SchemaVersion:   "1.0.0",
+		AssetIn:         "BTC",
+		AssetOut:        "HBD",
+		Recipient:       "alice",
+	}
+	data, err := instruction.ToJSON()
+	require.NoError(t, err)
+	assert.NotEmpty(t, data)
+	var parsed map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &parsed))
+	assert.Equal(t, "swap", parsed["type"])
+	assert.Equal(t, "alice", parsed["recipient"])
 }
 
 func TestValidateInstruction(t *testing.T) {

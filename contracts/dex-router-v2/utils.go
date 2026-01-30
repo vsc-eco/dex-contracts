@@ -3,6 +3,7 @@ package main
 import (
 	sdk "dex-router-v2/sdk"
 	"strconv"
+	"strings"
 )
 
 // Keys for state storage
@@ -14,6 +15,12 @@ const (
 	keyReturnPrefix  = "return_request/" // return_request/{tx_id}
 	keyAssetPrefix   = "asset/"       // asset/{symbol} -> chain
 	keyChainsList    = "chains"       // comma-separated list of supported chains
+)
+
+// Supported chains for native tokens (HIVE for HIVE/HBD, MAGI for future MAGI native tokens)
+const (
+	chainHIVE = "HIVE"
+	chainMAGI = "MAGI"
 )
 
 // State helpers
@@ -72,34 +79,20 @@ func setPoolState(poolId string, state PoolInfo) {
 	setStr(stateKey, "cached")
 }
 
-// Asset registry helpers for schema generation
+// Asset registry helpers - tokens MUST be registered before pools can use them
 func assetKey(asset string) string {
 	return keyAssetPrefix + asset
 }
 
-// registerAssetForSchema registers an asset and its chain for schema generation
-// Chain should be provided from mapping contracts or token registry
-// This function stores the chain info but doesn't determine it
-func registerAssetForSchema(asset string) {
-	// If asset already registered, skip
-	if getStr(assetKey(asset)) != "" {
-		return
-	}
+// isAssetRegistered returns true if the asset has been registered in the token registry
+func isAssetRegistered(asset string) bool {
+	return getStr(assetKey(asset)) != ""
+}
 
-	// Try to get chain - if not found, attempt to determine
-	// In production, chain should come from:
-	// 1. Mapping contract registration (utxo-mapping pattern)
-	// 2. Token registry with chain metadata
-	// 3. Pool registration payload with explicit chain
-	chain := getAssetChain(asset)
-	
-	// Only register if we have a valid chain
-	// Unknown assets will need to be registered via mapping contracts first
-	if chain != "" {
-		setStr(assetKey(asset), chain)
-		updateChainsList(chain)
-	}
-	// If chain is empty, asset needs to be registered via mapping contract first
+// storeAssetChain stores the chain for an asset. Called by register_token export.
+func storeAssetChain(asset string, chain string) {
+	setStr(assetKey(asset), chain)
+	updateChainsList(chain)
 }
 
 // updateChainsList adds a chain to the supported chains list if not already present
@@ -124,30 +117,44 @@ func updateChainsList(chain string) {
 	}
 }
 
-// getAssetChain returns the blockchain chain for a given asset symbol
-// Chains are determined dynamically from registered assets, not hardcoded
-// For cross-chain assets, chain info comes from mapping contracts (utxo-mapping pattern)
-// For VSC native tokens, chain is "HIVE" (determined by checking if ContractId == nil in token registry)
-// If asset not found, returns empty string (caller should handle)
+// getAssetChain returns the blockchain chain for a given asset symbol.
+// Returns empty string if asset is not registered - tokens MUST be registered
+// via register_token before pools can use them.
 func getAssetChain(asset string) string {
-	// First, check if we've stored chain info for this asset
-	chain := getStr(assetKey(asset))
-	if chain != "" {
-		return chain
-	}
+	return getStr(assetKey(asset))
+}
 
-	// TODO: Query token registry to check if asset is native VSC token
-	// In WASM contract, we could:
-	// 1. Call token registry contract to check if ContractId == nil
-	// 2. Store native asset list in contract state
-	// 3. Receive chain info from pool registration
-	
-	// For now, return empty - chain must be provided via:
-	// 1. Pool registration with explicit chain (asset0_chain, asset1_chain)
-	// 2. Previous registration from mapping contract
-	// 3. Token registry query (if we add contract call capability)
-	
-	// Unknown asset - return empty to indicate it needs registration
-	// Caller should provide chain via pool registration or query token registry
-	return ""
+// contractCallOptionsWithUserIntents clones the user's intents from the current env into
+// ContractCallOptions. Intents don't pass through inter-contract calls by default, so when
+// router calls dex (user->router->dex), the dex can't spend user funds without this.
+// Returns nil if no intents (e.g. for get_pool queries).
+func contractCallOptionsWithUserIntents() *sdk.ContractCallOptions {
+	env := sdk.GetEnv()
+	if len(env.Intents) == 0 {
+		return nil
+	}
+	// Clone intents - shallow copy is sufficient since Args maps are read-only
+	intents := make([]sdk.Intent, len(env.Intents))
+	for i := range env.Intents {
+		intents[i] = env.Intents[i]
+	}
+	return &sdk.ContractCallOptions{Intents: intents}
+}
+
+// splitChains parses comma-separated chains list, deduplicates and returns
+func splitChains(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	seen := make(map[string]bool)
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" && !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	return out
 }

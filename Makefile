@@ -9,7 +9,7 @@ WASM_FLAGS		:= -gc=custom -scheduler=none -panic=trap -no-debug -target=wasm-unk
 TINYJSON		:= $(BIN_DIR)/tinyjson
 TINYJSON_FLAGS	:= -snake_case -no_std_marshalers -pkg
 
-.PHONY: test build clean contracts services sdk tinyjson
+.PHONY: test build clean contracts services sdk tinyjson contracts-test
 
 # Test all components
 test:
@@ -51,7 +51,13 @@ contracts:
 			( \
 				cd $$dir && \
 				$(TINYGO) build $(WASM_FLAGS) \
-					-o $(ARTIFACTS_DIR)/$$wasm_file . \
+					-o $(ARTIFACTS_DIR)/$$name.wasm . \
+			) && ( \
+				if [ "$$name" = "dex-router" ]; then \
+					mkdir -p $$dir/artifacts && \
+					cp $(ARTIFACTS_DIR)/$$name.wasm $$dir/artifacts/main.wasm && \
+					echo "  → copied to $$dir/artifacts/main.wasm"; \
+				fi \
 			) || echo "  ⚠️  Failed to build $$name (continuing)"; \
 		fi; \
 	done
@@ -146,6 +152,14 @@ tinyjson:
 			rm -rf "$$dir/.tinyjson-tmp" 2>/dev/null; \
 		fi; \
 	done
+
+# Build contracts with TinyGo and run tests that load the WASM
+# -count=1 disables test cache so embed picks up freshly built artifacts
+contracts-test: contracts
+	go test -v -count=1 ./tests/...
+	@echo "Running dex-router integration tests (TestDexRouterInit) with freshly built WASM..."
+	cd contracts/dex-router && go test -v -count=1 -run TestDexRouterInit ./...
+	@echo "✅ All artifact-dependent tests passed with freshly built WASM"
 
 # Clean build artifacts
 clean:

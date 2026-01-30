@@ -39,31 +39,31 @@ VSC native assets are determined by checking the **token registry**:
    - Or query token registry if accessible
    - **Future-proof**: New native tokens automatically recognized via token registry
 
-### 3. Pool Registration
+### 3. Token Registration (Required First)
 
-When registering a pool, you can optionally provide chain information:
+**Tokens MUST be registered before any pool can use them.** Call `register_token` first:
+
+```json
+{"symbol": "HBD", "chain": "HIVE"}
+{"symbol": "HIVE", "chain": "HIVE"}
+{"symbol": "BTC", "chain": "BTC"}
+```
+
+Supported chains: **HIVE** (for HIVE/HBD native), **MAGI** (for MAGI native tokens), **BTC**, **ETH**, **SOL**, **SUI**.
+
+### 4. Pool Registration
+
+After tokens are registered, register the pool:
 
 ```json
 {
   "asset0": "BTC",
   "asset1": "HBD",
-  "dex_contract_id": "dex-btc-hbd-123",
-  "asset0_chain": "BTC",  // Optional: from mapping contract
-  "asset1_chain": "HIVE"  // Optional: VSC native
+  "dex_contract_id": "dex-btc-hbd-123"
 }
 ```
 
-If chains are not provided, the system:
-1. **Router Service** (during pool registration):
-   - Checks if asset is already registered (from mapping contract or previous pool)
-   - Queries token registry: `IsNativeAsset(asset)` → checks if `ContractId == nil`
-   - If native, sets chain to "HIVE" automatically
-   - Includes chain in pool registration event
-2. **Contract/Indexer**:
-   - Receives chain info from pool registration event
-   - Stores asset → chain mapping
-   - Updates schema dynamically
-3. **Fallback**: Returns empty if unknown (asset needs mapping contract or token registry registration first)
+Pool registration will **reject** if either asset is not registered. Chain info is stored when tokens are registered via `register_token`.
 
 ## Implementation Details
 
@@ -107,33 +107,27 @@ To add a new chain (e.g., SUI):
 
 ### Adding VSC Native Tokens
 
-To add new VSC native tokens:
+To add new VSC native tokens (HIVE chain or MAGI chain):
 
-1. **Register in Token Registry**: Use `RegisterToken()` with `ContractId = nil`
-   ```go
-   tokenRegistry.RegisterToken("NEW_TOKEN", 3, nil, "Description")
+1. **Register via `register_token`**:
+   ```json
+   {"symbol": "NEW_TOKEN", "chain": "HIVE"}
    ```
-   - `ContractId = nil` marks it as native VSC token
-   - Router service automatically recognizes via `IsNativeAsset()`
+   For MAGI native tokens:
+   ```json
+   {"symbol": "MAGI_TOKEN", "chain": "MAGI"}
+   ```
 
-2. **Create Pool**: Register pool with new token
+2. **Create Pool**: Register pool with new token (both assets must be registered first)
    ```json
    {
      "asset0": "NEW_TOKEN",
      "asset1": "HBD",
      "dex_contract_id": "dex-newtoken-hbd-123"
-     // asset0_chain optional - router will auto-detect as "HIVE"
    }
    ```
 
-3. **Automatic Recognition**: 
-   - Router queries token registry during pool registration
-   - `IsNativeAsset("NEW_TOKEN")` returns true (ContractId == nil)
-   - Chain automatically set to "HIVE"
-   - Pool registration event includes chain info
-   - Schema updates automatically
-
-**No hardcoding required** - fully dynamic based on token registry. Any new VSC native token registered with `ContractId = nil` is automatically recognized.
+**Enforcement**: Pools cannot use unregistered tokens. Call `register_token` before `register_pool`.
 
 ## Best Practices
 

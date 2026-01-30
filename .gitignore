@@ -1,0 +1,15 @@
+# Binaries
+*.wasm
+bin/*.wasm
+
+# Build artifacts (nested paths from Makefile)
+artifacts/home/
+
+# Contract runtime data
+contracts/*/data/
+
+# Go
+*.exe
+*.test
+*.out
+coverage.out

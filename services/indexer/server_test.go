@@ -259,3 +259,203 @@ func TestServer_handleGetSchema_NoReader(t *testing.T) {
 	// Should return error
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+// TestServer_handleGetPoolAccounts tests GET /api/v1/pools/{id}/accounts (indexer-api.md)
+func TestServer_handleGetPoolAccounts(t *testing.T) {
+	svc := NewService("http://localhost:4000", ":8081")
+	dexReader := svc.readers[0].(*DexReadModel)
+
+	// Create pool and add liquidity positions via legacy events (user journey from docs)
+	svc.readers[0].(*DexReadModel).HandleEvent(VSCEvent{
+		Type:     "contract_output",
+		Contract: "dex-router",
+		Method:   "pool_created",
+		Args:     json.RawMessage(`{"pool_id":"1","asset0":"HBD","asset1":"HIVE","fee":0.08}`),
+	})
+	dexReader.HandleEvent(VSCEvent{
+		Type:     "contract_output",
+		Contract: "dex-router",
+		Method:   "liquidity_added",
+		Args:     json.RawMessage(`{"pool_id":"1","amount0":500000,"amount1":250000,"lp_tokens":353553,"user":"alice"}`),
+	})
+	dexReader.HandleEvent(VSCEvent{
+		Type:     "contract_output",
+		Contract: "dex-router",
+		Method:   "liquidity_added",
+		Args:     json.RawMessage(`{"pool_id":"1","amount0":500000,"amount1":250000,"lp_tokens":353553,"user":"bob"}`),
+	})
+
+	server := NewServer(svc, "8081")
+	req := httptest.NewRequest("GET", "/api/v1/pools/1/accounts", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "1"})
+	w := httptest.NewRecorder()
+
+	server.handleGetPoolAccounts(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var resp map[string]interface{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, "1", resp["pool_id"])
+	accounts, ok := resp["accounts"].([]interface{})
+	require.True(t, ok)
+	assert.Len(t, accounts, 2)
+}
+
+// TestServer_handleGetPoolAccounts_NotFound tests 404 for non-existent pool
+func TestServer_handleGetPoolAccounts_NotFound(t *testing.T) {
+	svc := NewService("http://localhost:4000", ":8081")
+	server := NewServer(svc, "8081")
+
+	req := httptest.NewRequest("GET", "/api/v1/pools/nonexistent/accounts", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "nonexistent"})
+	w := httptest.NewRecorder()
+
+	server.handleGetPoolAccounts(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// TestServer_handleGetPoolRichList_NotFound tests 404 for non-existent pool
+func TestServer_handleGetPoolRichList_NotFound(t *testing.T) {
+	svc := NewService("http://localhost:4000", ":8081")
+	server := NewServer(svc, "8081")
+
+	req := httptest.NewRequest("GET", "/api/v1/pools/nonexistent/richlist", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "nonexistent"})
+	w := httptest.NewRecorder()
+
+	server.handleGetPoolRichList(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// TestServer_handleGetPoolRichList tests GET /api/v1/pools/{id}/richlist (indexer-api.md)
+func TestServer_handleGetPoolRichList(t *testing.T) {
+	svc := NewService("http://localhost:4000", ":8081")
+	dexReader := svc.readers[0].(*DexReadModel)
+
+	dexReader.HandleEvent(VSCEvent{
+		Type:     "contract_output",
+		Contract: "dex-router",
+		Method:   "pool_created",
+		Args:     json.RawMessage(`{"pool_id":"1","asset0":"HBD","asset1":"HIVE","fee":0.08}`),
+	})
+	dexReader.HandleEvent(VSCEvent{
+		Type:     "contract_output",
+		Contract: "dex-router",
+		Method:   "liquidity_added",
+		Args:     json.RawMessage(`{"pool_id":"1","amount0":500000,"amount1":250000,"lp_tokens":353553,"user":"alice"}`),
+	})
+	dexReader.HandleEvent(VSCEvent{
+		Type:     "contract_output",
+		Contract: "dex-router",
+		Method:   "liquidity_added",
+		Args:     json.RawMessage(`{"pool_id":"1","amount0":500000,"amount1":250000,"lp_tokens":353553,"user":"bob"}`),
+	})
+
+	server := NewServer(svc, "8081")
+	req := httptest.NewRequest("GET", "/api/v1/pools/1/richlist?offset=0&limit=50", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "1"})
+	w := httptest.NewRecorder()
+
+	server.handleGetPoolRichList(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]interface{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, "1", resp["pool_id"])
+	assert.Equal(t, float64(0), resp["offset"])
+	assert.Equal(t, float64(50), resp["limit"])
+	holders, ok := resp["holders"].([]interface{})
+	require.True(t, ok)
+	assert.GreaterOrEqual(t, len(holders), 1)
+}
+
+// TestServer_handleGetTransactions tests GET /api/v1/transactions (indexer-api.md)
+func TestServer_handleGetTransactions(t *testing.T) {
+	svc := NewService("http://localhost:4000", ":8081")
+	dexReader := svc.readers[0].(*DexReadModel)
+
+	dexReader.HandleEvent(VSCEvent{
+		Type:     "contract_output",
+		Contract: "dex-router",
+		Method:   "pool_created",
+		Args:     json.RawMessage(`{"pool_id":"1","asset0":"HBD","asset1":"HIVE","fee":0.08}`),
+	})
+	dexReader.HandleEvent(VSCEvent{
+		Type:        "contract_output",
+		Contract:    "dex-router",
+		Method:      "swap_executed",
+		BlockHeight: 1001,
+		TxID:        "tx-swap-123",
+		Args:        json.RawMessage(`{"pool_id":"1","amount0":-10000,"amount1":5000}`),
+	})
+
+	server := NewServer(svc, "8081")
+
+	// Get all transactions
+	req := httptest.NewRequest("GET", "/api/v1/transactions", nil)
+	w := httptest.NewRecorder()
+	server.handleGetTransactions(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]interface{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	txs, ok := resp["transactions"].([]interface{})
+	require.True(t, ok)
+	assert.GreaterOrEqual(t, len(txs), 1)
+	assert.GreaterOrEqual(t, int(resp["count"].(float64)), 1)
+
+	// Filter by type=swap (indexer-api.md: type filter)
+	req2 := httptest.NewRequest("GET", "/api/v1/transactions?type=swap&limit=10", nil)
+	w2 := httptest.NewRecorder()
+	server.handleGetTransactions(w2, req2)
+	assert.Equal(t, http.StatusOK, w2.Code)
+
+	// Filter by pool_id (indexer-api.md: pool_id filter)
+	req3 := httptest.NewRequest("GET", "/api/v1/transactions?pool_id=1&limit=5", nil)
+	w3 := httptest.NewRecorder()
+	server.handleGetTransactions(w3, req3)
+	assert.Equal(t, http.StatusOK, w3.Code)
+}
+
+// TestServer_handleGetTransaction tests GET /api/v1/transactions/{id} (indexer-api.md)
+func TestServer_handleGetTransaction(t *testing.T) {
+	svc := NewService("http://localhost:4000", ":8081")
+	dexReader := svc.readers[0].(*DexReadModel)
+
+	dexReader.HandleEvent(VSCEvent{
+		Type:        "contract_output",
+		Contract:    "dex-router",
+		Method:      "swap_executed",
+		BlockHeight: 1002,
+		TxID:        "tx-lookup-456",
+		Args:        json.RawMessage(`{"pool_id":"1","amount0":-5000,"amount1":2500}`),
+	})
+
+	server := NewServer(svc, "8081")
+	req := httptest.NewRequest("GET", "/api/v1/transactions/tx-lookup-456", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "tx-lookup-456"})
+	w := httptest.NewRecorder()
+
+	server.handleGetTransaction(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var tx TransactionInfo
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&tx))
+	assert.Equal(t, "tx-lookup-456", tx.ID)
+	assert.Equal(t, uint64(1002), tx.BlockHeight)
+}
+
+// TestServer_handleGetTransaction_NotFound tests 404 for non-existent transaction
+func TestServer_handleGetTransaction_NotFound(t *testing.T) {
+	svc := NewService("http://localhost:4000", ":8081")
+	server := NewServer(svc, "8081")
+
+	req := httptest.NewRequest("GET", "/api/v1/transactions/nonexistent-tx", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "nonexistent-tx"})
+	w := httptest.NewRecorder()
+
+	server.handleGetTransaction(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}

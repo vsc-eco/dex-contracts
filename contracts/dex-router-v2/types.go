@@ -1,12 +1,16 @@
 package main
 
 //tinyjson:json
+type RegisterTokenParams struct {
+	Symbol string `json:"symbol"`
+	Chain  string `json:"chain"` // HIVE, MAGI, BTC, ETH, etc.
+}
+
+//tinyjson:json
 type RegisterPoolParams struct {
-	Asset0        string  `json:"asset0"`
-	Asset1        string  `json:"asset1"`
-	DexContractId string  `json:"dex_contract_id"`
-	Asset0Chain   *string `json:"asset0_chain,omitempty"` // Optional: chain for asset0 (from mapping contract)
-	Asset1Chain   *string `json:"asset1_chain,omitempty"` // Optional: chain for asset1 (from mapping contract)
+	Asset0        string `json:"asset0"`
+	Asset1        string `json:"asset1"`
+	DexContractId string `json:"dex_contract_id"`
 }
 
 //tinyjson:json

@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -90,11 +91,12 @@ func (s *Server) handleComputeRoute(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// handleExecuteInstruction handles instruction-based swap requests
+// handleExecuteInstruction handles instruction-based swap requests (instruction-schema.md)
+// Accepts instruction as JSON object: {"instruction": {"type":"swap",...}, "amountIn": 1000000}
 func (s *Server) handleExecuteInstruction(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Instruction []byte `json:"instruction"`
-		AmountIn    int64   `json:"amountIn"`
+		Instruction json.RawMessage `json:"instruction"`
+		AmountIn    int64           `json:"amountIn"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -102,7 +104,9 @@ func (s *Server) handleExecuteInstruction(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if len(req.Instruction) == 0 {
+	// Empty, null, or whitespace-only instruction
+	trimmed := bytes.TrimSpace(req.Instruction)
+	if len(trimmed) == 0 || string(trimmed) == `""` || string(trimmed) == `null` {
 		http.Error(w, "instruction is required", http.StatusBadRequest)
 		return
 	}
@@ -112,8 +116,8 @@ func (s *Server) handleExecuteInstruction(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Parse and convert instruction to SwapParams
-	params, err := ParseAndConvertInstruction(req.Instruction, req.AmountIn)
+	// Parse and convert instruction to SwapParams (instruction is raw JSON bytes)
+	params, err := ParseAndConvertInstruction([]byte(req.Instruction), req.AmountIn)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to process instruction: %v", err), http.StatusBadRequest)
 		return

@@ -92,9 +92,9 @@ func TestFeeCalculations(t *testing.T) {
 		expectedNet uint64
 	}{
 		{"No fee", 100000, 0, 0, 100000},
-		{"0.08% fee", 100000, 8, 8, 99992},
-		{"0.5% fee", 100000, 50, 50, 99950},
-		{"1% fee", 100000, 100, 100, 99900},
+		{"0.08% fee", 100000, 8, 80, 99920},
+		{"0.5% fee", 100000, 50, 500, 99500},
+		{"1% fee", 100000, 100, 1000, 99000},
 		{"10% fee", 100000, 1000, 10000, 90000},
 	}
 
@@ -173,8 +173,8 @@ func TestJSONValidation(t *testing.T) {
 				"asset_in": "HBD",
 				"recipient": "alice"
 			}`,
-			true,
-			"missing required fields",
+			false, // JSON parsing succeeds, validation happens later
+			"",
 		},
 		{
 			"Invalid JSON",
@@ -191,8 +191,8 @@ func TestJSONValidation(t *testing.T) {
 				"asset_out": "HIVE",
 				"recipient": "alice"
 			}`,
-			true,
-			"unknown instruction type",
+			false, // JSON parsing succeeds, validation happens later
+			"",
 		},
 	}
 
@@ -212,11 +212,15 @@ func TestJSONValidation(t *testing.T) {
 					t.Errorf("Unexpected error parsing JSON: %v", err)
 				}
 
-				// Test required field validation logic
-				if instruction.Type == "" || instruction.Version == "" ||
-					instruction.AssetIn == "" || instruction.AssetOut == "" ||
-					instruction.Recipient == "" {
+				// For valid instructions, verify required fields are present
+				hasRequiredFields := instruction.Type != "" && instruction.Version != "" &&
+					instruction.AssetIn != "" && instruction.AssetOut != "" &&
+					instruction.Recipient != ""
+				if tt.name == "Valid swap instruction" && !hasRequiredFields {
 					t.Errorf("Required fields validation should pass for valid instruction")
+				}
+				if tt.name == "Missing required field" && hasRequiredFields {
+					t.Errorf("Instruction with missing field should fail validation")
 				}
 			}
 		})
@@ -266,7 +270,8 @@ func TestLiquidityMath(t *testing.T) {
 func TestMathFunctions(t *testing.T) {
 	t.Run("sqrt128", func(t *testing.T) {
 		// Test sqrt(1000000 * 500000) = sqrt(500000000000) ≈ 707106
-		result := sqrt128(500000000000, 0)
+		// sqrt128(hi, lo) - 500000000000 fits in 64 bits, so hi=0
+		result := sqrt128(0, 500000000000)
 		expected := uint64(707106)
 
 		if result != expected {
