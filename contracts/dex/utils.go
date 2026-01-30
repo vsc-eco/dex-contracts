@@ -4,20 +4,28 @@ import (
 	sdk "dex/sdk"
 	"math/bits"
 	"strconv"
+
+	. "dex/dex-internal"
 )
 
 // Keys for state storage
 const (
-	keyAsset0      = "asset0"
-	keyAsset1      = "asset1"
-	keyReserve0    = "reserve0"
-	keyReserve1    = "reserve1"
-	keyFee         = "fee"
-	keyTotalLP     = "total_lp"
-	keyLpPrefix    = "lp/" // lp/{address}
-	keyFee0        = "fee0"
-	keyFee1        = "fee1"
-	keyFeeLastClaim = "fee_last_claim"
+	keyAsset0                       = "asset0"
+	keyAsset1                       = "asset1"
+	keyReserve0                     = "reserve0"
+	keyReserve1                     = "reserve1"
+	keyFee                          = "fee"
+	keyTotalLP                      = "total_lp"
+	keyLpPrefix                     = "lp/" // lp/{address}
+	keyFee0                         = "fee0"
+	keyFee1                         = "fee1"
+	keyFeeLastClaim                 = "fee_last_claim"
+	keyRouterAssetPrefix            = "asset/"
+	keyMappingContractBalancePrefix = "bal/"
+)
+
+const (
+	JSON_ERROR = "json_error"
 )
 
 const (
@@ -51,12 +59,26 @@ func setUint(key string, val uint64) {
 }
 
 // Pool state helpers
-func getAsset0() string {
-	return getStr(keyAsset0)
+func getAsset0() (Asset, error) {
+	assetStr := getStr(keyAsset0)
+
+	asset0, err := AssetFromJson(assetStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return asset0, nil
 }
 
-func getAsset1() string {
-	return getStr(keyAsset1)
+func getAsset1() (Asset, error) {
+	assetStr := getStr(keyAsset1)
+
+	asset1, err := AssetFromJson(assetStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return asset1, nil
 }
 
 func getReserve0() uint64 {
@@ -117,7 +139,7 @@ func min64(a, b uint64) uint64 {
 
 func contractAssert(cond bool) {
 	if !cond {
-		panic("assertion failed")
+		sdk.Abort("assertion failed")
 	}
 }
 
@@ -132,13 +154,14 @@ func isSystemSender() bool {
 	return false
 }
 
-// Token adapter wrappers
-func drawAsset(amount int64, asset string) {
-	sdk.HiveDraw(amount, sdk.Asset(asset))
-}
-
-func transferAsset(to string, amount int64, asset string) {
-	sdk.HiveTransfer(sdk.Address(to), amount, sdk.Asset(asset))
+func isValidAsset(s string) bool {
+	a := sdk.Asset(s)
+	switch a {
+	case sdk.AssetHive, sdk.AssetHiveCons, sdk.AssetHbd, sdk.AssetHbdSavings:
+		return true
+	default:
+		return false
+	}
 }
 
 // Check if asset is HBD

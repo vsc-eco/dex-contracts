@@ -71,9 +71,9 @@ Pool registration will **reject** if either asset is not registered. Chain info 
 
 **File**: `contracts/dex-router-v2/main.go`
 
-- `RegisterPool()` accepts optional `asset0_chain` and `asset1_chain`
-- Stores asset → chain mappings
-- Updates supported chains list dynamically
+- `RegisterPool()` requires both assets to be registered via `register_token` first
+- Rejects pool registration if either asset is not in the token registry
+- Chain info comes from token registry (set by `register_token`)
 
 ### Indexer
 

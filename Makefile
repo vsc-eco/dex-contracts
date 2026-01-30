@@ -1,6 +1,5 @@
 ROOT_DIR := $(abspath .)
 BIN_DIR			:= $(ROOT_DIR)/bin
-ARTIFACTS_DIR	:= $(ROOT_DIR)/artifacts
 CONTRACTS_DIR	:= contracts
 
 TINYGO			:= tinygo
@@ -34,12 +33,12 @@ sdk:
 
 # Build contracts
 contracts:
-	@mkdir -p $(ARTIFACTS_DIR)
+	@mkdir -p $(BIN_DIR)
 	@set +e; \
 	for dir in $(CONTRACTS_DIR)/*; do \
 		if [ -d "$$dir" ] && [ -f "$$dir/main.go" ]; then \
 			name=$$(basename $$dir); \
-			wasm_file="$(ARTIFACTS_DIR)/$$name.wasm"; \
+			wasm_file="$(BIN_DIR)/$$name.wasm"; \
 			\
 			# Check if wasm exists and find if any file in 'dir' is newer \
 			if [ -f "$$wasm_file" ] && [ -z "$$(find $$dir -type f -newer $$wasm_file)" ]; then \
@@ -51,11 +50,12 @@ contracts:
 			( \
 				cd $$dir && \
 				$(TINYGO) build $(WASM_FLAGS) \
-					-o $(ARTIFACTS_DIR)/$$name.wasm . \
+					-o $$wasm_file . && \
+				echo "  ✅ $$name compiled"; \
 			) && ( \
 				if [ "$$name" = "dex-router" ]; then \
 					mkdir -p $$dir/artifacts && \
-					cp $(ARTIFACTS_DIR)/$$name.wasm $$dir/artifacts/main.wasm && \
+					cp $$wasm_file $$dir/artifacts/main.wasm && \
 					echo "  → copied to $$dir/artifacts/main.wasm"; \
 				fi \
 			) || echo "  ⚠️  Failed to build $$name (continuing)"; \
@@ -146,7 +146,7 @@ tinyjson:
 			done && \
 			cd .. && \
 			rm -rf .tinyjson-tmp); then \
-			echo "  ✅  tinyjson created for $$dir" \
+			echo "  ✅  tinyjson created for $$dir" ; \
 		else \
 			echo "  ⚠️  tinyjson failed for $$dir (continuing)"; \
 			rm -rf "$$dir/.tinyjson-tmp" 2>/dev/null; \

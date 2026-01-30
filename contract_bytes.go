@@ -5,24 +5,24 @@ import (
 	"fmt"
 )
 
-//go:embed artifacts
+//go:embed bin
 var artifactsFS embed.FS
 
-const artifactsDir = "artifacts"
+const artifactsDir = "bin"
 
 // Pre-loaded byte arrays (nil if file doesn't exist at package init)
 var (
 	DexRouterV2Wasm []byte
 	DexRouterWasm   []byte
 	DexWasm         []byte
-	BtcMappingWasm  []byte
+	BTCMappingWasm  []byte
 )
 
 func init() {
 	DexRouterV2Wasm, _ = loadWasmFile("dex-router-v2.wasm")
 	DexRouterWasm, _ = loadWasmFile("dex-router.wasm")
 	DexWasm, _ = loadWasmFile("dex.wasm")
-	BtcMappingWasm, _ = loadWasmFile("btc-mapping.wasm")
+	BTCMappingWasm, _ = loadWasmFile("btc-mapping.wasm")
 }
 
 // loadWasmFile reads a WASM file from the embedded artifacts directory

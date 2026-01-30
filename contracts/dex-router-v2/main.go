@@ -2,7 +2,11 @@ package main
 
 import (
 	sdk "dex-router-v2/sdk"
+	"encoding/json"
 	"strconv"
+	"strings"
+
+	. "dex-router-v2/router-internal"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
 )
@@ -23,7 +27,7 @@ func Init(payload *string) *string {
 }
 
 // Register a token in the token registry. MUST be called before any pool can use the token.
-// Payload: JSON {"symbol": "HBD", "chain": "HIVE"} or {"symbol": "BTC", "chain": "BTC"}
+// Payload: JSON {"name": "HBD", "chain": "HIVE"} or {"name": "BTC", "chain": "BTC"}
 // Chains: HIVE (for HIVE/HBD native), MAGI (for MAGI native tokens), BTC, ETH, etc. (for mapped assets)
 //
 //go:wasmexport register_token
@@ -37,8 +41,12 @@ func RegisterToken(payload *string) *string {
 		return &[]string{"error", "invalid payload"}[1]
 	}
 
-	if params.Symbol == "" || params.Chain == "" {
-		return &[]string{"error", "symbol and chain required"}[1]
+	name := params.Name
+	if name == "" {
+		return &[]string{"error", "name required"}[1]
+	}
+	if params.Chain == "" {
+		return &[]string{"error", "chain required"}[1]
 	}
 
 	// Validate chain - support HIVE, MAGI, and common mapped chains
@@ -50,7 +58,19 @@ func RegisterToken(payload *string) *string {
 		return &[]string{"error", "unsupported chain: " + params.Chain}[1]
 	}
 
-	storeAssetChain(params.Symbol, params.Chain)
+	// Normalize name to uppercase for storage key consistency
+	name = strings.ToUpper(name)
+
+	if isAssetRegistered(name) {
+		return &[]string{"error", "asset already registered"}[1]
+	}
+
+	info, err := json.Marshal(params.TokenInfo)
+	if err != nil {
+		return &[]string{"error", "error marshaling token info"}[1]
+	}
+	setStr(assetKey(name), string(info))
+	updateChainsList(params.Chain)
 	return nil
 }
 
@@ -710,7 +730,6 @@ func GetSchema(payload *string) *string {
 	chainsStr := getStr(keyChainsList)
 	chains := []string{"BTC", "ETH", "SOL", chainHIVE, chainMAGI} // Default chains (HIVE, MAGI for native tokens)
 	if chainsStr != "" {
-		// Parse chains from registry (comma-separated)
 		parts := splitChains(chainsStr)
 		if len(parts) > 0 {
 			chains = parts

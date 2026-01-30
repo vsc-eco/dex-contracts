@@ -1,10 +1,4 @@
-package main
-
-//tinyjson:json
-type RegisterTokenParams struct {
-	Symbol string `json:"symbol"`
-	Chain  string `json:"chain"` // HIVE, MAGI, BTC, ETH, etc.
-}
+package routerinternal
 
 //tinyjson:json
 type RegisterPoolParams struct {
@@ -54,6 +48,19 @@ type PoolInfo struct {
 	Reserve1 uint64 `json:"reserve1"`
 	Fee      uint64 `json:"fee"`
 	TotalLp  uint64 `json:"total_lp"`
+}
+
+//tinyjson:json
+type TokenInfo struct {
+	MappingContract string `json:"mapping_contract,omitempty"`
+	Chain           string `json:"chain"` // HIVE, MAGI, BTC, ETH, etc.
+	Description     string `json:"description,omitempty"`
+}
+
+//tinyjson:json
+type RegisterTokenParams struct {
+	Name string `json:"name"`
+	TokenInfo
 }
 
 //tinyjson:json

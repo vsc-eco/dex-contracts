@@ -2,7 +2,10 @@ package main
 
 import (
 	sdk "dex/sdk"
+	"fmt"
 	"math/bits"
+
+	. "dex/dex-internal"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
 )
@@ -16,17 +19,35 @@ func main() {}
 //go:wasmexport init
 func Init(payload *string) *string {
 	if payload == nil {
-		return &[]string{"error", "payload required"}[1]
+		sdk.Abort("payload required")
 	}
 
 	var params InitParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
-		return &[]string{"error", "invalid payload"}[1]
+		sdk.Revert("invalid payload", JSON_ERROR)
 	}
 
 	// Validate assets are different
 	if params.Asset0 == params.Asset1 {
-		return &[]string{"error", "assets must be different"}[1]
+		sdk.Abort("assets must be different")
+	}
+
+	asset0, err := NewAsset(params.Asset0, params.Asset0MappingContract)
+	if err != nil {
+		sdk.Abort(err.Error())
+	}
+	asset1, err := NewAsset(params.Asset1, params.Asset1MappingContract)
+	if err != nil {
+		sdk.Abort(err.Error())
+	}
+
+	asset0json, err := tinyjson.Marshal(asset0)
+	if err != nil {
+		sdk.Revert(fmt.Sprintf("invalid asset, error: %s", err.Error()), JSON_ERROR)
+	}
+	asset1json, err := tinyjson.Marshal(asset1)
+	if err != nil {
+		sdk.Revert(fmt.Sprintf("invalid asset, error: %s", err.Error()), JSON_ERROR)
 	}
 
 	// Default fee if not specified
@@ -35,8 +56,8 @@ func Init(payload *string) *string {
 	}
 
 	// Initialize pool state
-	setAsset0(params.Asset0)
-	setAsset1(params.Asset1)
+	setAsset0(string(asset0json))
+	setAsset1(string(asset1json))
 	setReserve0(0)
 	setReserve1(0)
 	setFee(params.FeeBps)
@@ -68,11 +89,13 @@ func Swap(payload *string) *string {
 		return &[]string{"error", "missing required fields"}[1]
 	}
 
-	asset0 := getAsset0()
-	asset1 := getAsset1()
-
-	if asset0 == "" {
-		return &[]string{"error", "pool not initialized"}[1]
+	asset0, err := getAsset0()
+	if err != nil {
+		sdk.Abort("pool not initialized")
+	}
+	asset1, err := getAsset1()
+	if err != nil {
+		sdk.Abort("pool not initialized")
 	}
 
 	r0 := getReserve0()
@@ -85,10 +108,10 @@ func Swap(payload *string) *string {
 
 	// Determine swap direction and calculate output
 	var amountOut uint64
-	var inputAsset, outputAsset string
+	var inputAsset, outputAsset Asset
 	var feeReserveKey string
 
-	if asset0 == params.AssetIn && asset1 == params.AssetOut {
+	if asset0.Name() == params.AssetIn && asset1.Name() == params.AssetOut {
 		// asset0 -> asset1
 		inputAsset = asset0
 		outputAsset = asset1
@@ -107,7 +130,7 @@ func Swap(payload *string) *string {
 		setReserve0(newR0)
 		setReserve1(r1 - amountOut)
 
-	} else if asset1 == params.AssetIn && asset0 == params.AssetOut {
+	} else if asset1.Name() == params.AssetIn && asset0.Name() == params.AssetOut {
 		// asset1 -> asset0
 		inputAsset = asset1
 		outputAsset = asset0
@@ -134,8 +157,9 @@ func Swap(payload *string) *string {
 		}
 	}
 
-	// Draw input asset and transfer output asset
-	drawAsset(int64(params.AmountIn), inputAsset)
+	maybeEnv := MaybeEnv{}
+
+	inputAsset.DrawAsset(params.AmountIn, maybeEnv)
 
 	// Handle referral fees
 	if params.Beneficiary != nil && params.RefBps != nil {
@@ -145,14 +169,17 @@ func Swap(payload *string) *string {
 				refOut = amountOut - 1
 			}
 			amountOut -= refOut
-			transferAsset(*params.Beneficiary, int64(refOut), outputAsset)
+			err := outputAsset.TransferAsset(*params.Beneficiary, int64(refOut))
+			if err != nil {
+				sdk.Abort(fmt.Sprintf("error transferring beneficiary asset out: %s", err.Error()))
+			}
 		}
 	}
 
-	transferAsset(params.Recipient, int64(amountOut), outputAsset)
+	outputAsset.TransferAsset(params.Recipient, int64(amountOut))
 
 	// Accumulate fees
-	if inputAsset == "HBD" {
+	if isHbd(inputAsset.Name()) {
 		fee := uint64(params.AmountIn) - (uint64(params.AmountIn) * (10000 - feeBps) / 10000)
 		if fee > 0 {
 			currentFee := getUint(feeReserveKey)
@@ -164,8 +191,8 @@ func Swap(payload *string) *string {
 	result := SwapResult{
 		AmountOut: amountOut,
 		PoolState: PoolInfo{
-			Asset0:   getAsset0(),
-			Asset1:   getAsset1(),
+			Asset0:   asset0.Name(),
+			Asset1:   asset1.Name(),
 			Reserve0: getReserve0(),
 			Reserve1: getReserve1(),
 			Fee:      getFee(),
@@ -189,16 +216,16 @@ func Swap(payload *string) *string {
 //go:wasmexport add_liquidity
 func AddLiquidity(payload *string) *string {
 	if payload == nil {
-		return &[]string{"error", "payload required"}[1]
+		sdk.Revert("payload required", "invalid_input_error")
 	}
 
 	var params AddLiquidityParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
-		return &[]string{"error", "invalid payload"}[1]
+		sdk.Revert("invalid payload", "invalid_input_error")
 	}
 
 	if params.Amount0 == 0 || params.Amount1 == 0 || params.Recipient == "" {
-		return &[]string{"error", "missing required fields"}[1]
+		sdk.Revert("missing required fields", "invalid_input_error")
 	}
 
 	return executeAddLiquidity(params.Amount0, params.Amount1, params.Recipient)
@@ -228,15 +255,28 @@ func RemoveLiquidity(payload *string) *string {
 
 // Execute add liquidity operation
 func executeAddLiquidity(amt0U, amt1U uint64, provider string) *string {
-	asset0 := getAsset0()
-	asset1 := getAsset1()
+	asset0, err := getAsset0()
+	if err != nil {
+		sdk.Abort("pool not initialized")
+	}
+	asset1, err := getAsset1()
+	if err != nil {
+		sdk.Abort("pool not initialized")
+	}
+
+	maybeEnv := MaybeEnv{}
+
+	sdk.Log(fmt.Sprintf("asset0: %s", asset0.Name()))
+	sdk.Log(fmt.Sprintf("asset1: %s", asset1.Name()))
+
+	sdk.Log(fmt.Sprintf("intents: %v", maybeEnv.UseEnv().Intents))
 
 	// Pull funds from user intents into contract
 	if amt0U > 0 {
-		drawAsset(int64(amt0U), asset0)
+		asset0.DrawAsset(int64(amt0U), maybeEnv)
 	}
 	if amt1U > 0 {
-		drawAsset(int64(amt1U), asset1)
+		asset1.DrawAsset(int64(amt1U), maybeEnv)
 	}
 
 	// Update reserves and mint LP
@@ -292,13 +332,19 @@ func executeRemoveLiquidity(lpAmountU uint64, provider string) *string {
 	setReserve1(r1 - uint64(amt1))
 
 	// Transfer assets out
-	asset0 := getAsset0()
-	asset1 := getAsset1()
+	asset0, err := getAsset0()
+	if err != nil {
+		sdk.Abort(fmt.Sprintf("error retrieving asset: %s", err.Error()))
+	}
+	asset1, err := getAsset1()
+	if err != nil {
+		sdk.Abort(fmt.Sprintf("error retrieving asset: %s", err.Error()))
+	}
 	if amt0 > 0 {
-		transferAsset(provider, amt0, asset0)
+		asset0.TransferAsset(provider, amt0)
 	}
 	if amt1 > 0 {
-		transferAsset(provider, amt1, asset1)
+		asset1.TransferAsset(provider, amt1)
 	}
 
 	return nil
@@ -308,14 +354,18 @@ func executeRemoveLiquidity(lpAmountU uint64, provider string) *string {
 //
 //go:wasmexport get_pool
 func GetPool(payload *string) *string {
-	asset0 := getAsset0()
-	if asset0 == "" {
-		return &[]string{"error", "pool not initialized"}[1]
+	asset0, err := getAsset0()
+	if err != nil {
+		sdk.Abort("pool not initialized")
+	}
+	asset1, err := getAsset0()
+	if err != nil {
+		sdk.Abort("pool not initialized")
 	}
 
 	poolInfo := PoolInfo{
-		Asset0:   asset0,
-		Asset1:   getAsset1(),
+		Asset0:   asset0.Name(),
+		Asset1:   asset1.Name(),
 		Reserve0: getReserve0(),
 		Reserve1: getReserve1(),
 		Fee:      getFee(),
@@ -339,20 +389,27 @@ func ClaimFees(payload *string) *string {
 		return &[]string{"error", "system only"}[1]
 	}
 
-	asset0 := getAsset0()
-	asset1 := getAsset1()
+	asset0, err := getAsset0()
+	if err != nil {
+		sdk.Abort("pool not initialized")
+	}
+	asset1, err := getAsset1()
+	if err != nil {
+		sdk.Abort("pool not initialized")
+	}
 	dao := sdk.Address("system:fr_balance")
 
 	f0 := getUint(keyFee0)
 	f1 := getUint(keyFee1)
 
-	if f0 > 0 && isHbd(asset0) {
+	// can use hive withdraw because its only hbd
+	if f0 > 0 && isHbd(asset0.Name()) {
 		setUint(keyFee0, 0)
-		sdk.HiveWithdraw(dao, int64(f0), sdk.Asset(asset0))
+		sdk.HiveWithdraw(dao, int64(f0), sdk.Asset(asset0.Name()))
 	}
-	if f1 > 0 && isHbd(asset1) {
+	if f1 > 0 && isHbd(asset1.Name()) {
 		setUint(keyFee1, 0)
-		sdk.HiveWithdraw(dao, int64(f1), sdk.Asset(asset1))
+		sdk.HiveWithdraw(dao, int64(f1), sdk.Asset(asset1.Name()))
 	}
 
 	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)

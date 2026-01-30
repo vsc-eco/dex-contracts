@@ -2,19 +2,24 @@ package main
 
 import (
 	sdk "dex-router-v2/sdk"
+	"slices"
 	"strconv"
 	"strings"
+
+	. "dex-router-v2/router-internal"
+
+	tinyjson "github.com/CosmWasm/tinyjson"
 )
 
 // Keys for state storage
 const (
 	keyVersion       = "version"
-	keyPoolPrefix    = "pool/"        // pool/{asset0}/{asset1}
-	keyStatePrefix   = "state/"       // state/{pool_id} - cached pool state
-	keyFailurePrefix = "failure_log/" // failure_log/{tx_id}
+	keyPoolPrefix    = "pool/"           // pool/{asset0}/{asset1}
+	keyStatePrefix   = "state/"          // state/{pool_id} - cached pool state
+	keyFailurePrefix = "failure_log/"    // failure_log/{tx_id}
 	keyReturnPrefix  = "return_request/" // return_request/{tx_id}
-	keyAssetPrefix   = "asset/"       // asset/{symbol} -> chain
-	keyChainsList    = "chains"       // comma-separated list of supported chains
+	keyAssetPrefix   = "asset/"          // asset/{symbol} -> AssetInfo
+	keyChainsList    = "chains"          // comma-separated list of supported chains
 )
 
 // Supported chains for native tokens (HIVE for HIVE/HBD, MAGI for future MAGI native tokens)
@@ -51,7 +56,7 @@ func setUint(key string, val uint64) {
 
 // Pool key helpers
 func poolKeyForAssets(asset0, asset1 string) string {
-	return keyPoolPrefix + asset0 + "/" + asset1
+	return keyPoolPrefix + strings.ToUpper(asset0) + "/" + strings.ToUpper(asset1)
 }
 
 func poolStateKey(poolId string) string {
@@ -65,7 +70,7 @@ func getPoolState(poolId string) PoolInfo {
 	if stateStr == "" {
 		return PoolInfo{} // Empty state
 	}
-	
+
 	// Parse pool state from stored string
 	// In a real implementation, we'd use tinyjson to unmarshal
 	// For now, return empty - will be populated from swap results
@@ -81,7 +86,7 @@ func setPoolState(poolId string, state PoolInfo) {
 
 // Asset registry helpers - tokens MUST be registered before pools can use them
 func assetKey(asset string) string {
-	return keyAssetPrefix + asset
+	return keyAssetPrefix + strings.ToUpper(asset)
 }
 
 // isAssetRegistered returns true if the asset has been registered in the token registry
@@ -89,31 +94,22 @@ func isAssetRegistered(asset string) bool {
 	return getStr(assetKey(asset)) != ""
 }
 
-// storeAssetChain stores the chain for an asset. Called by register_token export.
-func storeAssetChain(asset string, chain string) {
-	setStr(assetKey(asset), chain)
-	updateChainsList(chain)
-}
 
 // updateChainsList adds a chain to the supported chains list if not already present
 func updateChainsList(chain string) {
 	chainsStr := getStr(keyChainsList)
-	if chainsStr == "" {
-		setStr(keyChainsList, chain)
-		return
-	}
 
 	// Check if chain already in list
 	// Simple check - in production, use proper parsing
 	if len(chainsStr) > 0 {
-		// For now, just append if not present (simplified)
-		// In production, parse comma-separated list and check
-		if len(chainsStr) < 100 { // Simple check to avoid infinite growth
-			// Check if chain is already in the list
-			// This is simplified - in production, parse and check properly
+		chains := strings.Split(chainsStr, ",")
+
+		if !slices.Contains(chains, chain) {
 			newChains := chainsStr + "," + chain
 			setStr(keyChainsList, newChains)
 		}
+	} else {
+		setStr(keyChainsList, chain)
 	}
 }
 
@@ -121,7 +117,16 @@ func updateChainsList(chain string) {
 // Returns empty string if asset is not registered - tokens MUST be registered
 // via register_token before pools can use them.
 func getAssetChain(asset string) string {
-	return getStr(assetKey(asset))
+	infoStr := getStr(assetKey(asset))
+	if infoStr == "" {
+		return ""
+	}
+	var tokenInfo TokenInfo
+	err := tinyjson.Unmarshal([]byte(infoStr), &tokenInfo)
+	if err != nil {
+		return ""
+	}
+	return tokenInfo.Chain
 }
 
 // contractCallOptionsWithUserIntents clones the user's intents from the current env into
@@ -133,7 +138,6 @@ func contractCallOptionsWithUserIntents() *sdk.ContractCallOptions {
 	if len(env.Intents) == 0 {
 		return nil
 	}
-	// Clone intents - shallow copy is sufficient since Args maps are read-only
 	intents := make([]sdk.Intent, len(env.Intents))
 	for i := range env.Intents {
 		intents[i] = env.Intents[i]
