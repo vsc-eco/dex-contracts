@@ -7,7 +7,7 @@ artifacts/home/
 
 # Contract runtime data
 contracts/*/data/
-data/
+tests/data/
 
 # Go
 *.exe
