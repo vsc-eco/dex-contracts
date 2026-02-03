@@ -35,6 +35,21 @@ func StateDeleteObject(key string) {
 	stateDeleteObject(&key)
 }
 
+// Set a value by key in the ephemeral contract state
+func EphemStateSetObject(key string, value string) {
+	ephemStateSetObject(&key, &value)
+}
+
+// Get a value by key from the ephemeral contract state
+func EphemStateGetObject(contractId string, key string) *string {
+	return ephemStateGetObject(&contractId, &key)
+}
+
+// Delete or unset a value by key in the ephemeral contract state
+func EphemStateDeleteObject(key string) {
+	ephemStateDeleteObject(&key)
+}
+
 // Get current execution environment variables
 func GetEnv() Env {
 	envStr := *getEnv(nil)

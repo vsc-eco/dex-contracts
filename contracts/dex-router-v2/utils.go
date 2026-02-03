@@ -94,7 +94,6 @@ func isAssetRegistered(asset string) bool {
 	return getStr(assetKey(asset)) != ""
 }
 
-
 // updateChainsList adds a chain to the supported chains list if not already present
 func updateChainsList(chain string) {
 	chainsStr := getStr(keyChainsList)
@@ -135,13 +134,11 @@ func getAssetChain(asset string) string {
 // Returns nil if no intents (e.g. for get_pool queries).
 func contractCallOptionsWithUserIntents() *sdk.ContractCallOptions {
 	env := sdk.GetEnv()
-	if len(env.Intents) == 0 {
+	if len(env.CallerIntents) == 0 {
 		return nil
 	}
-	intents := make([]sdk.Intent, len(env.Intents))
-	for i := range env.Intents {
-		intents[i] = env.Intents[i]
-	}
+	intents := make([]sdk.Intent, len(env.CallerIntents))
+	copy(intents, env.CallerIntents)
 	return &sdk.ContractCallOptions{Intents: intents}
 }
 
