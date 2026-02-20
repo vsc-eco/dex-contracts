@@ -3,6 +3,8 @@ package tests
 import (
 	"testing"
 	"vsc-node/lib/test_utils"
+	"vsc-node/modules/db/vsc/contracts"
+	ledger_db "vsc-node/modules/db/vsc/ledger"
 
 	dexcontracts "vsc-dex-mapping"
 
@@ -28,7 +30,7 @@ func TestRegisterPoolRejectsUnregisteredTokens(t *testing.T) {
 	ct.RegisterContract(routerContractId, owner, dexcontracts.DexRouterV2Wasm)
 	router := &RouterInfo{ct: &ct, id: routerContractId}
 
-	r := router.initRouterV2(t, 0, owner)
+	r := router.initRouterV2(t, owner)
 	if !r.Success {
 		t.Fatalf("error initializing router: %s", r.Ret)
 	}
@@ -39,7 +41,7 @@ func TestRegisterPoolRejectsUnregisteredTokens(t *testing.T) {
 		Asset1:        "HBD",
 		DexContractId: "dex-btc-hbd",
 	}
-	r = router.registerPool(t, 1, owner, poolParams)
+	r = router.registerPool(t, owner, poolParams)
 	assert.False(t, r.Success, "register_pool should fail when assets not registered")
 	assert.Contains(t, r.Ret, "not registered", "error should mention unregistered asset")
 }
@@ -50,8 +52,6 @@ func TestRegisterToken(t *testing.T) {
 
 	routerContractId := "router_v2_contract_id"
 
-	id := 0
-
 	ct.RegisterContract(routerContractId, owner, dexcontracts.DexRouterV2Wasm)
 
 	router := &RouterInfo{
@@ -59,11 +59,10 @@ func TestRegisterToken(t *testing.T) {
 		id: routerContractId,
 	}
 
-	r := router.initRouterV2(t, id, owner)
+	r := router.initRouterV2(t, owner)
 	if !r.Success {
 		t.Fatalf("error initializing router: %s", r.Ret)
 	}
-	id++
 
 	tokenParams := &routerV2.RegisterTokenParams{
 		Name: "BTC",
@@ -79,7 +78,7 @@ func TestRegisterToken(t *testing.T) {
 		t.Error("error registering token", r.Ret, r.ErrMsg)
 	}
 	dumpLogs(t, r.Logs)
-	logStateDiff(t, r.StateDiff)
+	dumpStateDiff(t, r.StateDiff)
 }
 
 func TestRegisterPool(t *testing.T) {
@@ -89,8 +88,6 @@ func TestRegisterPool(t *testing.T) {
 	btchbdDexContractId := "btc_hbd_dex_contract_id"
 	routerContractId := "router_v2_contract_id"
 
-	id := 0
-
 	ct.RegisterContract(routerContractId, owner, dexcontracts.DexRouterV2Wasm)
 
 	router := &RouterInfo{
@@ -98,11 +95,10 @@ func TestRegisterPool(t *testing.T) {
 		id: routerContractId,
 	}
 
-	r := router.initRouterV2(t, id, owner)
+	r := router.initRouterV2(t, owner)
 	if !r.Success {
 		t.Fatalf("error initializing router: %s", r.Ret)
 	}
-	id++
 
 	// Tokens MUST be registered before pool
 	r = router.registerToken(t, owner, routerV2.RegisterTokenParams{
@@ -126,11 +122,10 @@ func TestRegisterPool(t *testing.T) {
 		DexContractId: btchbdDexContractId,
 	}
 
-	r = router.registerPool(t, id, owner, poolParams)
+	r = router.registerPool(t, owner, poolParams)
 	if !r.Success {
 		t.Fatalf("error registering pool: %s", r.Ret)
 	}
-	id++
 
 	t.Log("registration return value:", r.Ret)
 
@@ -145,9 +140,9 @@ func TestRegisterPool(t *testing.T) {
 	asset1State := ct.StateGet(routerContractId, "asset/"+poolParams.Asset1)
 	t.Log("asset 1 state:", asset1State)
 	assert.NotEmpty(t, asset1State, "asset1 should be registered")
-	logStateDiff(t, r.StateDiff)
+	dumpStateDiff(t, r.StateDiff)
 
-	r = router.getSchema(t, id, owner)
+	r = router.getSchema(t, owner)
 	if !r.Success {
 		t.Fatalf("error getting schema: %s", r.Ret)
 	}
@@ -193,7 +188,7 @@ func TestAddLiquidityNativePool(t *testing.T) {
 		t.Errorf("error adding liquidity: %s", r.Ret)
 	}
 	dumpLogs(t, r.Logs)
-	logStateDiff(t, r.StateDiff)
+	dumpStateDiff(t, r.StateDiff)
 }
 
 func TestAddLiquidityMappedPool(t *testing.T) {
@@ -209,8 +204,6 @@ func TestAddLiquidityMappedPool(t *testing.T) {
 	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
 	ct.StateSet(btcMappingId, "bal/hive:milo-hpr", "1000000")
 
-	id := 0
-
 	btchbdDex := &DexInfo{
 		ct: &ct,
 		id: btchbdDexId,
@@ -223,17 +216,20 @@ func TestAddLiquidityMappedPool(t *testing.T) {
 		Asset0MappingContract: btcMappingId,
 	})
 	if !r.Success {
-		t.Fatalf("error initializing BTC/HBD pool: %s", r.Ret)
+		t.Fatalf("error initializing BTC/HBD pool: %s: %s", r.Err, r.ErrMsg)
 	}
-	id++
+	t.Log("init return:", r.Ret)
+	dumpLogs(t, r.Logs)
+	dumpStateDiff(t, r.StateDiff)
 
 	r = btchbdDex.addLiquidity(t, owner, 1000, 1000)
 
 	if !r.Success {
-		t.Errorf("error adding liquidity: %s", r.Ret)
+		t.Errorf("%s: %s", r.Err, r.ErrMsg)
 	}
+
 	dumpLogs(t, r.Logs)
-	logStateDiff(t, r.StateDiff)
+	dumpStateDiff(t, r.StateDiff)
 }
 
 func TestOneHopNative(t *testing.T) {
@@ -241,12 +237,10 @@ func TestOneHopNative(t *testing.T) {
 
 	owner := "hive:milo-hpr"
 
-	btchbdDexId := "btc_hbd_dex"
+	hivehbdDexId := "hive_hbd_dex"
 	routerId := "router_v2_contract"
 
-	id := 0
-
-	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(hivehbdDexId, owner, dexcontracts.DexWasm)
 	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
 
 	router := &RouterInfo{
@@ -254,9 +248,9 @@ func TestOneHopNative(t *testing.T) {
 		id: routerId,
 	}
 
-	btchbdDex := &DexInfo{
+	hivehbdDex := &DexInfo{
 		ct: &ct,
-		id: btchbdDexId,
+		id: hivehbdDexId,
 	}
 
 	// Tokens MUST be registered before pool
@@ -278,26 +272,26 @@ func TestOneHopNative(t *testing.T) {
 	poolParams := routerV2.RegisterPoolParams{
 		Asset0:        "hive",
 		Asset1:        "hbd",
-		DexContractId: btchbdDexId,
+		DexContractId: hivehbdDexId,
 	}
 
-	r = router.registerPool(t, id, owner, poolParams)
+	r = router.registerPool(t, owner, poolParams)
 	if !r.Success {
 		t.Fatalf("error registering pool: %s", r.Ret)
 	}
-	id++
 
-	btchbdDex.initPool(t, owner, &dex.InitParams{
+	hivehbdDex.initPool(t, owner, &dex.InitParams{
 		Asset0: poolParams.Asset0,
 		Asset1: poolParams.Asset1,
 		FeeBps: 100,
 	})
-	btchbdDex.addLiquidity(t, owner, 1000, 1000)
+	hivehbdDex.addLiquidity(t, owner, 100000, 100000)
 
 	if !r.Success {
-		t.Fatalf("error initializing BTC/HBD pool: %s", r.Ret)
+		t.Fatalf("error initializing HIVE/HBD pool: %s", r.Ret)
 	}
-	id++
+
+	ct.Deposit(owner, int64(50000), ledger_db.Asset("hive"))
 
 	r = router.execute(t, owner, &routerV2.DexInstruction{
 		Type:      "swap",
@@ -310,13 +304,21 @@ func TestOneHopNative(t *testing.T) {
 			Chain:   "VSC",
 			Address: "hive:milo-hpr",
 		},
+	}, []contracts.Intent{
+		{
+			Type: "transfer.allow",
+			Args: map[string]string{
+				"token": "hive",
+				"limit": "500",
+			},
+		},
 	})
-	id++
 	if !r.Success {
-		t.Errorf("error executing swap: %s", r.Ret)
+		t.Errorf("%s: %s", r.Err, r.ErrMsg)
 	}
 
-	logStateDiff(t, r.StateDiff)
+	dumpLogs(t, r.Logs)
+	dumpStateDiff(t, r.StateDiff)
 	assert.True(t, r.Success)
 	t.Log("return:", r.Ret)
 }
@@ -329,8 +331,6 @@ func TestOneHopMapped(t *testing.T) {
 	btchbdDexId := "btc_hbd_dex"
 	routerId := "router_v2_contract"
 	btcMappingId := "btc_mapping_contract"
-
-	id := 0
 
 	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
 	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
@@ -368,11 +368,10 @@ func TestOneHopMapped(t *testing.T) {
 		DexContractId: btchbdDexId,
 	}
 
-	r = router.registerPool(t, id, owner, poolParams)
+	r = router.registerPool(t, owner, poolParams)
 	if !r.Success {
 		t.Fatalf("error registering pool: %s", r.Ret)
 	}
-	id++
 
 	btchbdDex.initPool(t, owner, &dex.InitParams{
 		Asset0:                poolParams.Asset0,
@@ -386,7 +385,6 @@ func TestOneHopMapped(t *testing.T) {
 	if !r.Success {
 		t.Fatalf("error initializing BTC/HBD pool: %s", r.Ret)
 	}
-	id++
 
 	r = router.execute(t, owner, &routerV2.DexInstruction{
 		Type:      "swap",
@@ -399,13 +397,166 @@ func TestOneHopMapped(t *testing.T) {
 			Chain:   "VSC",
 			Address: "hive:milo-hpr",
 		},
+	}, []contracts.Intent{
+		{
+			Type: "transfer.allow",
+			Args: map[string]string{
+				"token":       "btc",
+				"limit":       "400",
+				"contract_id": btcMappingId,
+			},
+		},
 	})
-	id++
 	if !r.Success {
-		t.Errorf("error executing swap: %s", r.Ret)
+		t.Errorf("%s: %s", r.Err, r.ErrMsg)
 	}
 
-	logStateDiff(t, r.StateDiff)
+	dumpLogs(t, r.Logs)
+	dumpStateDiff(t, r.StateDiff)
+	assert.True(t, r.Success)
+	t.Log("return:", r.Ret)
+}
+
+func TestTwoHop(t *testing.T) {
+	ct := test_utils.NewContractTest()
+
+	owner := "hive:milo-hpr"
+
+	hivehbdDexId := "hive_hbd_dex"
+	btchbdDexId := "btc_hbd_dex"
+	routerId := "router_v2_contract"
+	btcMappingId := "btc_mapping_contract"
+
+	ct.RegisterContract(hivehbdDexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
+	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
+
+	router := &RouterInfo{
+		ct: &ct,
+		id: routerId,
+	}
+
+	hivehbdDex := &DexInfo{
+		ct: &ct,
+		id: hivehbdDexId,
+	}
+
+	btchbdDex := &DexInfo{
+		ct: &ct,
+		id: btchbdDexId,
+	}
+
+	// Tokens MUST be registered before pool
+	r := router.registerToken(t, owner, routerV2.RegisterTokenParams{
+		Name:      "HIVE",
+		TokenInfo: routerV2.TokenInfo{Chain: "HIVE"},
+	})
+	if !r.Success {
+		t.Fatalf("error registering HIVE: %s", r.Ret)
+	}
+
+	r = router.registerToken(t, owner, routerV2.RegisterTokenParams{
+		Name:      "BTC",
+		TokenInfo: routerV2.TokenInfo{Chain: "BTC"},
+	})
+	if !r.Success {
+		t.Fatalf("error registering BTC: %s", r.Ret)
+	}
+
+	r = router.registerToken(t, owner, routerV2.RegisterTokenParams{
+		Name:      "HBD",
+		TokenInfo: routerV2.TokenInfo{Chain: "HIVE"},
+	})
+	if !r.Success {
+		t.Fatalf("error registering HBD: %s", r.Ret)
+	}
+
+	hivehbdPoolParams := routerV2.RegisterPoolParams{
+		Asset0:        "hive",
+		Asset1:        "hbd",
+		DexContractId: hivehbdDexId,
+	}
+	r = router.registerPool(t, owner, hivehbdPoolParams)
+	if !r.Success {
+		t.Fatalf("error registering pool: %s", r.Ret)
+	}
+	t.Log("logs for adding HIVE/HBD pool")
+	dumpLogs(t, r.Logs)
+	dumpStateDiff(t, r.StateDiff)
+
+	hivehbdDex.initPool(t, owner, &dex.InitParams{
+		Asset0: hivehbdPoolParams.Asset0,
+		Asset1: hivehbdPoolParams.Asset1,
+		FeeBps: 100,
+	})
+	if !r.Success {
+		t.Fatalf("error initializing HIVE/HBD pool: %s", r.Ret)
+	}
+	r = hivehbdDex.addLiquidity(t, owner, 1466641_244, 100000_000)
+	if !r.Success {
+		t.Fatalf("error adding liquidity to HIVE/HBD pool: %s: %s", r.Err, r.ErrMsg)
+	}
+
+	// BTC/HBD pool
+	btchbdPoolParams := routerV2.RegisterPoolParams{
+		Asset0:        "btc",
+		Asset1:        "hbd",
+		DexContractId: btchbdDexId,
+	}
+
+	r = router.registerPool(t, owner, btchbdPoolParams)
+	if !r.Success {
+		t.Fatalf("error registering pool: %s", r.Ret)
+	}
+	t.Log("logs for adding BTC/HBD pool")
+	dumpLogs(t, r.Logs)
+	dumpStateDiff(t, r.StateDiff)
+
+	btchbdDex.initPool(t, owner, &dex.InitParams{
+		Asset0:                btchbdPoolParams.Asset0,
+		Asset1:                btchbdPoolParams.Asset1,
+		FeeBps:                100,
+		Asset0MappingContract: btcMappingId,
+	})
+	if !r.Success {
+		t.Fatalf("error initializing BTC/HBD pool: %s", r.Ret)
+	}
+	ct.StateSet(btcMappingId, "bal/hive:milo-hpr", "1000000000")
+	r = btchbdDex.addLiquidity(t, owner, 1_49000000, 100000_000)
+	if !r.Success {
+		t.Fatalf("error adding liquidity to BTC/HBD pool: %s: %s", r.Err, r.ErrMsg)
+	}
+
+	ct.Deposit(owner, int64(50000), ledger_db.Asset("hive"))
+	ct.Deposit(owner, int64(50000), ledger_db.Asset("hbd"))
+
+	r = router.execute(t, owner, &routerV2.DexInstruction{
+		Type:      "swap",
+		Version:   "1.0.0",
+		AssetIn:   "hive",
+		AssetOut:  "btc",
+		AmountIn:  5000,
+		Recipient: "hive:milo.vsc",
+		ReturnAddress: &routerV2.ReturnAddress{
+			Chain:   "VSC",
+			Address: "hive:milo-hpr",
+		},
+	}, []contracts.Intent{
+		{
+			Type: "transfer.allow",
+			Args: map[string]string{
+				"token": "hive",
+				"limit": "5000",
+			},
+		},
+	})
+	if !r.Success {
+		t.Errorf("%s: %s", r.Err, r.ErrMsg)
+	}
+
+	dumpLogs(t, r.Logs)
+	dumpStateDiff(t, r.StateDiff)
 	assert.True(t, r.Success)
 	t.Log("return:", r.Ret)
 }

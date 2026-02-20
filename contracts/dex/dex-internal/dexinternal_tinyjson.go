@@ -431,8 +431,10 @@ func tinyjsonBbf8afaeDecodeDexDexInternalTinyjsonTmp5(in *jlexer.Lexer, out *Map
 		switch key {
 		case "amount":
 			out.Amount = int64(in.Int64())
-		case "address":
-			out.Address = string(in.String())
+		case "to":
+			out.To = string(in.String())
+		case "from":
+			out.From = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -453,9 +455,14 @@ func tinyjsonBbf8afaeEncodeDexDexInternalTinyjsonTmp5(out *jwriter.Writer, in Ma
 		out.Int64(int64(in.Amount))
 	}
 	{
-		const prefix string = ",\"address\":"
+		const prefix string = ",\"to\":"
 		out.RawString(prefix)
-		out.String(string(in.Address))
+		out.String(string(in.To))
+	}
+	if in.From != "" {
+		const prefix string = ",\"from\":"
+		out.RawString(prefix)
+		out.String(string(in.From))
 	}
 	out.RawByte('}')
 }

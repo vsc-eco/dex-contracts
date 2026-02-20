@@ -58,8 +58,8 @@ func RegisterToken(payload *string) *string {
 		return &[]string{"error", "unsupported chain: " + params.Chain}[1]
 	}
 
-	// Normalize name to uppercase for storage key consistency
-	name = strings.ToUpper(name)
+	// Normalize name to lowercase for storage key consistency
+	name = strings.ToLower(name)
 
 	if isAssetRegistered(name) {
 		return &[]string{"error", "asset already registered"}[1]
@@ -166,11 +166,15 @@ func executeSwap(instruction DexInstruction) *string {
 // Find pool by assets
 func findPool(assetA, assetB string) string {
 	// Normalize asset order
-	if assetA > assetB {
-		assetA, assetB = assetB, assetA
+	astA := strings.ToLower(assetA)
+	astB := strings.ToLower(assetB)
+	if astA > astB {
+		astA, astB = astB, astA
 	}
-	poolKey := poolKeyForAssets(assetA, assetB)
-	return getStr(poolKey)
+	poolKey := poolKeyForAssets(astA, astB)
+	poolVal := getStr(poolKey)
+	// sdk.Log("pool key: val (" + poolKey + "):(" + poolVal + ")")
+	return poolVal
 }
 
 // Execute direct swap within a single DEX pool

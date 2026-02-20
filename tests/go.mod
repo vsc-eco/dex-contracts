@@ -2,7 +2,8 @@ module dex-contract-tests
 
 go 1.24.0
 
-replace vsc-node => ../../go-vsc-node/
+// replace vsc-node => ../../go-vsc-node/
+replace vsc-node => ../../milo-go-vsc-node/
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 
@@ -190,7 +191,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.57.0 // indirect
 	github.com/vsc-eco/go-ethereum v0.0.1 // indirect
-	github.com/vsc-eco/hivego v0.0.0-20260201234744-6577fbe1908b // indirect
+	github.com/vsc-eco/hivego v0.0.0-20260206224142-4da8383a9a7a // indirect
 	github.com/whyrusleeping/cbor-gen v0.1.2 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect

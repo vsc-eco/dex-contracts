@@ -8,6 +8,9 @@ WASM_FLAGS		:= -gc=custom -scheduler=none -panic=trap -no-debug -target=wasm-unk
 TINYJSON		:= $(BIN_DIR)/tinyjson
 TINYJSON_FLAGS	:= -snake_case -no_std_marshalers -pkg
 
+TINYGO_IMAGE := tinygo/tinygo:0.39.0
+WORKDIR      := /work
+
 .PHONY: test build clean contracts services sdk tinyjson contracts-test
 
 # Test all components
@@ -41,24 +44,33 @@ contracts:
 			wasm_file="$(BIN_DIR)/$$name.wasm"; \
 			\
 			# Check if wasm exists and find if any file in 'dir' is newer \
-			if [ -f "$$wasm_file" ] && [ -z "$$(find $$dir -type f -newer $$wasm_file)" ]; then \
+			if [ -f "$$wasm_file" ] && [ -z "$$(find $$dir -type f -not -name "*.wasm" -newer $$wasm_file)" ]; then \
 				echo "  ⏩ $$name is up to date, skipping"; \
 				continue; \
 			fi; \
 			\
 			echo "Building contract $$name"; \
-			( \
-				cd $$dir && \
-				$(TINYGO) build $(WASM_FLAGS) \
-					-o $$wasm_file . && \
+			if [ "$(USE_DOCKER)" = "1" ]; then \
+				docker run --rm \
+					-u $$(id -u):$$(id -g) \
+					-v $(CURDIR):$(WORKDIR) \
+					-w $(WORKDIR)/$$dir \
+					$(TINYGO_IMAGE) \
+					tinygo build $(WASM_FLAGS) -o $(WORKDIR)/bin/$$name.wasm .; \
+			else \
+				(cd $$dir && $(TINYGO_EXEC) build $(WASM_FLAGS) -o $$wasm_file .); \
+			fi; \
+			\
+			if [ $$? -eq 0 ]; then \
 				echo "  ✅ $$name compiled"; \
-			) && ( \
 				if [ "$$name" = "dex-router" ]; then \
 					mkdir -p $$dir/artifacts && \
 					cp $$wasm_file $$dir/artifacts/main.wasm && \
-					echo "  → copied to $$dir/artifacts/main.wasm"; \
+					echo "  → copied to artifacts"; \
 				fi \
-			) || echo "  ⚠️  Failed to build $$name (continuing)"; \
+			else \
+				echo "  ⚠️  Failed to build $$name"; \
+			fi \
 		fi; \
 	done
 

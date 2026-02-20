@@ -60,11 +60,12 @@ type SwapResult struct {
 
 // type for the ENV that only queries the env if actually needed, saving gas if not
 type MaybeEnv struct {
-	Env *sdk.Env
+	env *sdk.Env
 }
 
 //tinyjson:json
 type MappingContractInput struct {
-	Amount  int64  `json:"amount"`
-	Address string `json:"address"`
+	Amount int64  `json:"amount"`
+	To     string `json:"to"`
+	From   string `json:"from,omitempty"`
 }

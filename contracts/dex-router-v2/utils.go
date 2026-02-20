@@ -56,7 +56,7 @@ func setUint(key string, val uint64) {
 
 // Pool key helpers
 func poolKeyForAssets(asset0, asset1 string) string {
-	return keyPoolPrefix + strings.ToUpper(asset0) + "/" + strings.ToUpper(asset1)
+	return keyPoolPrefix + strings.ToLower(asset0) + "/" + strings.ToLower(asset1)
 }
 
 func poolStateKey(poolId string) string {
@@ -86,7 +86,7 @@ func setPoolState(poolId string, state PoolInfo) {
 
 // Asset registry helpers - tokens MUST be registered before pools can use them
 func assetKey(asset string) string {
-	return keyAssetPrefix + strings.ToUpper(asset)
+	return keyAssetPrefix + strings.ToLower(asset)
 }
 
 // isAssetRegistered returns true if the asset has been registered in the token registry

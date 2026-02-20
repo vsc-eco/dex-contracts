@@ -2,8 +2,6 @@ package tests
 
 import (
 	"encoding/json"
-	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"testing"
@@ -42,10 +40,12 @@ type RouterInfo struct {
 }
 
 type DexInfo struct {
-	ct     *test_utils.ContractTest
-	id     string
-	asset0 string
-	asset1 string
+	ct               *test_utils.ContractTest
+	id               string
+	asset0           string
+	asset1           string
+	asset0ContractId string
+	asset1ContractId string
 }
 
 var txId int64 = 0
@@ -53,29 +53,33 @@ var txId int64 = 0
 func dumpLogs(t *testing.T, logs map[string]contract_session.LogOutput) {
 	t.Helper()
 	for name, output := range logs {
-		log.Println("logs for", name)
+		if len(output.Logs) > 0 {
+			t.Log("logs for", name)
+		}
 		for _, log := range output.Logs {
-			fmt.Printf("    %s\n", log)
+			t.Logf("    %s\n", log)
 		}
 	}
 }
 
-func logStateDiff(t *testing.T, sdm map[string]contract_session.StateDiff) {
+func dumpStateDiff(t *testing.T, sdm map[string]contract_session.StateDiff) {
 	t.Helper()
 	for name, sd := range sdm {
-		log.Println("state diff for", name)
+		if len(sd.Deletions) > 0 || len(sd.KeyDiff) > 0 {
+			t.Log("state diff for", name)
+		}
 		for del := range sd.Deletions {
-			fmt.Printf("    %s\n", del)
+			t.Logf("    %s\n", del)
 		}
 		for key, diff := range sd.KeyDiff {
-			fmt.Printf("    %*s: %s -> %s\n", 16, key, diff.Previous, diff.Current)
+			t.Logf("    %*s: %s -> %s\n", 16, key, diff.Previous, diff.Current)
 		}
 	}
 }
 
 func basicSelf(t *testing.T, caller string) *state_engine.TxSelf {
 	t.Helper()
-	return &state_engine.TxSelf{
+	self := state_engine.TxSelf{
 		TxId:                 strconv.FormatInt(txId, 10),
 		BlockId:              strconv.FormatInt(txId, 10),
 		Index:                0,
@@ -84,11 +88,12 @@ func basicSelf(t *testing.T, caller string) *state_engine.TxSelf {
 		RequiredAuths:        []string{caller},
 		RequiredPostingAuths: []string{},
 	}
+	txId++
+	return &self
 }
 
 func (c RouterInfo) initRouterV2(
 	t *testing.T,
-	txId int,
 	caller string,
 ) *test_utils.ContractTestCallResult {
 	t.Helper()
@@ -125,7 +130,6 @@ func (c *RouterInfo) registerToken(
 
 func (c *RouterInfo) registerPool(
 	t *testing.T,
-	txId int,
 	caller string,
 	pool routerV2.RegisterPoolParams,
 ) *test_utils.ContractTestCallResult {
@@ -146,7 +150,6 @@ func (c *RouterInfo) registerPool(
 
 func (c *RouterInfo) getSchema(
 	t *testing.T,
-	txId int,
 	caller string,
 ) *test_utils.ContractTestCallResult {
 	t.Helper()
@@ -167,6 +170,7 @@ func (c *RouterInfo) execute(
 	t *testing.T,
 	caller string,
 	instruction *routerV2.DexInstruction,
+	intents []contracts.Intent,
 ) *test_utils.ContractTestCallResult {
 	t.Helper()
 
@@ -176,20 +180,11 @@ func (c *RouterInfo) execute(
 		ContractId: c.id,
 		Action:     "execute",
 		Payload:    payload,
-		RcLimit:    1000,
-		Intents: []contracts.Intent{
-			{
-				Type: "transfer.allow",
-				Args: map[string]string{
-					"limit": strconv.FormatUint(uint64(instruction.AmountIn), 10) + ".000",
-					"token": instruction.AssetIn,
-				},
-			},
-		},
-		Caller: caller,
+		RcLimit:    10000,
+		Intents:    intents,
+		Caller:     caller,
 	}
 
-	fmt.Println("intents", callOpts.Intents)
 	txResult := c.ct.Call(callOpts)
 	return &txResult
 }
@@ -203,6 +198,8 @@ func (d *DexInfo) initPool(
 	payload, _ := tinyjson.Marshal(instruction)
 	d.asset0 = instruction.Asset0
 	d.asset1 = instruction.Asset1
+	d.asset0ContractId = instruction.Asset0MappingContract
+	d.asset1ContractId = instruction.Asset1MappingContract
 	r := d.ct.Call(state_engine.TxVscCallContract{
 		Self:       *basicSelf(t, caller),
 		ContractId: d.id,
@@ -243,23 +240,21 @@ func (d *DexInfo) addLiquidity(
 			{
 				Type: "transfer.allow",
 				Args: map[string]string{
-					"limit": strconv.FormatUint(amount0, 10) + ".000",
-					"token": strings.ToLower(d.asset0),
+					"limit":       strconv.FormatUint(amount0, 10),
+					"token":       strings.ToLower(d.asset0),
+					"contract_id": d.asset0ContractId,
 				},
 			},
 			{
 				Type: "transfer.allow",
 				Args: map[string]string{
-					"limit": strconv.FormatUint(amount1, 10) + ".000",
-					"token": strings.ToLower(d.asset1),
+					"limit":       strconv.FormatUint(amount1, 10),
+					"token":       strings.ToLower(d.asset1),
+					"contract_id": d.asset1ContractId,
 				},
 			},
 		},
 	})
-
-	if !r.Success {
-		t.Fatalf("error adding liquidity: %s", r.Ret)
-	}
 
 	return &r
 }

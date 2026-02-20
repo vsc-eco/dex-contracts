@@ -4,6 +4,7 @@ import (
 	sdk "dex/sdk"
 	"fmt"
 	"math/bits"
+	"strings"
 
 	. "dex/dex-internal"
 
@@ -89,6 +90,9 @@ func Swap(payload *string) *string {
 		return &[]string{"error", "missing required fields"}[1]
 	}
 
+	params.AssetIn = strings.ToLower(params.AssetIn)
+	params.AssetOut = strings.ToLower(params.AssetOut)
+
 	asset0, err := getAsset0()
 	if err != nil {
 		sdk.Abort("pool not initialized")
@@ -147,7 +151,7 @@ func Swap(payload *string) *string {
 		setReserve0(r0 - amountOut)
 
 	} else {
-		return &[]string{"error", "invalid asset pair for pool"}[1]
+		return &[]string{"error", "invalid asset pair for pool want " + asset0.Name() + "/" + asset1.Name() + " got " + params.AssetIn + "/" + params.AssetOut}[1]
 	}
 
 	// Apply slippage protection if specified
@@ -265,11 +269,6 @@ func executeAddLiquidity(amt0U, amt1U uint64, provider string) *string {
 	}
 
 	maybeEnv := MaybeEnv{}
-
-	sdk.Log(fmt.Sprintf("asset0: %s", asset0.Name()))
-	sdk.Log(fmt.Sprintf("asset1: %s", asset1.Name()))
-
-	sdk.Log(fmt.Sprintf("intents: %v", maybeEnv.UseEnv().Intents))
 
 	// Pull funds from user intents into contract
 	if amt0U > 0 {

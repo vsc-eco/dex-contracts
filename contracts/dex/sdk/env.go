@@ -26,5 +26,6 @@ type Env struct {
 	//Proper RC payer support is not implemented yet.
 	Payer Address `json:"msg.payer"`
 
-	Intents []Intent `json:"intents"`
+	CallerIntents []Intent `json:"intents.caller"`
+	SenderIntents []Intent `json:"intents.sender"`
 }
