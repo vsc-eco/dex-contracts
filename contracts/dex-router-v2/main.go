@@ -156,7 +156,8 @@ func executeSwap(instruction DexInstruction) *string {
 	}
 
 	// Try two-hop swap via HBD
-	if instruction.AssetIn != "HBD" && instruction.AssetOut != "HBD" {
+	if strings.ToLower(instruction.AssetIn) != sdk.AssetHbd.String() &&
+		strings.ToLower(instruction.AssetOut) != sdk.AssetHbd.String() {
 		return executeTwoHopSwap(instruction)
 	}
 
@@ -173,7 +174,7 @@ func findPool(assetA, assetB string) string {
 	}
 	poolKey := poolKeyForAssets(astA, astB)
 	poolVal := getStr(poolKey)
-	// sdk.Log("pool key: val (" + poolKey + "):(" + poolVal + ")")
+	sdk.Log("pool key: val (" + poolKey + "):(" + poolVal + ")")
 	return poolVal
 }
 
@@ -195,12 +196,8 @@ func executeDirectSwap(dexContractId string, instruction DexInstruction) *string
 		return &[]string{"error", "failed to marshal swap params"}[1]
 	}
 
-	// Clone user's intents into the call - intents don't pass through inter-contract calls by default,
-	// so the dex can't spend user money without this. Temporary workaround until VSC passes intents.
-	swapOpts := contractCallOptionsWithUserIntents()
-
 	// Call DEX contract's swap method
-	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), swapOpts)
+	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), &sdk.ContractCallOptions{})
 	if result == nil {
 		return &[]string{"error", "swap failed"}[1]
 	}
@@ -218,7 +215,7 @@ func executeDirectSwap(dexContractId string, instruction DexInstruction) *string
 // Execute two-hop swap via HBD with intent-based bag checking and proper failure handling
 func executeTwoHopSwap(instruction DexInstruction) *string {
 	// Find first pool: AssetIn -> HBD
-	pool1Id := findPool(instruction.AssetIn, "HBD")
+	pool1Id := findPool(instruction.AssetIn, sdk.AssetHbd.String())
 	if pool1Id == "" {
 		return handleSwapFailure(
 			instruction,
@@ -230,7 +227,7 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 	}
 
 	// Find second pool: HBD -> AssetOut
-	pool2Id := findPool("HBD", instruction.AssetOut)
+	pool2Id := findPool(sdk.AssetHbd.String(), instruction.AssetOut)
 	if pool2Id == "" {
 		return handleSwapFailure(
 			instruction,
@@ -246,7 +243,7 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 	firstSwapParams := SwapParams{
 		AssetIn:      instruction.AssetIn,
 		AmountIn:     instruction.AmountIn,
-		AssetOut:     "HBD",
+		AssetOut:     sdk.AssetHbd.String(),
 		Recipient:    sdk.GetEnv().ContractId, // Route to router
 		MinAmountOut: nil,                     // Let DEX calculate
 	}
@@ -262,12 +259,9 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 		)
 	}
 
-	// Clone user's intents - dex needs them to spend user funds (user->router->dex flow)
-	opts := contractCallOptionsWithUserIntents()
-
 	// Call first DEX contract - VSC will validate intents
 	// If swap fails (slippage, insufficient liquidity, etc.), VSC rolls back automatically
-	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), opts)
+	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), &sdk.ContractCallOptions{})
 	if firstResult == nil {
 		// First swap failed - VSC rolled back, return original asset via return_address
 		return handleSwapFailure(
@@ -313,7 +307,7 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 	// Execute second swap: HBD -> AssetOut
 	// Use actual HBD received from first swap
 	secondSwapParams := SwapParams{
-		AssetIn:      "HBD",
+		AssetIn:      sdk.AssetHbd.String(),
 		AmountIn:     int64(swapResult1.AmountOut),
 		AssetOut:     instruction.AssetOut,
 		Recipient:    instruction.Recipient,
@@ -324,26 +318,26 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 	if err != nil {
 		// First swap succeeded but second failed to marshal
 		// Return intermediate HBD via return_address
-		return handlePartialSwap(swapResult1.AmountOut, "HBD", instruction)
+		return handlePartialSwap(swapResult1.AmountOut, sdk.AssetHbd.String(), instruction)
 	}
 
 	// Call second DEX contract (intents cloned above, reuse for second hop)
-	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), opts)
+	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), &sdk.ContractCallOptions{})
 	if secondResult == nil {
 		// Second swap failed - return intermediate HBD
-		return handlePartialSwap(swapResult1.AmountOut, "HBD", instruction)
+		return handlePartialSwap(swapResult1.AmountOut, sdk.AssetHbd.String(), instruction)
 	}
 
 	// Check for error
 	if len(*secondResult) > 0 && len(*secondResult) >= 6 && (*secondResult)[:6] == `{"error"` {
 		// Second swap failed - return intermediate HBD
-		return handlePartialSwap(swapResult1.AmountOut, "HBD", instruction)
+		return handlePartialSwap(swapResult1.AmountOut, sdk.AssetHbd.String(), instruction)
 	}
 
 	// Parse second swap result
 	var swapResult2 SwapResult
 	if err := tinyjson.Unmarshal([]byte(*secondResult), &swapResult2); err != nil {
-		return handlePartialSwap(swapResult1.AmountOut, "HBD", instruction)
+		return handlePartialSwap(swapResult1.AmountOut, sdk.AssetHbd.String(), instruction)
 	}
 
 	// Update cached pool state
@@ -553,8 +547,7 @@ func trySwapBackToOriginal(
 	}
 
 	// Execute reverse swap (clone intents for dex to spend)
-	reverseOpts := contractCallOptionsWithUserIntents()
-	reverseResult := sdk.ContractCall(reversePoolId, "swap", string(reverseSwapPayload), reverseOpts)
+	reverseResult := sdk.ContractCall(reversePoolId, "swap", string(reverseSwapPayload), &sdk.ContractCallOptions{})
 	if reverseResult == nil {
 		// Reverse swap failed
 		return &SwapBackResult{
@@ -638,8 +631,7 @@ func executeDeposit(instruction DexInstruction) *string {
 	}
 
 	// Call DEX contract's add_liquidity method (clone intents for dex to spend user funds)
-	addLiqOpts := contractCallOptionsWithUserIntents()
-	result := sdk.ContractCall(poolId, "add_liquidity", string(addLiqPayload), addLiqOpts)
+	result := sdk.ContractCall(poolId, "add_liquidity", string(addLiqPayload), &sdk.ContractCallOptions{})
 	if result == nil {
 		return &[]string{"error", "add liquidity failed"}[1]
 	}
@@ -684,8 +676,7 @@ func executeWithdrawal(instruction DexInstruction) *string {
 	}
 
 	// Call DEX contract's remove_liquidity method (clone intents for dex to spend)
-	removeLiqOpts := contractCallOptionsWithUserIntents()
-	result := sdk.ContractCall(poolId, "remove_liquidity", string(removeLiqPayload), removeLiqOpts)
+	result := sdk.ContractCall(poolId, "remove_liquidity", string(removeLiqPayload), &sdk.ContractCallOptions{})
 	if result == nil {
 		return &[]string{"error", "remove liquidity failed"}[1]
 	}
@@ -754,4 +745,25 @@ func GetSchema(payload *string) *string {
 
 	result := string(schemaBytes)
 	return &result
+}
+
+//go:wasmexport get_keys_internal
+func GetKeysInternal(payload *string) *string {
+	var keyList KeyList
+	err := tinyjson.Unmarshal([]byte(*payload), &keyList)
+	if err != nil {
+		sdk.Revert("invalid payload", "input_error")
+	}
+	keyMap := make(KeyMap, len(keyList.Keys))
+	for _, key := range keyList.Keys {
+		val := getStr(key)
+		sdk.Log(key + ": " + val)
+		keyMap[key] = val
+	}
+	out, err := tinyjson.Marshal(keyMap)
+	if err != nil {
+		sdk.Revert("could not marshal result", "json_error")
+	}
+	outStr := string(out)
+	return &outStr
 }

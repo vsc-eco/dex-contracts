@@ -141,7 +141,10 @@ func Swap(payload *string) *string {
 		feeReserveKey = keyFee1
 
 		// Calculate output: dx = r0 - (r0 * r1) / (r1 + dy)
-		dy := uint64(params.AmountIn)
+		dy := uint64(params.AmountIn) * (10000 - feeBps) / 10000 // Apply fee
+		if dy == 0 {
+			dy = 1
+		}
 		k := r0 * r1
 		newR1 := r1 + dy
 		amountOut = r0 - (k / newR1)
@@ -182,14 +185,14 @@ func Swap(payload *string) *string {
 
 	outputAsset.TransferAsset(params.Recipient, int64(amountOut))
 
-	// Accumulate fees
-	if isHbd(inputAsset.Name()) {
-		fee := uint64(params.AmountIn) - (uint64(params.AmountIn) * (10000 - feeBps) / 10000)
-		if fee > 0 {
-			currentFee := getUint(feeReserveKey)
-			setUint(feeReserveKey, currentFee+fee)
-		}
+	// // Accumulate fees
+	// if isHbd(inputAsset.Name()) {
+	fee := uint64(params.AmountIn) - (uint64(params.AmountIn) * (10000 - feeBps) / 10000)
+	if fee > 0 {
+		currentFee := getUint(feeReserveKey)
+		setUint(feeReserveKey, currentFee+fee)
 	}
+	// }
 
 	// Return swap result with current pool state
 	result := SwapResult{
@@ -225,7 +228,7 @@ func AddLiquidity(payload *string) *string {
 
 	var params AddLiquidityParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
-		sdk.Revert("invalid payload", "invalid_input_error")
+		sdk.Revert("invalid payload: "+err.Error(), "invalid_input_error")
 	}
 
 	if params.Amount0 == 0 || params.Amount1 == 0 || params.Recipient == "" {
@@ -352,7 +355,7 @@ func executeRemoveLiquidity(lpAmountU uint64, provider string) *string {
 // Query pool information
 //
 //go:wasmexport get_pool
-func GetPool(payload *string) *string {
+func GetPool(_ *string) *string {
 	asset0, err := getAsset0()
 	if err != nil {
 		sdk.Abort("pool not initialized")

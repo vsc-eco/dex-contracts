@@ -115,3 +115,11 @@ type SchemaReturn struct {
 	ReturnAddressChains []string
 	Note                string
 }
+
+//tinyjson:json
+type KeyList struct {
+	Keys []string `json:"keys"`
+}
+
+//tinyjson:json
+type KeyMap map[string]string

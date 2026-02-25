@@ -38,6 +38,7 @@ func getStr(key string) string {
 }
 
 func setStr(key string, val string) {
+	sdk.Log("set key. " + key + ": " + val)
 	sdk.StateSetObject(key, val)
 }
 
@@ -126,20 +127,6 @@ func getAssetChain(asset string) string {
 		return ""
 	}
 	return tokenInfo.Chain
-}
-
-// contractCallOptionsWithUserIntents clones the user's intents from the current env into
-// ContractCallOptions. Intents don't pass through inter-contract calls by default, so when
-// router calls dex (user->router->dex), the dex can't spend user funds without this.
-// Returns nil if no intents (e.g. for get_pool queries).
-func contractCallOptionsWithUserIntents() *sdk.ContractCallOptions {
-	env := sdk.GetEnv()
-	if len(env.CallerIntents) == 0 {
-		return nil
-	}
-	intents := make([]sdk.Intent, len(env.CallerIntents))
-	copy(intents, env.CallerIntents)
-	return &sdk.ContractCallOptions{Intents: intents}
 }
 
 // splitChains parses comma-separated chains list, deduplicates and returns

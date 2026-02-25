@@ -166,7 +166,7 @@ func isValidAsset(s string) bool {
 
 // Check if asset is HBD
 func isHbd(asset string) bool {
-	return asset == "HBD"
+	return asset == sdk.AssetHbd.String()
 }
 
 // sqrt128 returns floor(sqrt(hi:lo)) where hi:lo is a 128-bit unsigned integer

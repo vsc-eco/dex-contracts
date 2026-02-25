@@ -161,28 +161,27 @@ func TestAddLiquidityNativePool(t *testing.T) {
 	ct.Deposit(owner, 1000, "hbd")
 	ct.Deposit(owner, 1000, "hive")
 
-	btchbdDexContractId := "hive_hbd_dex_contract"
+	hivehbdDexContractId := "hive_hbd_dex_contract"
 
-	ct.RegisterContract(btchbdDexContractId, "milo.hpr", dexcontracts.DexWasm)
+	ct.RegisterContract(hivehbdDexContractId, "milo.hpr", dexcontracts.DexWasm)
 
 	id := 0
 
-	btchbdDex := &DexInfo{
+	hivehbdDex := &DexInfo{
 		ct: &ct,
-		id: btchbdDexContractId,
+		id: hivehbdDexContractId,
 	}
 
-	r := btchbdDex.initPool(t, owner, &dex.InitParams{
+	r := hivehbdDex.initPool(t, owner, &dex.InitParams{
 		Asset0: "HIVE",
 		Asset1: "HBD",
-		FeeBps: 100,
 	})
 	if !r.Success {
 		t.Fatalf("error initializing HIVE/HBD pool: %s", r.Ret)
 	}
 	id++
 
-	r = btchbdDex.addLiquidity(t, owner, 900, 1000)
+	r = hivehbdDex.addLiquidity(t, owner, 900, 1000)
 
 	if !r.Success {
 		t.Errorf("error adding liquidity: %s", r.Ret)
@@ -376,11 +375,11 @@ func TestOneHopMapped(t *testing.T) {
 	btchbdDex.initPool(t, owner, &dex.InitParams{
 		Asset0:                poolParams.Asset0,
 		Asset1:                poolParams.Asset1,
-		FeeBps:                100,
 		Asset0MappingContract: btcMappingId,
 	})
-	ct.StateSet(btcMappingId, "bal/hive:milo-hpr", "1000000")
-	btchbdDex.addLiquidity(t, owner, 1000, 1000)
+	ct.StateSet(btcMappingId, "bal/hive:milo-hpr", "200000000")
+	r = btchbdDex.addLiquidity(t, owner, 1_49000000, 100000_000)
+	ct.Deposit(owner, 10000, ledger_db.AssetHbd)
 
 	if !r.Success {
 		t.Fatalf("error initializing BTC/HBD pool: %s", r.Ret)
@@ -391,7 +390,7 @@ func TestOneHopMapped(t *testing.T) {
 		Version:   "1.0.0",
 		AssetIn:   "btc",
 		AssetOut:  "hbd",
-		AmountIn:  500,
+		AmountIn:  10000,
 		Recipient: "hive:milo.vsc",
 		ReturnAddress: &routerV2.ReturnAddress{
 			Chain:   "VSC",
@@ -402,7 +401,7 @@ func TestOneHopMapped(t *testing.T) {
 			Type: "transfer.allow",
 			Args: map[string]string{
 				"token":       "btc",
-				"limit":       "400",
+				"limit":       "10000",
 				"contract_id": btcMappingId,
 			},
 		},
@@ -488,7 +487,6 @@ func TestTwoHop(t *testing.T) {
 	hivehbdDex.initPool(t, owner, &dex.InitParams{
 		Asset0: hivehbdPoolParams.Asset0,
 		Asset1: hivehbdPoolParams.Asset1,
-		FeeBps: 100,
 	})
 	if !r.Success {
 		t.Fatalf("error initializing HIVE/HBD pool: %s", r.Ret)
@@ -516,7 +514,6 @@ func TestTwoHop(t *testing.T) {
 	btchbdDex.initPool(t, owner, &dex.InitParams{
 		Asset0:                btchbdPoolParams.Asset0,
 		Asset1:                btchbdPoolParams.Asset1,
-		FeeBps:                100,
 		Asset0MappingContract: btcMappingId,
 	})
 	if !r.Success {
