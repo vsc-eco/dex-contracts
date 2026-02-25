@@ -38,7 +38,6 @@ func getStr(key string) string {
 }
 
 func setStr(key string, val string) {
-	sdk.Log("set key. " + key + ": " + val)
 	sdk.StateSetObject(key, val)
 }
 

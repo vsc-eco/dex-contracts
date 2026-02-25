@@ -174,7 +174,6 @@ func findPool(assetA, assetB string) string {
 	}
 	poolKey := poolKeyForAssets(astA, astB)
 	poolVal := getStr(poolKey)
-	sdk.Log("pool key: val (" + poolKey + "):(" + poolVal + ")")
 	return poolVal
 }
 
@@ -745,25 +744,4 @@ func GetSchema(payload *string) *string {
 
 	result := string(schemaBytes)
 	return &result
-}
-
-//go:wasmexport get_keys_internal
-func GetKeysInternal(payload *string) *string {
-	var keyList KeyList
-	err := tinyjson.Unmarshal([]byte(*payload), &keyList)
-	if err != nil {
-		sdk.Revert("invalid payload", "input_error")
-	}
-	keyMap := make(KeyMap, len(keyList.Keys))
-	for _, key := range keyList.Keys {
-		val := getStr(key)
-		sdk.Log(key + ": " + val)
-		keyMap[key] = val
-	}
-	out, err := tinyjson.Marshal(keyMap)
-	if err != nil {
-		sdk.Revert("could not marshal result", "json_error")
-	}
-	outStr := string(out)
-	return &outStr
 }
