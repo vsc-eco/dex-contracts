@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "InitParams": {
+      "type": "object",
+      "properties": {
+        "asset0": { "type": "string" },
+        "asset1": { "type": "string" },
+        "fee_bps": { "type": "integer", "minimum": 0 },
+        "asset0_mapping_contract": { "type": "string" },
+        "asset1_mapping_contract": { "type": "string" }
+      },
+      "required": ["asset0", "asset1", "fee_bps"]
+    },
+    "SwapParams": {
+      "type": "object",
+      "properties": {
+        "asset_in": { "type": "string" },
+        "amount_in": { "type": "integer" },
+        "asset_out": { "type": "string" },
+        "min_amount_out": { "type": ["integer", "null"] },
+        "recipient": { "type": "string" },
+        "beneficiary": { "type": ["string", "null"] },
+        "ref_bps": { "type": ["integer", "null"] }
+      },
+      "required": ["asset_in", "amount_in", "asset_out", "recipient"]
+    },
+    "AddLiquidityParams": {
+      "type": "object",
+      "properties": {
+        "amount0": { "type": "integer", "minimum": 0 },
+        "amount1": { "type": "integer", "minimum": 0 },
+        "recipient": { "type": "string" }
+      },
+      "required": ["amount0", "amount1", "recipient"]
+    },
+    "RemoveLiquidityParams": {
+      "type": "object",
+      "properties": {
+        "lp_amount": { "type": "integer", "minimum": 0 },
+        "recipient": { "type": "string" }
+      },
+      "required": ["lp_amount", "recipient"]
+    }
+  }
+}
