@@ -16,24 +16,24 @@ The instruction schema uses snake_case field names and follows JSON Schema Draft
   "type": "object",
   "required": ["type", "version", "asset_in", "asset_out", "recipient"],
   "properties": {
-    "type": {"type": "string", "enum": ["swap", "deposit", "withdrawal"]},
-    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
-    "asset_in": {"type": "string"},
-    "asset_out": {"type": "string"},
-    "recipient": {"type": "string"},
-    "slippage_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
-    "min_amount_out": {"type": "integer", "minimum": 0},
-    "beneficiary": {"type": "string"},
-    "ref_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
+    "type": { "type": "string", "enum": ["swap", "deposit", "withdrawal"] },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "asset_in": { "type": "string" },
+    "asset_out": { "type": "string" },
+    "recipient": { "type": "string" },
+    "slippage_bps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "min_amount_out": { "type": "integer", "minimum": 0 },
+    "beneficiary": { "type": "string" },
+    "ref_bps": { "type": "integer", "minimum": 0, "maximum": 10000 },
     "return_address": {
       "type": "object",
       "properties": {
-        "chain": {"type": "string"},
-        "address": {"type": "string"}
+        "chain": { "type": "string" },
+        "address": { "type": "string" }
       },
       "required": ["chain", "address"]
     },
-    "metadata": {"type": "object"}
+    "metadata": { "type": "object" }
   }
 }
 ```
@@ -66,6 +66,7 @@ The instruction schema uses snake_case field names and follows JSON Schema Draft
 Embed instructions in transfer memos when depositing funds:
 
 **JSON Format:**
+
 ```json
 {
   "type": "swap",
@@ -78,11 +79,13 @@ Embed instructions in transfer memos when depositing funds:
 ```
 
 **URL Query Format:**
+
 ```
 type=swap&version=1.0.0&asset_in=BTC&asset_out=HBD&recipient=user123&slippage_bps=100
 ```
 
 **URL Query with Return Address:**
+
 ```
 type=swap&version=1.0.0&asset_in=BTC&asset_out=HBD&recipient=user123&return_address.chain=ETH&return_address.address=0x123...
 ```
@@ -231,6 +234,7 @@ The system provides detailed error messages for validation failures:
 The instruction schema is **dynamically generated** based on registered DEX pools. Chains are automatically added to the `return_address.chain` enum when pools are registered.
 
 **Get Current Schema:**
+
 ```bash
 curl http://localhost:8081/api/v1/schema
 ```
@@ -238,6 +242,7 @@ curl http://localhost:8081/api/v1/schema
 ### Asset Registration
 
 Assets and their chains are determined from:
+
 1. **Mapping Contracts** (utxo-mapping pattern): Cross-chain assets (BTC, ETH, SOL, etc.) are registered via mapping contracts
 2. **Token Registry**: VSC native tokens are registered with `ContractId = nil` → automatically recognized as chain "HIVE"
 3. **Pool Registration**: When pools are registered, router queries token registry to determine chains
