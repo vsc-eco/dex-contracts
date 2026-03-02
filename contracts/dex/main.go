@@ -2,11 +2,15 @@ package main
 
 import (
 	sdk "dex/sdk"
+	"errors"
 	"fmt"
+	"math/big"
 	"math/bits"
 	"strings"
 
 	. "dex/dex-internal"
+
+	ce "dex/contracterrors"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
 )
@@ -63,11 +67,28 @@ func Init(payload *string) *string {
 	setReserve1(0)
 	setFee(params.FeeBps)
 	setTotalLp(0)
-	setUint(keyFee0, 0)
-	setUint(keyFee1, 0)
+	setUint(keySystemFee0, 0)
+	setUint(keySystemFee1, 0)
 	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
 
 	return nil
+}
+
+func getClpFee(amountIn int64, reserveIn, reserveOut uint64) (uint64, error) {
+	rIn := new(big.Int).SetUint64(reserveIn)
+	rOut := new(big.Int).SetUint64(reserveOut)
+	amtIn := big.NewInt(amountIn)
+	clpFee := big.NewInt(0)
+	clpFee.Mul(amtIn, amtIn)
+	clpFee.Mul(clpFee, rOut)
+	denominator := big.NewInt(0)
+	denominator.Add(amtIn, rIn)
+	denominator.Mul(denominator, denominator)
+	clpFee.Div(clpFee, denominator)
+	if !clpFee.IsUint64() {
+		return 0, errors.New("clp fee out of bounds")
+	}
+	return clpFee.Uint64(), nil
 }
 
 // Swap tokens in this pool
@@ -102,60 +123,60 @@ func Swap(payload *string) *string {
 		sdk.Abort("pool not initialized")
 	}
 
-	r0 := getReserve0()
-	r1 := getReserve1()
 	feeBps := getFee()
-
-	if r0 == 0 || r1 == 0 {
-		return &[]string{"error", "pool has zero reserves"}[1]
-	}
 
 	// Determine swap direction and calculate output
 	var amountOut uint64
 	var inputAsset, outputAsset Asset
 	var feeReserveKey string
+	var rInKey, rOutKey string
 
 	if asset0.Name() == params.AssetIn && asset1.Name() == params.AssetOut {
 		// asset0 -> asset1
 		inputAsset = asset0
 		outputAsset = asset1
-		feeReserveKey = keyFee0
-
-		// Calculate output: dy = r1 - (r0 * r1) / (r0 + dx)
-		dx := uint64(params.AmountIn) * (10000 - feeBps) / 10000 // Apply fee
-		if dx == 0 {
-			dx = 1
-		}
-		k := r0 * r1
-		newR0 := r0 + dx
-		amountOut = r1 - (k / newR0)
-
-		// Update reserves
-		setReserve0(newR0)
-		setReserve1(r1 - amountOut)
-
+		feeReserveKey = keySystemFee0
+		rInKey = keyReserve0
+		rOutKey = keyReserve1
 	} else if asset1.Name() == params.AssetIn && asset0.Name() == params.AssetOut {
 		// asset1 -> asset0
 		inputAsset = asset1
 		outputAsset = asset0
-		feeReserveKey = keyFee1
-
-		// Calculate output: dx = r0 - (r0 * r1) / (r1 + dy)
-		dy := uint64(params.AmountIn) * (10000 - feeBps) / 10000 // Apply fee
-		if dy == 0 {
-			dy = 1
-		}
-		k := r0 * r1
-		newR1 := r1 + dy
-		amountOut = r0 - (k / newR1)
-
-		// Update reserves
-		setReserve1(newR1)
-		setReserve0(r0 - amountOut)
-
+		feeReserveKey = keySystemFee1
+		rInKey = keyReserve1
+		rOutKey = keyReserve0
 	} else {
 		return &[]string{"error", "invalid asset pair for pool want " + asset0.Name() + "/" + asset1.Name() + " got " + params.AssetIn + "/" + params.AssetOut}[1]
 	}
+
+	rIn := getUint(rInKey)
+	rOut := getUint(rOutKey)
+
+	if rIn == 0 || rOut == 0 {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInitialization, "pool has zero reserves"),
+		)
+	}
+
+	dIn := uint64(params.AmountIn) * (10000 - feeBps) / 10000 // Apply fee
+	if dIn == 0 {
+		dIn = 1
+	}
+
+	clpFee, err := getClpFee(params.AmountIn, rIn, rOut)
+	if err != nil {
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrArithmetic, err, "error getting fee"),
+		)
+	}
+	dIn -= clpFee
+
+	k := rIn * rOut
+	newRIn := rIn + dIn
+	amountOut = rOut - (k / newRIn)
+
+	setUint(rInKey, newRIn)
+	setUint(rOutKey, rOut-amountOut)
 
 	// Apply slippage protection if specified
 	if params.MinAmountOut != nil {
@@ -187,7 +208,7 @@ func Swap(payload *string) *string {
 
 	// // Accumulate fees
 	// if isHbd(inputAsset.Name()) {
-	fee := uint64(params.AmountIn) - (uint64(params.AmountIn) * (10000 - feeBps) / 10000)
+	fee := uint64(params.AmountIn) - dIn
 	if fee > 0 {
 		currentFee := getUint(feeReserveKey)
 		setUint(feeReserveKey, currentFee+fee)
@@ -401,16 +422,16 @@ func ClaimFees(payload *string) *string {
 	}
 	dao := sdk.Address("system:fr_balance")
 
-	f0 := getUint(keyFee0)
-	f1 := getUint(keyFee1)
+	f0 := getUint(keySystemFee0)
+	f1 := getUint(keySystemFee1)
 
 	// can use hive withdraw because its only hbd
 	if f0 > 0 && isHbd(asset0.Name()) {
-		setUint(keyFee0, 0)
+		setUint(keySystemFee0, 0)
 		sdk.HiveWithdraw(dao, int64(f0), sdk.Asset(asset0.Name()))
 	}
 	if f1 > 0 && isHbd(asset1.Name()) {
-		setUint(keyFee1, 0)
+		setUint(keySystemFee1, 0)
 		sdk.HiveWithdraw(dao, int64(f1), sdk.Asset(asset1.Name()))
 	}
 
