@@ -10,14 +10,14 @@ import (
 const (
 	keyVersion          = "version"
 	keyNextPoolId       = "next_pool_id"
-	keyPoolPrefix       = "pool/" // pool/{poolId}/...
+	keyPoolPrefix       = "pool-" // pool/{poolId}/...
 	keyPoolAsset0       = "asset0"
 	keyPoolAsset1       = "asset1"
 	keyPoolReserve0     = "reserve0"
 	keyPoolReserve1     = "reserve1"
 	keyPoolFee          = "fee"
 	keyPoolTotalLP      = "total_lp"
-	keyPoolLpPrefix     = "lp/" // lp/{address}
+	keyPoolLpPrefix     = "lp-" // lp/{address}
 	keyPoolFee0         = "fee0"
 	keyPoolFee1         = "fee1"
 	keyPoolFeeLastClaim = "fee_last_claim"
@@ -32,7 +32,7 @@ const (
 
 // Pool key helpers
 func poolKey(poolId string, suffix string) string {
-	return keyPoolPrefix + poolId + "/" + suffix
+	return keyPoolPrefix + poolId + "-" + suffix
 }
 
 func poolAsset0Key(poolId string) string {

@@ -465,7 +465,7 @@ func logFailure(log FailureLog) {
 	// Store failure log in contract state
 	// Key: failure_log/{tx_id}
 	env := sdk.GetEnv()
-	logKey := "failure_log/" + env.TxId
+	logKey := "failure_log-" + env.TxId
 
 	logBytes, err := tinyjson.Marshal(&log)
 	if err == nil {
@@ -477,7 +477,7 @@ func logFailure(log FailureLog) {
 func storeCrossChainReturn(returnAddr ReturnAddress, asset string, amount uint64, log FailureLog) {
 	// Store return request in contract state
 	// Bridge service will process these
-	returnKey := "return_request/" + sdk.GetEnv().TxId
+	returnKey := "return_request-" + sdk.GetEnv().TxId
 
 	returnReq := ReturnRequest{
 		Chain:   returnAddr.Chain,

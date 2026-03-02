@@ -14,11 +14,11 @@ import (
 // Keys for state storage
 const (
 	keyVersion       = "version"
-	keyPoolPrefix    = "pool/"           // pool/{asset0}/{asset1}
-	keyStatePrefix   = "state/"          // state/{pool_id} - cached pool state
-	keyFailurePrefix = "failure_log/"    // failure_log/{tx_id}
-	keyReturnPrefix  = "return_request/" // return_request/{tx_id}
-	keyAssetPrefix   = "asset/"          // asset/{symbol} -> AssetInfo
+	keyPoolPrefix    = "pool-"           // pool/{asset0}/{asset1}
+	keyStatePrefix   = "state-"          // state/{pool_id} - cached pool state
+	keyFailurePrefix = "failure_log-"    // failure_log/{tx_id}
+	keyReturnPrefix  = "return_request-" // return_request/{tx_id}
+	keyAssetPrefix   = "asset-"          // asset/{symbol} -> AssetInfo
 	keyChainsList    = "chains"          // comma-separated list of supported chains
 )
 
@@ -56,7 +56,7 @@ func setUint(key string, val uint64) {
 
 // Pool key helpers
 func poolKeyForAssets(asset0, asset1 string) string {
-	return keyPoolPrefix + strings.ToLower(asset0) + "/" + strings.ToLower(asset1)
+	return keyPoolPrefix + strings.ToLower(asset0) + "-" + strings.ToLower(asset1)
 }
 
 func poolStateKey(poolId string) string {

@@ -146,7 +146,7 @@ func Swap(payload *string) *string {
 		rInKey = keyReserve1
 		rOutKey = keyReserve0
 	} else {
-		return &[]string{"error", "invalid asset pair for pool want " + asset0.Name() + "/" + asset1.Name() + " got " + params.AssetIn + "/" + params.AssetOut}[1]
+		return &[]string{"error", "invalid asset pair for pool want " + asset0.Name() + "-" + asset1.Name() + " got " + params.AssetIn + "-" + params.AssetOut}[1]
 	}
 
 	rIn := getUint(rInKey)
@@ -163,13 +163,13 @@ func Swap(payload *string) *string {
 		dIn = 1
 	}
 
-	clpFee, err := getClpFee(params.AmountIn, rIn, rOut)
-	if err != nil {
-		ce.CustomAbort(
-			ce.WrapContractError(ce.ErrArithmetic, err, "error getting fee"),
-		)
-	}
-	dIn -= clpFee
+	// clpFee, err := getClpFee(params.AmountIn, rIn, rOut)
+	// if err != nil {
+	// 	ce.CustomAbort(
+	// 		ce.WrapContractError(ce.ErrArithmetic, err, "error getting fee"),
+	// 	)
+	// }
+	// dIn -= clpFee
 
 	k := rIn * rOut
 	newRIn := rIn + dIn
