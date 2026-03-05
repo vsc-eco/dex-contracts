@@ -1,10 +1,12 @@
-package dexinternal
+package asset
 
 import (
-	"dex/sdk"
 	"fmt"
 	"math/big"
 	"strings"
+
+	"github.com/vsc-eco/dex-contracts/contracts/types"
+	"github.com/vsc-eco/dex-contracts/sdk"
 
 	"github.com/CosmWasm/tinyjson"
 	jwriter "github.com/CosmWasm/tinyjson/jwriter"
@@ -22,7 +24,7 @@ const (
 type Asset interface {
 	Name() string
 	MappingContract() string
-	DrawAsset(amount *big.Int, mEnv MaybeEnv) error
+	DrawAsset(amount *big.Int, mEnv types.MaybeEnv) error
 	// transfers balance held by the contract to another magi account
 	TransferAsset(to string, amount *big.Int) error
 	MarshalTinyJSON(w *jwriter.Writer)
@@ -84,7 +86,7 @@ func (ha *HiveAsset) MappingContract() string {
 }
 
 // draws assets from the sender
-func (ha *HiveAsset) DrawAsset(amount *big.Int, me MaybeEnv) error {
+func (ha *HiveAsset) DrawAsset(amount *big.Int, me types.MaybeEnv) error {
 	sdk.HiveDrawFrom(me.UseEnv().Sender.Address, amount, sdk.Asset(ha.Asset))
 	return nil
 }
@@ -108,9 +110,9 @@ func (ma *MappedAsset) MappingContract() string {
 	return ma.MappingContractId
 }
 
-func (ma *MappedAsset) DrawAsset(amount *big.Int, mEnv MaybeEnv) error {
+func (ma *MappedAsset) DrawAsset(amount *big.Int, mEnv types.MaybeEnv) error {
 	env := mEnv.UseEnv()
-	input := MappingContractInput{
+	input := types.MappingContractInput{
 		Amount: amount.String(),
 		To:     "contract:" + env.ContractId,
 		From:   env.Sender.Address.String(),
@@ -125,7 +127,7 @@ func (ma *MappedAsset) DrawAsset(amount *big.Int, mEnv MaybeEnv) error {
 }
 
 func (ma *MappedAsset) TransferAsset(to string, amount *big.Int) error {
-	input := MappingContractInput{
+	input := types.MappingContractInput{
 		Amount: amount.String(),
 		To:     to,
 	}

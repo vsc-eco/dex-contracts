@@ -1,14 +1,16 @@
 package main
 
 import (
-	sdk "dex/sdk"
 	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
 
-	ce "dex/contracterrors"
-	. "dex/dex-internal"
+	"github.com/vsc-eco/dex-contracts/contracts/dex/asset"
+	"github.com/vsc-eco/dex-contracts/contracts/types"
+	"github.com/vsc-eco/dex-contracts/sdk"
+
+	ce "github.com/vsc-eco/dex-contracts/contracterrors"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
 )
@@ -25,7 +27,7 @@ func Init(payload *string) *string {
 		sdk.Abort("payload required")
 	}
 
-	var params InitParams
+	var params types.InitParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
 		sdk.Revert("invalid payload", JSON_ERROR)
 	}
@@ -35,11 +37,11 @@ func Init(payload *string) *string {
 		sdk.Abort("assets must be different")
 	}
 
-	asset0, err := NewAsset(params.Asset0, params.Asset0MappingContract)
+	asset0, err := asset.NewAsset(params.Asset0, params.Asset0MappingContract)
 	if err != nil {
 		sdk.Abort(err.Error())
 	}
-	asset1, err := NewAsset(params.Asset1, params.Asset1MappingContract)
+	asset1, err := asset.NewAsset(params.Asset1, params.Asset1MappingContract)
 	if err != nil {
 		sdk.Abort(err.Error())
 	}
@@ -92,7 +94,7 @@ func Swap(payload *string) *string {
 		)
 	}
 
-	var params SwapParams
+	var params types.SwapParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
 		ce.CustomAbort(
 			ce.WrapContractError(ce.ErrInput, err, "invalid payload"),
@@ -125,7 +127,7 @@ func Swap(payload *string) *string {
 	feeBps := getFee()
 
 	// Determine swap direction and calculate output
-	var inputAsset, outputAsset Asset
+	var inputAsset, outputAsset asset.Asset
 	var magiFeeKey string
 	var rInKey, rOutKey string
 
@@ -235,7 +237,7 @@ func Swap(payload *string) *string {
 		}
 	}
 
-	maybeEnv := MaybeEnv{}
+	maybeEnv := types.MaybeEnv{}
 
 	inputAsset.DrawAsset(amountIn, maybeEnv)
 
@@ -283,9 +285,9 @@ func Swap(payload *string) *string {
 	sdk.Log(logAmounts(amountIn, amountOut))
 
 	// Return swap result with current pool state
-	result := SwapResult{
+	result := types.SwapResult{
 		AmountOut: amountOut.String(),
-		PoolState: PoolInfo{
+		PoolState: types.PoolInfo{
 			Asset0:   asset0.Name(),
 			Asset1:   asset1.Name(),
 			Reserve0: getReserve0().String(),
@@ -318,7 +320,7 @@ func AddLiquidity(payload *string) *string {
 		)
 	}
 
-	var params AddLiquidityParams
+	var params types.AddLiquidityParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInput, "invalid payload"),
@@ -359,7 +361,7 @@ func RemoveLiquidity(payload *string) *string {
 		)
 	}
 
-	var params RemoveLiquidityParams
+	var params types.RemoveLiquidityParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInput, "invalid payload"),
@@ -393,7 +395,7 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string) *string {
 		sdk.Abort("pool not initialized")
 	}
 
-	maybeEnv := MaybeEnv{}
+	maybeEnv := types.MaybeEnv{}
 
 	// Pull funds from user intents into contract
 	if amt0.Sign() == 1 {
@@ -516,7 +518,7 @@ func GetPool(_ *string) *string {
 		)
 	}
 
-	poolInfo := PoolInfo{
+	poolInfo := types.PoolInfo{
 		Asset0:   asset0.Name(),
 		Asset1:   asset1.Name(),
 		Reserve0: getReserve0().String(),

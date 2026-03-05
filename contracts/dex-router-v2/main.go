@@ -1,15 +1,15 @@
 package main
 
 import (
-	sdk "dex-router-v2/sdk"
 	"encoding/json"
 	"math/big"
 	"strings"
 
-	ce "dex-router-v2/contracterrors"
-	. "dex-router-v2/router-internal"
-
 	tinyjson "github.com/CosmWasm/tinyjson"
+
+	ce "github.com/vsc-eco/dex-contracts/contracterrors"
+	"github.com/vsc-eco/dex-contracts/contracts/types"
+	"github.com/vsc-eco/dex-contracts/sdk"
 )
 
 func main() {}
@@ -37,7 +37,7 @@ func RegisterToken(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
 
-	var params RegisterTokenParams
+	var params types.RegisterTokenParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "invalid payload"))
 	}
@@ -84,7 +84,7 @@ func RegisterPool(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
 
-	var params RegisterPoolParams
+	var params types.RegisterPoolParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "invalid payload"))
 	}
@@ -134,7 +134,7 @@ func Execute(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
 
-	var instruction DexInstruction
+	var instruction types.DexInstruction
 	if err := tinyjson.Unmarshal([]byte(*payload), &instruction); err != nil {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "invalid payload"))
 	}
@@ -160,7 +160,7 @@ func Execute(payload *string) *string {
 }
 
 // Execute swap operation with 2-step routing
-func executeSwap(instruction DexInstruction) *string {
+func executeSwap(instruction types.DexInstruction) *string {
 	// Try direct pool first
 	directPoolId := findPool(instruction.AssetIn, instruction.AssetOut)
 	if directPoolId != "" {
@@ -193,9 +193,9 @@ func findPool(assetA, assetB string) string {
 }
 
 // Execute direct swap within a single DEX pool
-func executeDirectSwap(dexContractId string, instruction DexInstruction) *string {
+func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *string {
 	// Prepare swap parameters for DEX contract
-	swapParams := SwapParams{
+	swapParams := types.SwapParams{
 		AssetIn:      instruction.AssetIn,
 		AmountIn:     instruction.AmountIn,
 		AssetOut:     instruction.AssetOut,
@@ -221,7 +221,7 @@ func executeDirectSwap(dexContractId string, instruction DexInstruction) *string
 	}
 
 	// Parse result to update cache
-	var swapResult SwapResult
+	var swapResult types.SwapResult
 	if err := tinyjson.Unmarshal([]byte(*result), &swapResult); err == nil {
 		// Update cached pool state
 		setPoolState(dexContractId, swapResult.PoolState)
@@ -231,38 +231,21 @@ func executeDirectSwap(dexContractId string, instruction DexInstruction) *string
 }
 
 // Execute two-hop swap via HBD with intent-based bag checking and proper failure handling
-func executeTwoHopSwap(instruction DexInstruction) *string {
-	// Find first pool: AssetIn -> HBD
-	amountIn, ok := new(big.Int).SetString(instruction.AmountIn, 10)
-	if !ok {
-		return strPrt("invalid amount in")
-	}
+func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	pool1Id := findPool(instruction.AssetIn, sdk.AssetHbd.String())
 	if pool1Id == "" {
-		return handleSwapFailure(
-			instruction,
-			0,
-			"no pool found for first hop",
-			instruction.AssetIn,
-			amountIn,
-		)
+		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "no pool found for first hop"))
 	}
 
 	// Find second pool: HBD -> AssetOut
 	pool2Id := findPool(sdk.AssetHbd.String(), instruction.AssetOut)
 	if pool2Id == "" {
-		return handleSwapFailure(
-			instruction,
-			0,
-			"no pool found for second hop",
-			instruction.AssetIn,
-			amountIn,
-		)
+		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "no pool found for first hop"))
 	}
 
 	// Execute first swap: AssetIn -> HBD
 	// Route intermediate HBD to this router contract
-	firstSwapParams := SwapParams{
+	firstSwapParams := types.SwapParams{
 		AssetIn:      instruction.AssetIn,
 		AmountIn:     instruction.AmountIn,
 		AssetOut:     sdk.AssetHbd.String(),
@@ -272,66 +255,24 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 
 	firstSwapPayload, err := tinyjson.Marshal(&firstSwapParams)
 	if err != nil {
-		return handleSwapFailure(
-			instruction,
-			0,
-			"failed to marshal first swap params",
-			instruction.AssetIn,
-			amountIn,
-		)
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error marshalling first hop params"))
 	}
 
 	// Call first DEX contract - VSC will validate intents
 	// If swap fails (slippage, insufficient liquidity, etc.), VSC rolls back automatically
 	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), &sdk.ContractCallOptions{})
-	sdk.Log("firstResult")
 	if firstResult == nil {
-		// First swap failed - VSC rolled back, return original asset via return_address
-		return handleSwapFailure(
-			instruction,
-			1,
-			"first hop swap failed",
-			instruction.AssetIn,
-			amountIn,
-		)
-	}
-
-	// Check if result is an error
-	if len(*firstResult) > 0 {
-		// Try to parse as error
-		if len(*firstResult) >= 6 && (*firstResult)[:6] == `{"error"` {
-			// First swap failed - return original asset
-			return handleSwapFailure(
-				instruction,
-				1,
-				"first hop failed: "+*firstResult,
-				instruction.AssetIn,
-				amountIn,
-			)
-		}
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "first hop returned no result"))
 	}
 
 	// Parse swap result (includes pool state)
-	var swapResult1 SwapResult
+	var swapResult1 types.SwapResult
 	if err := tinyjson.Unmarshal([]byte(*firstResult), &swapResult1); err != nil {
-		// Parsing failed - might be error, return original asset
-		return handleSwapFailure(
-			instruction,
-			1,
-			"first hop failed: "+*firstResult,
-			instruction.AssetIn,
-			amountIn,
-		)
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error unmarshalling first hop result"))
 	}
 	res1AmountOut, ok := new(big.Int).SetString(swapResult1.AmountOut, 10)
 	if !ok {
-		return handleSwapFailure(
-			instruction,
-			1,
-			"first hop failed: "+*firstResult,
-			instruction.AssetIn,
-			amountIn,
-		)
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "first hop returned non-integer amount out"))
 	}
 
 	// Update cached pool state from result
@@ -339,7 +280,7 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 
 	// Execute second swap: HBD -> AssetOut
 	// Use actual HBD received from first swap
-	secondSwapParams := SwapParams{
+	secondSwapParams := types.SwapParams{
 		AssetIn:      sdk.AssetHbd.String(),
 		AmountIn:     res1AmountOut.String(),
 		AssetOut:     instruction.AssetOut,
@@ -349,28 +290,20 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 
 	secondSwapPayload, err := tinyjson.Marshal(&secondSwapParams)
 	if err != nil {
-		// First swap succeeded but second failed to marshal
-		// Return intermediate HBD via return_address
-		return handlePartialSwap(res1AmountOut, sdk.AssetHbd.String(), instruction)
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error marshalling first hop params"))
 	}
 
 	// Call second DEX contract (intents cloned above, reuse for second hop)
 	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), &sdk.ContractCallOptions{})
 	if secondResult == nil {
 		// Second swap failed - return intermediate HBD
-		return handlePartialSwap(res1AmountOut, sdk.AssetHbd.String(), instruction)
-	}
-
-	// Check for error
-	if len(*secondResult) > 0 && len(*secondResult) >= 6 && (*secondResult)[:6] == `{"error"` {
-		// Second swap failed - return intermediate HBD
-		return handlePartialSwap(res1AmountOut, sdk.AssetHbd.String(), instruction)
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "first hop returned no result"))
 	}
 
 	// Parse second swap result
-	var swapResult2 SwapResult
+	var swapResult2 types.SwapResult
 	if err := tinyjson.Unmarshal([]byte(*secondResult), &swapResult2); err != nil {
-		return handlePartialSwap(res1AmountOut, sdk.AssetHbd.String(), instruction)
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error unmarshalling first hop result"))
 	}
 
 	// Update cached pool state
@@ -378,165 +311,6 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 
 	// Success - both swaps completed
 	return nil
-}
-
-// Handle swap failure - return original asset via return_address
-func handleSwapFailure(
-	instruction DexInstruction,
-	failedAtHop int,
-	reason string,
-	asset string,
-	amount *big.Int,
-) *string {
-	// Create failure log
-	failureLog := FailureLog{
-		Reason:         reason,
-		FailedAtHop:    failedAtHop,
-		OriginalAsset:  asset,
-		OriginalAmount: amount.String(),
-		ReturnAddress:  instruction.ReturnAddress,
-		Timestamp:      sdk.GetEnv().Timestamp,
-	}
-
-	// Store failure log (for debugging/auditing)
-	logFailure(failureLog)
-
-	// If return_address is specified, return asset to that address
-	if instruction.ReturnAddress != nil {
-		return returnAssetToAddress(asset, amount, *instruction.ReturnAddress, failureLog)
-	}
-
-	// If no return_address, try to return to recipient (might be on Hive)
-	// This handles the case where user didn't specify return_address but is on Hive
-	return returnAssetToRecipient(asset, amount, instruction.Recipient, failureLog)
-}
-
-// Handle partial swap failure - return intermediate asset via return_address
-func handlePartialSwap(intermediateAmount *big.Int, intermediateAsset string, instruction DexInstruction) *string {
-	// Create failure log
-	failureLog := FailureLog{
-		Reason:             "second hop failed",
-		FailedAtHop:        2,
-		OriginalAsset:      instruction.AssetIn,
-		OriginalAmount:     instruction.AmountIn,
-		IntermediateAsset:  intermediateAsset,
-		IntermediateAmount: intermediateAmount.String(),
-		ReturnAddress:      instruction.ReturnAddress,
-		Timestamp:          sdk.GetEnv().Timestamp,
-	}
-
-	// Store failure log
-	logFailure(failureLog)
-
-	// Determine what asset to return based on return_address requirements
-	assetToReturn := intermediateAsset
-	amountToReturn := intermediateAmount
-
-	// If return_address is specified, check if we need to convert back to original asset
-	if instruction.ReturnAddress != nil {
-		originalAssetChain := getAssetChain(instruction.AssetIn)
-		returnChain := instruction.ReturnAddress.Chain
-
-		// If the original asset is from a non-Hive chain, and return address is on that same chain,
-		// we should try to swap HBD back to the original asset
-		// This handles cases like: BTC -> HBD (success) -> HIVE (failed), return to BTC address
-		if originalAssetChain != "HIVE" && returnChain != "" && returnChain == originalAssetChain {
-			// Try to swap HBD back to original asset
-			swapBackResult := trySwapBackToOriginal(
-				intermediateAsset,
-				intermediateAmount,
-				instruction.AssetIn,
-				instruction,
-			)
-			if swapBackResult != nil && swapBackResult.Success {
-				// Successfully swapped back - we now have original asset in router contract
-				assetToReturn = swapBackResult.Asset
-				amountToReturn = swapBackResult.AmountOut
-			}
-			// If swap back failed, we'll return the intermediate asset (HBD) as fallback
-			// The returnAssetToAddress function will handle cross-chain bridging if needed
-		}
-		// If return address is on Hive or empty, we can return HBD directly
-		// If return address is on a different chain than the original asset, we return HBD
-		// and let the bridge system handle cross-chain transfer
-	}
-
-	// Return asset via return_address
-	if instruction.ReturnAddress != nil {
-		return returnAssetToAddress(assetToReturn, amountToReturn, *instruction.ReturnAddress, failureLog)
-	}
-
-	// If no return_address, return to recipient
-	return returnAssetToRecipient(assetToReturn, amountToReturn, instruction.Recipient, failureLog)
-}
-
-// Return asset to specified return address (handles cross-chain)
-func returnAssetToAddress(asset string, amount *big.Int, returnAddr ReturnAddress, log FailureLog) *string {
-	// Check if return address is on Hive
-	if returnAddr.Chain == "HIVE" || returnAddr.Chain == "" {
-		// Direct transfer on Hive
-		transferAsset(returnAddr.Address, amount, asset)
-		ce.CustomAbort(
-			ce.NewContractError(
-				ce.ErrTransaction,
-				"swap failed, returned "+amount.String()+" "+asset+" to "+returnAddr.Address,
-			),
-		)
-		return nil
-	}
-
-	// Cross-chain return - need bridge integration
-	// For now, store the return request for bridge to process
-	// In production, this would trigger a bridge transaction
-	storeCrossChainReturn(returnAddr, asset, amount, log)
-
-	return &[]string{"error", "swap failed, cross-chain return initiated to " + returnAddr.Chain + ":" + returnAddr.Address}[1]
-}
-
-// Return asset to recipient (fallback if no return_address)
-func returnAssetToRecipient(asset string, amount *big.Int, recipient string, log FailureLog) *string {
-	// Try to transfer to recipient (might fail if recipient is not on Hive)
-	transferAsset(recipient, amount, asset)
-	return &[]string{"error", "swap failed, returned " + amount.String() + " " + asset + " to " + recipient}[1]
-}
-
-// Log failure for auditing
-func logFailure(log FailureLog) {
-	// Store failure log in contract state
-	// Key: failure_log/{tx_id}
-	env := sdk.GetEnv()
-	logKey := "failure_log/" + env.TxId
-
-	logBytes, err := tinyjson.Marshal(&log)
-	if err == nil {
-		setStr(logKey, string(logBytes))
-	}
-}
-
-// Store cross-chain return request (for bridge to process)
-func storeCrossChainReturn(returnAddr ReturnAddress, asset string, amount *big.Int, log FailureLog) {
-	// Store return request in contract state
-	// Bridge service will process these
-	returnKey := "return_request/" + sdk.GetEnv().TxId
-
-	returnReq := ReturnRequest{
-		Chain:   returnAddr.Chain,
-		Address: returnAddr.Address,
-		Asset:   asset,
-		Amount:  amount.String(),
-		Log:     log,
-	}
-
-	reqBytes, err := tinyjson.Marshal(&returnReq)
-	if err == nil {
-		setStr(returnKey, string(reqBytes))
-	}
-}
-
-// Helper to transfer assets
-func transferAsset(to string, amount *big.Int, asset string) {
-	// TODO: fix this, isn't transfering funds from the right place
-	sdk.HiveTransfer(sdk.Address(to), int64(amount.Uint64()), sdk.Asset(asset))
 }
 
 // getAssetChain returns the blockchain chain for a given asset symbol
@@ -557,7 +331,7 @@ func trySwapBackToOriginal(
 	intermediateAsset string,
 	intermediateAmount *big.Int,
 	originalAsset string,
-	instruction DexInstruction,
+	instruction types.DexInstruction,
 ) *SwapBackResult {
 	// Find pool for reverse swap: intermediateAsset -> originalAsset
 	reversePoolId := findPool(intermediateAsset, originalAsset)
@@ -570,7 +344,7 @@ func trySwapBackToOriginal(
 	}
 
 	// Prepare reverse swap parameters
-	reverseSwapParams := SwapParams{
+	reverseSwapParams := types.SwapParams{
 		AssetIn:      intermediateAsset,
 		AmountIn:     intermediateAmount.String(),
 		AssetOut:     originalAsset,
@@ -605,7 +379,7 @@ func trySwapBackToOriginal(
 	}
 
 	// Parse swap result to update cache
-	var swapResult SwapResult
+	var swapResult types.SwapResult
 	if err := tinyjson.Unmarshal([]byte(*reverseResult), &swapResult); err != nil {
 		return &SwapBackResult{
 			Success: false,
@@ -632,7 +406,7 @@ func trySwapBackToOriginal(
 }
 
 // Execute deposit (add liquidity)
-func executeDeposit(instruction DexInstruction) *string {
+func executeDeposit(instruction types.DexInstruction) *string {
 	// Find the pool
 	poolId := findPool(instruction.AssetIn, instruction.AssetOut)
 	if poolId == "" {
@@ -663,7 +437,7 @@ func executeDeposit(instruction DexInstruction) *string {
 	// }
 
 	// Prepare add liquidity parameters
-	addLiqParams := AddLiquidityParams{
+	addLiqParams := types.AddLiquidityParams{
 		Amount0:   amt0,
 		Amount1:   amt1,
 		Recipient: instruction.Recipient,
@@ -684,7 +458,7 @@ func executeDeposit(instruction DexInstruction) *string {
 }
 
 // Execute withdrawal (remove liquidity)
-func executeWithdrawal(instruction DexInstruction) *string {
+func executeWithdrawal(instruction types.DexInstruction) *string {
 	// Find the pool
 	poolId := findPool(instruction.AssetIn, instruction.AssetOut)
 	if poolId == "" {
@@ -702,7 +476,7 @@ func executeWithdrawal(instruction DexInstruction) *string {
 	}
 
 	// Prepare remove liquidity parameters
-	removeLiqParams := RemoveLiquidityParams{
+	removeLiqParams := types.RemoveLiquidityParams{
 		LpAmount:  lpAmount,
 		Recipient: instruction.Recipient,
 	}
@@ -730,7 +504,7 @@ func GetPool(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
 
-	var params GetPoolParams
+	var params types.GetPoolParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "invalid payload"))
 	}
@@ -769,7 +543,7 @@ func GetSchema(payload *string) *string {
 	}
 
 	// Build schema response
-	schema := SchemaReturn{
+	schema := types.SchemaReturn{
 		SupportedChains:     chains,
 		ReturnAddressChains: chains,
 		Note:                "Schema is dynamically generated from registered pools. Use indexer API for complete schema.",

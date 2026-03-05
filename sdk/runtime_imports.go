@@ -3,7 +3,7 @@
 package sdk
 
 import (
-	_ "dex/runtime"
+	_ "github.com/vsc-eco/dex-contracts/runtime"
 )
 
 //go:wasmimport sdk console.log

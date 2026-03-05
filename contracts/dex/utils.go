@@ -1,12 +1,13 @@
 package main
 
 import (
-	sdk "dex/sdk"
 	"math/big"
 	"math/bits"
 	"strings"
 
-	. "dex/dex-internal"
+	"github.com/vsc-eco/dex-contracts/sdk"
+
+	"github.com/vsc-eco/dex-contracts/contracts/dex/asset"
 )
 
 // Keys for state storage
@@ -69,10 +70,10 @@ func setBigInt(key string, val *big.Int) {
 }
 
 // Pool state helpers
-func getAsset0() (Asset, error) {
+func getAsset0() (asset.Asset, error) {
 	assetStr := getStr(keyAsset0)
 
-	asset0, err := AssetFromJson(assetStr)
+	asset0, err := asset.AssetFromJson(assetStr)
 	if err != nil {
 		return nil, err
 	}
@@ -80,10 +81,10 @@ func getAsset0() (Asset, error) {
 	return asset0, nil
 }
 
-func getAsset1() (Asset, error) {
+func getAsset1() (asset.Asset, error) {
 	assetStr := getStr(keyAsset1)
 
-	asset1, err := AssetFromJson(assetStr)
+	asset1, err := asset.AssetFromJson(assetStr)
 	if err != nil {
 		return nil, err
 	}

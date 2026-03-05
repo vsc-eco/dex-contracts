@@ -1,14 +1,13 @@
 package main
 
 import (
-	sdk "dex-router-v2/sdk"
 	"slices"
 	"strconv"
 	"strings"
 
-	. "dex-router-v2/router-internal"
-
 	tinyjson "github.com/CosmWasm/tinyjson"
+	"github.com/vsc-eco/dex-contracts/contracts/types"
+	"github.com/vsc-eco/dex-contracts/sdk"
 )
 
 // Keys for state storage
@@ -64,20 +63,20 @@ func poolStateKey(poolId string) string {
 }
 
 // Pool state cache helpers
-func getPoolState(poolId string) PoolInfo {
+func getPoolState(poolId string) types.PoolInfo {
 	stateKey := poolStateKey(poolId)
 	stateStr := getStr(stateKey)
 	if stateStr == "" {
-		return PoolInfo{} // Empty state
+		return types.PoolInfo{} // Empty state
 	}
 
 	// Parse pool state from stored string
 	// In a real implementation, we'd use tinyjson to unmarshal
 	// For now, return empty - will be populated from swap results
-	return PoolInfo{}
+	return types.PoolInfo{}
 }
 
-func setPoolState(poolId string, state PoolInfo) {
+func setPoolState(poolId string, state types.PoolInfo) {
 	stateKey := poolStateKey(poolId)
 	// In a real implementation, we'd marshal state to JSON
 	// For now, store as placeholder
@@ -120,7 +119,7 @@ func getAssetChain(asset string) string {
 	if infoStr == "" {
 		return ""
 	}
-	var tokenInfo TokenInfo
+	var tokenInfo types.TokenInfo
 	err := tinyjson.Unmarshal([]byte(infoStr), &tokenInfo)
 	if err != nil {
 		return ""
