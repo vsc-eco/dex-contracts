@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"encoding/binary"
 	"testing"
 	"vsc-node/lib/test_utils"
 	"vsc-node/modules/db/vsc/contracts"
@@ -201,7 +202,11 @@ func TestAddLiquidityMappedPool(t *testing.T) {
 
 	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
 	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
-	ct.StateSet(btcMappingId, "bal/hive:milo-hpr", "1000000")
+	ct.StateSet(btcMappingId, balancePrefix+owner, formatUintAsBytes(t, 1000000))
+	s := ct.StateGet(btcMappingId, balancePrefix+owner)
+	var buf [8]byte
+	copy(buf[8-len(s):], s)
+	t.Log(binary.BigEndian.Uint64(buf[:]))
 
 	btchbdDex := &DexInfo{
 		ct: &ct,
@@ -297,7 +302,7 @@ func TestOneHopNative(t *testing.T) {
 		Version:   "1.0.0",
 		AssetIn:   "hive",
 		AssetOut:  "hbd",
-		AmountIn:  500,
+		AmountIn:  "500",
 		Recipient: "hive:milo.vsc",
 		ReturnAddress: &routerV2.ReturnAddress{
 			Chain:   "VSC",
@@ -377,12 +382,12 @@ func TestOneHopMapped(t *testing.T) {
 		Asset1:                poolParams.Asset1,
 		Asset0MappingContract: btcMappingId,
 	})
-	ct.StateSet(btcMappingId, "bal/hive:milo-hpr", "200000000")
+	ct.StateSet(btcMappingId, balancePrefix+owner, formatUintAsBytes(t, 2_00000000))
 	r = btchbdDex.addLiquidity(t, owner, 1_49000000, 100000_000)
 	ct.Deposit(owner, 10000, ledger_db.AssetHbd)
 
 	if !r.Success {
-		t.Fatalf("error initializing BTC/HBD pool: %s", r.Ret)
+		t.Fatalf("error initializing BTC/HBD pool: %s: %s", r.Err, r.ErrMsg)
 	}
 
 	r = router.execute(t, owner, &routerV2.DexInstruction{
@@ -390,7 +395,7 @@ func TestOneHopMapped(t *testing.T) {
 		Version:   "1.0.0",
 		AssetIn:   "btc",
 		AssetOut:  "hbd",
-		AmountIn:  10000,
+		AmountIn:  "10000",
 		Recipient: "hive:milo.vsc",
 		ReturnAddress: &routerV2.ReturnAddress{
 			Chain:   "VSC",
@@ -491,7 +496,7 @@ func TestTwoHop(t *testing.T) {
 	if !r.Success {
 		t.Fatalf("error initializing HIVE/HBD pool: %s", r.Ret)
 	}
-	r = hivehbdDex.addLiquidity(t, owner, 1466641_244, 100000_000)
+	r = hivehbdDex.addLiquidity(t, owner, 14666412_440, 1000000_000)
 	if !r.Success {
 		t.Fatalf("error adding liquidity to HIVE/HBD pool: %s: %s", r.Err, r.ErrMsg)
 	}
@@ -519,21 +524,21 @@ func TestTwoHop(t *testing.T) {
 	if !r.Success {
 		t.Fatalf("error initializing BTC/HBD pool: %s", r.Ret)
 	}
-	ct.StateSet(btcMappingId, "bal/hive:milo-hpr", "1000000000")
-	r = btchbdDex.addLiquidity(t, owner, 1_49000000, 100000_000)
+	ct.StateSet(btcMappingId, balancePrefix+owner, formatUintAsBytes(t, 20_00000000))
+	r = btchbdDex.addLiquidity(t, owner, 14_90000000, 1000000_000)
 	if !r.Success {
 		t.Fatalf("error adding liquidity to BTC/HBD pool: %s: %s", r.Err, r.ErrMsg)
 	}
 
-	ct.Deposit(owner, int64(50000), ledger_db.Asset("hive"))
-	ct.Deposit(owner, int64(50000), ledger_db.Asset("hbd"))
+	ct.Deposit(owner, int64(10000_000), ledger_db.Asset("hive"))
+	ct.Deposit(owner, int64(10000_000), ledger_db.Asset("hbd"))
 
 	r = router.execute(t, owner, &routerV2.DexInstruction{
 		Type:      "swap",
 		Version:   "1.0.0",
 		AssetIn:   "hive",
 		AssetOut:  "btc",
-		AmountIn:  5000,
+		AmountIn:  "1000000",
 		Recipient: "hive:milo.vsc",
 		ReturnAddress: &routerV2.ReturnAddress{
 			Chain:   "VSC",
@@ -544,7 +549,7 @@ func TestTwoHop(t *testing.T) {
 			Type: "transfer.allow",
 			Args: map[string]string{
 				"token": "hive",
-				"limit": "5000",
+				"limit": "500000",
 			},
 		},
 	})

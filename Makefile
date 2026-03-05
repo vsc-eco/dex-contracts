@@ -13,6 +13,8 @@ WORKDIR      := /work
 
 .PHONY: test build clean contracts services sdk tinyjson contracts-test
 
+all: contracts
+
 # Test all components
 test:
 	cd contracts/btc-mapping && tinygo test -v ./...
@@ -191,19 +193,11 @@ setup:
 e2e:
 	cd e2e && go test -v -timeout 10m ./...
 
-# Run unit tests
-test:
-	cd contracts/dex-router/test && go test -v ./...
-
 # Run unit tests with coverage
 test-cover:
 	cd contracts/dex-router/test && go test -cover -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
-
-# Run E2E tests
-e2e:
-	./test-dex-e2e.sh
 
 # Run demo
 demo:
