@@ -3,6 +3,7 @@ package main
 import (
 	sdk "dex-router-v2/sdk"
 	"encoding/json"
+	"math/big"
 	"strconv"
 	"strings"
 
@@ -214,6 +215,10 @@ func executeDirectSwap(dexContractId string, instruction DexInstruction) *string
 // Execute two-hop swap via HBD with intent-based bag checking and proper failure handling
 func executeTwoHopSwap(instruction DexInstruction) *string {
 	// Find first pool: AssetIn -> HBD
+	amountIn, ok := new(big.Int).SetString(instruction.AmountIn, 10)
+	if !ok {
+		return strPrt("invalid amount in")
+	}
 	pool1Id := findPool(instruction.AssetIn, sdk.AssetHbd.String())
 	if pool1Id == "" {
 		return handleSwapFailure(
@@ -221,7 +226,7 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 			0,
 			"no pool found for first hop",
 			instruction.AssetIn,
-			uint64(instruction.AmountIn),
+			amountIn,
 		)
 	}
 
@@ -233,7 +238,7 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 			0,
 			"no pool found for second hop",
 			instruction.AssetIn,
-			uint64(instruction.AmountIn),
+			amountIn,
 		)
 	}
 
@@ -254,13 +259,14 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 			0,
 			"failed to marshal first swap params",
 			instruction.AssetIn,
-			uint64(instruction.AmountIn),
+			amountIn,
 		)
 	}
 
 	// Call first DEX contract - VSC will validate intents
 	// If swap fails (slippage, insufficient liquidity, etc.), VSC rolls back automatically
 	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), &sdk.ContractCallOptions{})
+	sdk.Log("firstResult")
 	if firstResult == nil {
 		// First swap failed - VSC rolled back, return original asset via return_address
 		return handleSwapFailure(
@@ -268,7 +274,7 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 			1,
 			"first hop swap failed",
 			instruction.AssetIn,
-			uint64(instruction.AmountIn),
+			amountIn,
 		)
 	}
 
@@ -282,7 +288,7 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 				1,
 				"first hop failed: "+*firstResult,
 				instruction.AssetIn,
-				uint64(instruction.AmountIn),
+				amountIn,
 			)
 		}
 	}
@@ -296,7 +302,17 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 			1,
 			"first hop failed: "+*firstResult,
 			instruction.AssetIn,
-			uint64(instruction.AmountIn),
+			amountIn,
+		)
+	}
+	res1AmountOut, ok := new(big.Int).SetString(swapResult1.AmountOut, 10)
+	if !ok {
+		return handleSwapFailure(
+			instruction,
+			1,
+			"first hop failed: "+*firstResult,
+			instruction.AssetIn,
+			amountIn,
 		)
 	}
 
@@ -307,7 +323,7 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 	// Use actual HBD received from first swap
 	secondSwapParams := SwapParams{
 		AssetIn:      sdk.AssetHbd.String(),
-		AmountIn:     int64(swapResult1.AmountOut),
+		AmountIn:     res1AmountOut.String(),
 		AssetOut:     instruction.AssetOut,
 		Recipient:    instruction.Recipient,
 		MinAmountOut: instruction.MinAmountOut, // User's slippage protection
@@ -317,26 +333,26 @@ func executeTwoHopSwap(instruction DexInstruction) *string {
 	if err != nil {
 		// First swap succeeded but second failed to marshal
 		// Return intermediate HBD via return_address
-		return handlePartialSwap(swapResult1.AmountOut, sdk.AssetHbd.String(), instruction)
+		return handlePartialSwap(res1AmountOut, sdk.AssetHbd.String(), instruction)
 	}
 
 	// Call second DEX contract (intents cloned above, reuse for second hop)
 	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), &sdk.ContractCallOptions{})
 	if secondResult == nil {
 		// Second swap failed - return intermediate HBD
-		return handlePartialSwap(swapResult1.AmountOut, sdk.AssetHbd.String(), instruction)
+		return handlePartialSwap(res1AmountOut, sdk.AssetHbd.String(), instruction)
 	}
 
 	// Check for error
 	if len(*secondResult) > 0 && len(*secondResult) >= 6 && (*secondResult)[:6] == `{"error"` {
 		// Second swap failed - return intermediate HBD
-		return handlePartialSwap(swapResult1.AmountOut, sdk.AssetHbd.String(), instruction)
+		return handlePartialSwap(res1AmountOut, sdk.AssetHbd.String(), instruction)
 	}
 
 	// Parse second swap result
 	var swapResult2 SwapResult
 	if err := tinyjson.Unmarshal([]byte(*secondResult), &swapResult2); err != nil {
-		return handlePartialSwap(swapResult1.AmountOut, sdk.AssetHbd.String(), instruction)
+		return handlePartialSwap(res1AmountOut, sdk.AssetHbd.String(), instruction)
 	}
 
 	// Update cached pool state
@@ -352,14 +368,14 @@ func handleSwapFailure(
 	failedAtHop int,
 	reason string,
 	asset string,
-	amount uint64,
+	amount *big.Int,
 ) *string {
 	// Create failure log
 	failureLog := FailureLog{
 		Reason:         reason,
 		FailedAtHop:    failedAtHop,
 		OriginalAsset:  asset,
-		OriginalAmount: amount,
+		OriginalAmount: amount.String(),
 		ReturnAddress:  instruction.ReturnAddress,
 		Timestamp:      sdk.GetEnv().Timestamp,
 	}
@@ -378,15 +394,15 @@ func handleSwapFailure(
 }
 
 // Handle partial swap failure - return intermediate asset via return_address
-func handlePartialSwap(intermediateAmount uint64, intermediateAsset string, instruction DexInstruction) *string {
+func handlePartialSwap(intermediateAmount *big.Int, intermediateAsset string, instruction DexInstruction) *string {
 	// Create failure log
 	failureLog := FailureLog{
 		Reason:             "second hop failed",
 		FailedAtHop:        2,
 		OriginalAsset:      instruction.AssetIn,
-		OriginalAmount:     uint64(instruction.AmountIn),
+		OriginalAmount:     instruction.AmountIn,
 		IntermediateAsset:  intermediateAsset,
-		IntermediateAmount: intermediateAmount,
+		IntermediateAmount: intermediateAmount.String(),
 		ReturnAddress:      instruction.ReturnAddress,
 		Timestamp:          sdk.GetEnv().Timestamp,
 	}
@@ -437,12 +453,12 @@ func handlePartialSwap(intermediateAmount uint64, intermediateAsset string, inst
 }
 
 // Return asset to specified return address (handles cross-chain)
-func returnAssetToAddress(asset string, amount uint64, returnAddr ReturnAddress, log FailureLog) *string {
+func returnAssetToAddress(asset string, amount *big.Int, returnAddr ReturnAddress, log FailureLog) *string {
 	// Check if return address is on Hive
 	if returnAddr.Chain == "HIVE" || returnAddr.Chain == "" {
 		// Direct transfer on Hive
-		transferAsset(returnAddr.Address, int64(amount), asset)
-		return &[]string{"error", "swap failed, returned " + strconv.FormatUint(amount, 10) + " " + asset + " to " + returnAddr.Address}[1]
+		transferAsset(returnAddr.Address, amount, asset)
+		return &[]string{"error", "swap failed, returned " + amount.String() + " " + asset + " to " + returnAddr.Address}[1]
 	}
 
 	// Cross-chain return - need bridge integration
@@ -454,10 +470,10 @@ func returnAssetToAddress(asset string, amount uint64, returnAddr ReturnAddress,
 }
 
 // Return asset to recipient (fallback if no return_address)
-func returnAssetToRecipient(asset string, amount uint64, recipient string, log FailureLog) *string {
+func returnAssetToRecipient(asset string, amount *big.Int, recipient string, log FailureLog) *string {
 	// Try to transfer to recipient (might fail if recipient is not on Hive)
-	transferAsset(recipient, int64(amount), asset)
-	return &[]string{"error", "swap failed, returned " + strconv.FormatUint(amount, 10) + " " + asset + " to " + recipient}[1]
+	transferAsset(recipient, amount, asset)
+	return &[]string{"error", "swap failed, returned " + amount.String() + " " + asset + " to " + recipient}[1]
 }
 
 // Log failure for auditing
@@ -474,7 +490,7 @@ func logFailure(log FailureLog) {
 }
 
 // Store cross-chain return request (for bridge to process)
-func storeCrossChainReturn(returnAddr ReturnAddress, asset string, amount uint64, log FailureLog) {
+func storeCrossChainReturn(returnAddr ReturnAddress, asset string, amount *big.Int, log FailureLog) {
 	// Store return request in contract state
 	// Bridge service will process these
 	returnKey := "return_request-" + sdk.GetEnv().TxId
@@ -483,7 +499,7 @@ func storeCrossChainReturn(returnAddr ReturnAddress, asset string, amount uint64
 		Chain:   returnAddr.Chain,
 		Address: returnAddr.Address,
 		Asset:   asset,
-		Amount:  amount,
+		Amount:  amount.String(),
 		Log:     log,
 	}
 
@@ -494,8 +510,9 @@ func storeCrossChainReturn(returnAddr ReturnAddress, asset string, amount uint64
 }
 
 // Helper to transfer assets
-func transferAsset(to string, amount int64, asset string) {
-	sdk.HiveTransfer(sdk.Address(to), amount, sdk.Asset(asset))
+func transferAsset(to string, amount *big.Int, asset string) {
+	// TODO: fix this, isn't transfering funds from the right place
+	sdk.HiveTransfer(sdk.Address(to), int64(amount.Uint64()), sdk.Asset(asset))
 }
 
 // getAssetChain returns the blockchain chain for a given asset symbol
@@ -505,7 +522,7 @@ func transferAsset(to string, amount int64, asset string) {
 // SwapBackResult contains the result of attempting to swap back to original asset
 type SwapBackResult struct {
 	Success   bool
-	AmountOut uint64
+	AmountOut *big.Int
 	Asset     string
 	Error     string
 }
@@ -514,7 +531,7 @@ type SwapBackResult struct {
 // Returns SwapBackResult with success status and amount received
 func trySwapBackToOriginal(
 	intermediateAsset string,
-	intermediateAmount uint64,
+	intermediateAmount *big.Int,
 	originalAsset string,
 	instruction DexInstruction,
 ) *SwapBackResult {
@@ -531,7 +548,7 @@ func trySwapBackToOriginal(
 	// Prepare reverse swap parameters
 	reverseSwapParams := SwapParams{
 		AssetIn:      intermediateAsset,
-		AmountIn:     int64(intermediateAmount),
+		AmountIn:     intermediateAmount.String(),
 		AssetOut:     originalAsset,
 		Recipient:    sdk.GetEnv().ContractId, // Route back to router temporarily
 		MinAmountOut: nil,                     // No minimum - we're trying to recover
@@ -576,9 +593,16 @@ func trySwapBackToOriginal(
 	setPoolState(reversePoolId, swapResult.PoolState)
 
 	// Success - we now have the original asset in the router contract
+	amountOut, ok := new(big.Int).SetString(swapResult.AmountOut, 10)
+	if !ok {
+		return &SwapBackResult{
+			Success: false,
+			Error:   "invalid amount from reverse swap result",
+		}
+	}
 	return &SwapBackResult{
 		Success:   true,
-		AmountOut: swapResult.AmountOut,
+		AmountOut: amountOut,
 		Asset:     originalAsset,
 	}
 }

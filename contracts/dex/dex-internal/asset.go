@@ -3,7 +3,7 @@ package dexinternal
 import (
 	"dex/sdk"
 	"fmt"
-	"strconv"
+	"math/big"
 	"strings"
 
 	"github.com/CosmWasm/tinyjson"
@@ -22,9 +22,9 @@ const (
 type Asset interface {
 	Name() string
 	MappingContract() string
-	DrawAsset(amount int64, mEnv MaybeEnv) error
+	DrawAsset(amount *big.Int, mEnv MaybeEnv) error
 	// transfers balance held by the contract to another magi account
-	TransferAsset(to string, amount int64) error
+	TransferAsset(to string, amount *big.Int) error
 	MarshalTinyJSON(w *jwriter.Writer)
 }
 
@@ -84,12 +84,12 @@ func (ha *HiveAsset) MappingContract() string {
 }
 
 // draws assets from the sender
-func (ha *HiveAsset) DrawAsset(amount int64, me MaybeEnv) error {
+func (ha *HiveAsset) DrawAsset(amount *big.Int, me MaybeEnv) error {
 	sdk.HiveDrawFrom(me.UseEnv().Sender.Address, amount, sdk.Asset(ha.Asset))
 	return nil
 }
 
-func (ha *HiveAsset) TransferAsset(to string, amount int64) error {
+func (ha *HiveAsset) TransferAsset(to string, amount *big.Int) error {
 	sdk.HiveTransfer(sdk.Address(to), amount, sdk.Asset(ha.Asset))
 	return nil
 }
@@ -108,10 +108,10 @@ func (ma *MappedAsset) MappingContract() string {
 	return ma.MappingContractId
 }
 
-func (ma *MappedAsset) DrawAsset(amount int64, mEnv MaybeEnv) error {
+func (ma *MappedAsset) DrawAsset(amount *big.Int, mEnv MaybeEnv) error {
 	env := mEnv.UseEnv()
 	input := MappingContractInput{
-		Amount: amount,
+		Amount: amount.String(),
 		To:     "contract:" + env.ContractId,
 		From:   env.Sender.Address.String(),
 	}
@@ -124,9 +124,9 @@ func (ma *MappedAsset) DrawAsset(amount int64, mEnv MaybeEnv) error {
 	return nil
 }
 
-func (ma *MappedAsset) TransferAsset(to string, amount int64) error {
+func (ma *MappedAsset) TransferAsset(to string, amount *big.Int) error {
 	input := MappingContractInput{
-		Amount: amount,
+		Amount: amount.String(),
 		To:     to,
 	}
 	payload, err := tinyjson.Marshal(input)
@@ -140,7 +140,7 @@ func (ma *MappedAsset) TransferAsset(to string, amount int64) error {
 			{
 				Type: intentTransferType,
 				Args: map[string]string{
-					intentAmountKey:     strconv.FormatInt(amount, 10),
+					intentAmountKey:     amount.String(),
 					intentTokenKey:      ma.Asset,
 					intentContractIdKey: ma.MappingContractId,
 				},

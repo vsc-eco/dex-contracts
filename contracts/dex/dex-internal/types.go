@@ -1,6 +1,8 @@
 package dexinternal
 
-import "dex/sdk"
+import (
+	"dex/sdk"
+)
 
 //tinyjson:json
 type InitParams struct {
@@ -14,24 +16,24 @@ type InitParams struct {
 //tinyjson:json
 type SwapParams struct {
 	AssetIn      string  `json:"asset_in"`
-	AmountIn     int64   `json:"amount_in"`
+	AmountIn     string  `json:"amount_in"`
 	AssetOut     string  `json:"asset_out"`
-	MinAmountOut *int64  `json:"min_amount_out,omitempty"`
+	MinAmountOut *string `json:"min_amount_out,omitempty"`
 	Recipient    string  `json:"recipient"`
 	Beneficiary  *string `json:"beneficiary,omitempty"`
-	RefBps       *int    `json:"ref_bps,omitempty"`
+	RefBps       *uint64 `json:"ref_bps,omitempty"`
 }
 
 //tinyjson:json
 type AddLiquidityParams struct {
-	Amount0   uint64 `json:"amount0"`
-	Amount1   uint64 `json:"amount1"`
+	Amount0   string `json:"amount0"`
+	Amount1   string `json:"amount1"`
 	Recipient string `json:"recipient"`
 }
 
 //tinyjson:json
 type RemoveLiquidityParams struct {
-	LpAmount  uint64 `json:"lp_amount"`
+	LpAmount  string `json:"lp_amount"`
 	Recipient string `json:"recipient"`
 }
 
@@ -39,10 +41,10 @@ type RemoveLiquidityParams struct {
 type PoolInfo struct {
 	Asset0   string `json:"asset0"`
 	Asset1   string `json:"asset1"`
-	Reserve0 uint64 `json:"reserve0"`
-	Reserve1 uint64 `json:"reserve1"`
+	Reserve0 string `json:"reserve0"`
+	Reserve1 string `json:"reserve1"`
 	Fee      uint64 `json:"fee"`
-	TotalLp  uint64 `json:"total_lp"`
+	TotalLp  string `json:"total_lp"`
 }
 
 //tinyjson:json
@@ -54,7 +56,7 @@ type TokenInfo struct {
 
 //tinyjson:json
 type SwapResult struct {
-	AmountOut uint64   `json:"amount_out"`
+	AmountOut string   `json:"amount_out"`
 	PoolState PoolInfo `json:"pool_state"` // Current pool state after swap
 }
 
@@ -65,7 +67,7 @@ type MaybeEnv struct {
 
 //tinyjson:json
 type MappingContractInput struct {
-	Amount int64  `json:"amount"`
+	Amount string `json:"amount"`
 	To     string `json:"to"`
 	From   string `json:"from,omitempty"`
 }

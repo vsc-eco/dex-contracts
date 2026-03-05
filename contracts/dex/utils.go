@@ -2,27 +2,26 @@ package main
 
 import (
 	sdk "dex/sdk"
+	"math/big"
 	"math/bits"
-	"strconv"
+	"strings"
 
 	. "dex/dex-internal"
 )
 
 // Keys for state storage
 const (
-	keyAsset0                       = "asset0"
-	keyAsset1                       = "asset1"
-	keyReserve0                     = "reserve0"
-	keyReserve1                     = "reserve1"
+	keyAsset0                       = "a1"
+	keyAsset1                       = "a2"
+	keyReserve0                     = "r0"
+	keyReserve1                     = "r1"
 	keyFee                          = "fee"
-	keyTotalLP                      = "total_lp"
+	keyTotalLP                      = "tlp"
 	keyLpPrefix                     = "lp-" // lp/{address}
-	keySystemFee0                   = "fee0"
-	keySystemFee1                   = "fee1"
-	keyClpFee0                      = "clp0"
-	keyClpFee1                      = "clp1"
-	keyFeeLastClaim                 = "fee_last_claim"
-	keyRouterAssetPrefix            = "asset-"
+	keySystemFee0                   = "f0"
+	keySystemFee1                   = "f1"
+	keyFeeLastClaim                 = "flc"
+	keyRouterAssetPrefix            = "as-"
 	keyMappingContractBalancePrefix = "bal-"
 )
 
@@ -32,6 +31,13 @@ const (
 
 const (
 	defaultBaseFeeBps = 8 // 0.08%
+)
+
+// Logs
+const (
+	logDelimiter      = "|"
+	logKeyDelimiter   = "="
+	logArrayDelimiter = ","
 )
 
 // State helpers
@@ -47,17 +53,19 @@ func setStr(key string, val string) {
 	sdk.StateSetObject(key, val)
 }
 
-func getUint(key string) uint64 {
+func getBigInt(key string) *big.Int {
 	v := sdk.StateGetObject(key)
-	if v == nil {
-		return 0
+	n := new(big.Int)
+	if v == nil || *v == "" {
+		return n
 	}
-	n, _ := strconv.ParseUint(*v, 10, 64)
+
+	n.SetBytes([]byte(*v))
 	return n
 }
 
-func setUint(key string, val uint64) {
-	sdk.StateSetObject(key, strconv.FormatUint(val, 10))
+func setBigInt(key string, val *big.Int) {
+	sdk.StateSetObject(key, string(val.Bytes()))
 }
 
 // Pool state helpers
@@ -83,24 +91,24 @@ func getAsset1() (Asset, error) {
 	return asset1, nil
 }
 
-func getReserve0() uint64 {
-	return getUint(keyReserve0)
+func getReserve0() *big.Int {
+	return getBigInt(keyReserve0)
 }
 
-func getReserve1() uint64 {
-	return getUint(keyReserve1)
+func getReserve1() *big.Int {
+	return getBigInt(keyReserve1)
 }
 
-func getFee() uint64 {
-	return getUint(keyFee)
+func getFee() *big.Int {
+	return getBigInt(keyFee)
 }
 
-func getTotalLp() uint64 {
-	return getUint(keyTotalLP)
+func getTotalLp() *big.Int {
+	return getBigInt(keyTotalLP)
 }
 
-func getLp(address string) uint64 {
-	return getUint(keyLpPrefix + address)
+func getLp(address string) *big.Int {
+	return getBigInt(keyLpPrefix + address)
 }
 
 func setAsset0(asset string) {
@@ -111,24 +119,24 @@ func setAsset1(asset string) {
 	setStr(keyAsset1, asset)
 }
 
-func setReserve0(reserve uint64) {
-	setUint(keyReserve0, reserve)
+func setReserve0(reserve *big.Int) {
+	setBigInt(keyReserve0, reserve)
 }
 
-func setReserve1(reserve uint64) {
-	setUint(keyReserve1, reserve)
+func setReserve1(reserve *big.Int) {
+	setBigInt(keyReserve1, reserve)
 }
 
-func setFee(fee uint64) {
-	setUint(keyFee, fee)
+func setFee(fee *big.Int) {
+	setBigInt(keyFee, fee)
 }
 
-func setTotalLp(totalLp uint64) {
-	setUint(keyTotalLP, totalLp)
+func setTotalLp(totalLp *big.Int) {
+	setBigInt(keyTotalLP, totalLp)
 }
 
-func setLp(address string, amount uint64) {
-	setUint(keyLpPrefix+address, amount)
+func setLp(address string, amount *big.Int) {
+	setBigInt(keyLpPrefix+address, amount)
 }
 
 // Utility functions
@@ -186,4 +194,50 @@ func sqrt128(hi, lo uint64) uint64 {
 		}
 	}
 	return ans
+}
+
+func logFee(magiFee, lpFee *big.Int) string {
+	totalFee := new(big.Int).Add(magiFee, lpFee)
+	var b strings.Builder
+	b.Grow(64)
+
+	// 2. Header
+	b.WriteString("fee")
+	b.WriteString(logDelimiter)
+
+	b.WriteString("t")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(totalFee.String())
+	b.WriteString(logDelimiter)
+
+	b.WriteString("m")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(magiFee.String())
+	b.WriteString(logDelimiter)
+
+	b.WriteString("lp")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(lpFee.String())
+
+	return b.String()
+}
+
+func logAmounts(in, out *big.Int) string {
+	var b strings.Builder
+	b.Grow(64)
+
+	// 2. Header
+	b.WriteString("amt")
+	b.WriteString(logDelimiter)
+
+	b.WriteString("i")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(in.String())
+	b.WriteString(logDelimiter)
+
+	b.WriteString("o")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(out.String())
+
+	return b.String()
 }

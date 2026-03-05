@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"encoding/hex"
+	"math/big"
 	"strconv"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
@@ -149,25 +150,25 @@ func HiveDraw(amount int64, asset Asset) {
 	hiveDraw(&amt, &as)
 }
 
-func HiveDrawFrom(from Address, amount int64, asset Asset) {
+func HiveDrawFrom(from Address, amount *big.Int, asset Asset) {
 	frm := from.String()
-	amt := strconv.FormatInt(amount, 10)
+	amt := amount.String()
 	as := asset.String()
 	hiveDrawFrom(&frm, &amt, &as)
 }
 
 // Transfer assets from the contract to another account.
-func HiveTransfer(to Address, amount int64, asset Asset) {
+func HiveTransfer(to Address, amount *big.Int, asset Asset) {
 	toaddr := to.String()
-	amt := strconv.FormatInt(amount, 10)
+	amt := amount.String()
 	as := asset.String()
 	hiveTransfer(&toaddr, &amt, &as)
 }
 
 // Unmap assets from the contract to a specified Hive account.
-func HiveWithdraw(to Address, amount int64, asset Asset) {
+func HiveWithdraw(to Address, amount *big.Int, asset Asset) {
 	toaddr := to.String()
-	amt := strconv.FormatInt(amount, 10)
+	amt := amount.String()
 	as := asset.String()
 	hiveWithdraw(&toaddr, &amt, &as)
 }

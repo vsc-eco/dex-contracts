@@ -2,15 +2,13 @@ package main
 
 import (
 	sdk "dex/sdk"
-	"errors"
 	"fmt"
 	"math/big"
-	"math/bits"
+	"strconv"
 	"strings"
 
-	. "dex/dex-internal"
-
 	ce "dex/contracterrors"
+	. "dex/dex-internal"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
 )
@@ -59,36 +57,27 @@ func Init(payload *string) *string {
 	if params.FeeBps == 0 {
 		params.FeeBps = defaultBaseFeeBps
 	}
+	if params.FeeBps > 10000 {
+		ce.CustomAbort(
+			ce.NewContractError(
+				ce.ErrInput,
+				"fee bps must not exceed 10000 got "+strconv.FormatUint(params.FeeBps, 10),
+			),
+		)
+	}
 
 	// Initialize pool state
 	setAsset0(string(asset0json))
 	setAsset1(string(asset1json))
-	setReserve0(0)
-	setReserve1(0)
-	setFee(params.FeeBps)
-	setTotalLp(0)
-	setUint(keySystemFee0, 0)
-	setUint(keySystemFee1, 0)
+	setReserve0(big.NewInt(0))
+	setReserve1(big.NewInt(0))
+	setFee(big.NewInt(int64(params.FeeBps)))
+	setTotalLp(big.NewInt(0))
+	setBigInt(keySystemFee0, big.NewInt(0))
+	setBigInt(keySystemFee1, big.NewInt(0))
 	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
 
 	return nil
-}
-
-func getClpFee(amountIn int64, reserveIn, reserveOut uint64) (uint64, error) {
-	rIn := new(big.Int).SetUint64(reserveIn)
-	rOut := new(big.Int).SetUint64(reserveOut)
-	amtIn := big.NewInt(amountIn)
-	clpFee := big.NewInt(0)
-	clpFee.Mul(amtIn, amtIn)
-	clpFee.Mul(clpFee, rOut)
-	denominator := big.NewInt(0)
-	denominator.Add(amtIn, rIn)
-	denominator.Mul(denominator, denominator)
-	clpFee.Div(clpFee, denominator)
-	if !clpFee.IsUint64() {
-		return 0, errors.New("clp fee out of bounds")
-	}
-	return clpFee.Uint64(), nil
 }
 
 // Swap tokens in this pool
@@ -98,17 +87,23 @@ func getClpFee(amountIn int64, reserveIn, reserveOut uint64) (uint64, error) {
 //go:wasmexport swap
 func Swap(payload *string) *string {
 	if payload == nil {
-		return &[]string{"error", "payload required"}[1]
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "payload required"),
+		)
 	}
 
 	var params SwapParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
-		return &[]string{"error", "invalid payload"}[1]
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrInput, err, "invalid payload"),
+		)
 	}
 
 	// Validate required fields
 	if params.AssetIn == "" || params.AssetOut == "" || params.Recipient == "" {
-		return &[]string{"error", "missing required fields"}[1]
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "missing required fields"),
+		)
 	}
 
 	params.AssetIn = strings.ToLower(params.AssetIn)
@@ -116,121 +111,200 @@ func Swap(payload *string) *string {
 
 	asset0, err := getAsset0()
 	if err != nil {
-		sdk.Abort("pool not initialized")
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInitialization, "asset0 not found"),
+		)
 	}
 	asset1, err := getAsset1()
 	if err != nil {
-		sdk.Abort("pool not initialized")
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInitialization, "asset1 not found"),
+		)
 	}
 
 	feeBps := getFee()
 
 	// Determine swap direction and calculate output
-	var amountOut uint64
 	var inputAsset, outputAsset Asset
-	var feeReserveKey string
+	var magiFeeKey string
 	var rInKey, rOutKey string
 
 	if asset0.Name() == params.AssetIn && asset1.Name() == params.AssetOut {
 		// asset0 -> asset1
 		inputAsset = asset0
 		outputAsset = asset1
-		feeReserveKey = keySystemFee0
+		magiFeeKey = keySystemFee0
 		rInKey = keyReserve0
 		rOutKey = keyReserve1
 	} else if asset1.Name() == params.AssetIn && asset0.Name() == params.AssetOut {
 		// asset1 -> asset0
 		inputAsset = asset1
 		outputAsset = asset0
-		feeReserveKey = keySystemFee1
+		magiFeeKey = keySystemFee1
 		rInKey = keyReserve1
 		rOutKey = keyReserve0
 	} else {
-		return &[]string{"error", "invalid asset pair for pool want " + asset0.Name() + "-" + asset1.Name() + " got " + params.AssetIn + "-" + params.AssetOut}[1]
-	}
-
-	rIn := getUint(rInKey)
-	rOut := getUint(rOutKey)
-
-	if rIn == 0 || rOut == 0 {
 		ce.CustomAbort(
-			ce.NewContractError(ce.ErrInitialization, "pool has zero reserves"),
+			ce.NewContractError(ce.ErrInitialization, "invalid asset pair for pool want "+asset0.Name()+"-"+asset1.Name()+" got "+params.AssetIn+"-"+params.AssetOut),
 		)
 	}
 
-	dIn := uint64(params.AmountIn) * (10000 - feeBps) / 10000 // Apply fee
-	if dIn == 0 {
-		dIn = 1
+	rIn := getBigInt(rInKey)
+	rOut := getBigInt(rOutKey)
+
+	if rIn.Sign() == 0 || rOut.Sign() == 0 {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrTransaction, "pool has zero reserves"),
+		)
+	}
+	maxSwap := new(big.Int).Div(rIn, big.NewInt(2))
+
+	// baseFee = amountIn * feeBps / 10000
+	amountIn, ok := new(big.Int).SetString(params.AmountIn, 10)
+	if !ok {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "invalid input amount"),
+		)
+	}
+	if amountIn.Cmp(maxSwap) > 0 {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrTransaction, "amount > input asset liquidty / 2", "swap too large"),
+		)
 	}
 
-	// clpFee, err := getClpFee(params.AmountIn, rIn, rOut)
-	// if err != nil {
-	// 	ce.CustomAbort(
-	// 		ce.WrapContractError(ce.ErrArithmetic, err, "error getting fee"),
-	// 	)
-	// }
-	// dIn -= clpFee
+	baseFee := new(big.Int).Mul(amountIn, feeBps)
+	baseFee.Div(baseFee, big.NewInt(10000))
+	if baseFee.Sign() == 0 {
+		baseFee.SetUint64(1)
+	}
 
-	k := rIn * rOut
-	newRIn := rIn + dIn
-	amountOut = rOut - (k / newRIn)
+	// numerator = (amountIn ^ 2) * reserveOut
+	numerator := new(big.Int).Mul(amountIn, amountIn)
+	numerator.Mul(numerator, rOut)
+	// denominator = (amountIn + reserveIn)^2
+	denominator := new(big.Int).Add(amountIn, rIn)
+	denominator.Mul(denominator, denominator)
+	clpFee := new(big.Int).Div(numerator, denominator)
+	if clpFee.Sign() == 0 {
+		clpFee.SetUint64(1)
+	}
+	magiFee := new(big.Int).Add(baseFee, clpFee)
+	lpFee := new(big.Int).Set(magiFee)
+	magiFee.Div(magiFee, big.NewInt(4))
+	if magiFee.Sign() == 0 {
+		magiFee.SetUint64(1)
+	}
+	lpFee.Sub(lpFee, magiFee)
 
-	setUint(rInKey, newRIn)
-	setUint(rOutKey, rOut-amountOut)
+	// dIn = amountIn - baseFee - clpFee  (using big.Int to avoid underflow)
+	dIn := new(big.Int).Set(amountIn)
+	dIn.Sub(dIn, baseFee)
+	dIn.Sub(dIn, clpFee)
+	if dIn.Sign() <= 0 {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInitialization, "insufficient amount to cover fees"),
+		)
+	}
+
+	// k = rIn * rOut  (big.Int to prevent overflow)
+	k := new(big.Int).Mul(rIn, rOut)
+
+	// newRIn = rIn + dIn
+	newRIn := new(big.Int).Add(rIn, dIn)
+
+	// amountOut = rOut - k / newRIn
+	amountOut := new(big.Int).Div(k, newRIn) // (k / newRIn)
+	amountOut.Sub(rOut, amountOut)
+
+	// newROut = rOut - amountOut
+	newROut := new(big.Int).Sub(rOut, amountOut)
 
 	// Apply slippage protection if specified
+
 	if params.MinAmountOut != nil {
-		if amountOut < uint64(*params.MinAmountOut) {
-			return &[]string{"error", "slippage tolerance exceeded"}[1]
+		minOut, ok := new(big.Int).SetString(*params.MinAmountOut, 10)
+		if !ok {
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrInitialization, "invalid minimum amount out"),
+			)
+		}
+		if amountOut.Cmp(minOut) < 0 {
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrInitialization, "slippage tolerance exceeded"),
+			)
 		}
 	}
 
 	maybeEnv := MaybeEnv{}
 
-	inputAsset.DrawAsset(params.AmountIn, maybeEnv)
+	inputAsset.DrawAsset(amountIn, maybeEnv)
 
 	// Handle referral fees
 	if params.Beneficiary != nil && params.RefBps != nil {
-		refOut := amountOut * uint64(*params.RefBps) / 10000
-		if refOut > 0 {
-			if refOut >= amountOut {
-				refOut = amountOut - 1
+		// refOut = amountOut * refBps / 10000
+		refOut := new(big.Int).Set(amountOut)
+		refOut.Mul(refOut, new(big.Int).SetUint64(*params.RefBps))
+		refOut.Div(refOut, big.NewInt(10000))
+		if refOut.Cmp(amountOut) > 0 {
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrInitialization, "insufficient amount to cover fees"),
+			)
+		}
+		if refOut.Sign() == 1 {
+			if refOut.Cmp(amountOut) >= 0 {
+				refOut.Sub(amountOut, big.NewInt(1))
 			}
-			amountOut -= refOut
-			err := outputAsset.TransferAsset(*params.Beneficiary, int64(refOut))
+			amountOut.Sub(amountOut, refOut)
+			err := outputAsset.TransferAsset(*params.Beneficiary, refOut)
 			if err != nil {
-				sdk.Abort(fmt.Sprintf("error transferring beneficiary asset out: %s", err.Error()))
+				ce.CustomAbort(
+					ce.WrapContractError(ce.ErrInitialization, err, "error transferring beneficiary asset out"),
+				)
 			}
 		}
+
 	}
 
-	outputAsset.TransferAsset(params.Recipient, int64(amountOut))
+	outputAsset.TransferAsset(params.Recipient, amountOut)
 
-	// // Accumulate fees
-	// if isHbd(inputAsset.Name()) {
-	fee := uint64(params.AmountIn) - dIn
-	if fee > 0 {
-		currentFee := getUint(feeReserveKey)
-		setUint(feeReserveKey, currentFee+fee)
+	// Accumulate fees
+	if magiFee.Sign() == 1 {
+		currentFee := getBigInt(magiFeeKey)
+		currentFee.Add(currentFee, magiFee)
+		if currentFee.IsUint64() {
+			setBigInt(magiFeeKey, currentFee)
+		}
 	}
-	// }
+	// add the LP fee to the input reserve
+	if lpFee.Sign() == 1 {
+		newRIn.Add(newRIn, lpFee)
+	}
+	// set new values for inputs now that fee is added to rIn
+	setBigInt(rInKey, newRIn)
+	setBigInt(rOutKey, newROut)
+
+	// log fee and amount swapped
+	sdk.Log(logFee(magiFee, lpFee))
+	sdk.Log(logAmounts(amountIn, amountOut))
 
 	// Return swap result with current pool state
 	result := SwapResult{
-		AmountOut: amountOut,
+		AmountOut: amountOut.String(),
 		PoolState: PoolInfo{
 			Asset0:   asset0.Name(),
 			Asset1:   asset1.Name(),
-			Reserve0: getReserve0(),
-			Reserve1: getReserve1(),
-			Fee:      getFee(),
-			TotalLp:  getTotalLp(),
+			Reserve0: getReserve0().String(),
+			Reserve1: getReserve1().String(),
+			Fee:      getFee().Uint64(),
+			TotalLp:  getTotalLp().String(),
 		},
 	}
 
 	resultBytes, err := tinyjson.Marshal(&result)
 	if err != nil {
-		return &[]string{"error", "serialization failed"}[1]
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrJson, err, "failed to serialze output"),
+		)
 	}
 
 	resultStr := string(resultBytes)
@@ -244,19 +318,38 @@ func Swap(payload *string) *string {
 //go:wasmexport add_liquidity
 func AddLiquidity(payload *string) *string {
 	if payload == nil {
-		sdk.Revert("payload required", "invalid_input_error")
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "payload required"),
+		)
 	}
 
 	var params AddLiquidityParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
-		sdk.Revert("invalid payload: "+err.Error(), "invalid_input_error")
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "invalid payload"),
+		)
 	}
 
-	if params.Amount0 == 0 || params.Amount1 == 0 || params.Recipient == "" {
-		sdk.Revert("missing required fields", "invalid_input_error")
+	amt0, ok := new(big.Int).SetString(params.Amount0, 10)
+	if !ok {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "invalid amount0"),
+		)
+	}
+	amt1, ok := new(big.Int).SetString(params.Amount1, 10)
+	if !ok {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "invalid amount1"),
+		)
 	}
 
-	return executeAddLiquidity(params.Amount0, params.Amount1, params.Recipient)
+	if amt0.Sign() == 0 || amt1.Sign() == 0 || params.Recipient == "" {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "missing required fields"),
+		)
+	}
+
+	return executeAddLiquidity(amt0, amt1, params.Recipient)
 }
 
 // Remove liquidity from the pool
@@ -266,23 +359,36 @@ func AddLiquidity(payload *string) *string {
 //go:wasmexport remove_liquidity
 func RemoveLiquidity(payload *string) *string {
 	if payload == nil {
-		return &[]string{"error", "payload required"}[1]
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "payload required"),
+		)
 	}
 
 	var params RemoveLiquidityParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
-		return &[]string{"error", "invalid payload"}[1]
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "invalid payload"),
+		)
 	}
 
-	if params.LpAmount == 0 || params.Recipient == "" {
-		return &[]string{"error", "missing required fields"}[1]
+	lpAmt, ok := new(big.Int).SetString(params.LpAmount, 10)
+	if !ok {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "invalid lp amount"),
+		)
 	}
 
-	return executeRemoveLiquidity(params.LpAmount, params.Recipient)
+	if lpAmt.Sign() == 0 || params.Recipient == "" {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "missing required fields"),
+		)
+	}
+
+	return executeRemoveLiquidity(lpAmt, params.Recipient)
 }
 
 // Execute add liquidity operation
-func executeAddLiquidity(amt0U, amt1U uint64, provider string) *string {
+func executeAddLiquidity(amt0, amt1 *big.Int, provider string) *string {
 	asset0, err := getAsset0()
 	if err != nil {
 		sdk.Abort("pool not initialized")
@@ -295,11 +401,11 @@ func executeAddLiquidity(amt0U, amt1U uint64, provider string) *string {
 	maybeEnv := MaybeEnv{}
 
 	// Pull funds from user intents into contract
-	if amt0U > 0 {
-		asset0.DrawAsset(int64(amt0U), maybeEnv)
+	if amt0.Sign() == 1 {
+		asset0.DrawAsset(amt0, maybeEnv)
 	}
-	if amt1U > 0 {
-		asset1.DrawAsset(int64(amt1U), maybeEnv)
+	if amt1.Sign() == 1 {
+		asset1.DrawAsset(amt1, maybeEnv)
 	}
 
 	// Update reserves and mint LP
@@ -307,66 +413,91 @@ func executeAddLiquidity(amt0U, amt1U uint64, provider string) *string {
 	r1 := getReserve1()
 	totalLP := getTotalLp()
 
-	var minted uint64
-	if totalLP == 0 {
-		// Geometric mean using 128-bit product for first liquidity
-		hi, lo := bits.Mul64(amt0U, amt1U)
-		minted = sqrt128(hi, lo)
+	minted := new(big.Int)
+	if totalLP.Sign() == 0 {
+		// Geometric mean: sqrt(amt0 * amt1) using big.Int
+		product := new(big.Int).Mul(amt0, amt1)
+		minted = new(big.Int).Sqrt(product)
 	} else {
-		// Proportional minting
-		m0 := amt0U * totalLP / r0
-		m1 := amt1U * totalLP / r1
-		minted = min64(m0, m1)
-	}
-	contractAssert(minted > 0)
+		// Proportional minting: min(amt0 * totalLP / r0, amt1 * totalLP / r1)
+		m0 := new(big.Int).Mul(amt0, totalLP)
+		m0.Div(m0, r0)
 
-	// Update state
-	setReserve0(r0 + amt0U)
-	setReserve1(r1 + amt1U)
-	setTotalLp(totalLP + minted)
+		m1 := new(big.Int).Mul(amt1, totalLP)
+		m1.Div(m1, r1)
+
+		minted = m0
+		if m1.Cmp(m0) < 0 {
+			minted = m1
+		}
+	}
+	contractAssert(minted.Sign() == 1)
+
+	setReserve0(new(big.Int).Add(r0, amt0))
+	setReserve1(new(big.Int).Add(r1, amt1))
+	setTotalLp(new(big.Int).Add(totalLP, minted))
 
 	// Mint LP tokens to provider
 	providerAddr := sdk.Address(provider)
 	currentLP := getLp(providerAddr.String())
-	setLp(providerAddr.String(), currentLP+minted)
+	newLP := new(big.Int).Add(currentLP, minted)
+	setLp(providerAddr.String(), newLP)
 
 	return nil
 }
 
 // Execute remove liquidity operation
-func executeRemoveLiquidity(lpAmountU uint64, provider string) *string {
+func executeRemoveLiquidity(lpAmount *big.Int, provider string) *string {
 	providerAddr := sdk.Address(provider)
 	userLP := getLp(providerAddr.String())
 	totalLP := getTotalLp()
 
-	contractAssert(lpAmountU > 0 && lpAmountU <= userLP && totalLP > 0)
+	contractAssert(lpAmount.Sign() == 1 && lpAmount.Cmp(userLP) <= 0 && lpAmount.Cmp(totalLP) <= 0)
 
 	r0 := getReserve0()
 	r1 := getReserve1()
 
-	// Calculate proportional amounts
-	amt0 := int64(r0 * lpAmountU / totalLP)
-	amt1 := int64(r1 * lpAmountU / totalLP)
+	// amt = reserve * lpAmount / totalLP  (big.Int to avoid overflow)
+	amt0 := new(big.Int).Mul(r0, lpAmount)
+	amt0.Div(amt0, totalLP)
 
-	// Update state first
-	setLp(providerAddr.String(), userLP-lpAmountU)
-	setTotalLp(totalLP - lpAmountU)
-	setReserve0(r0 - uint64(amt0))
-	setReserve1(r1 - uint64(amt1))
+	amt1 := new(big.Int).Mul(r1, lpAmount)
+	amt1.Div(amt1, totalLP)
+
+	// newR0 = r0 - amt0
+	newR0 := new(big.Int).Sub(r0, amt0)
+	newR1 := new(big.Int).Sub(r1, amt1)
+	newUserLP := new(big.Int).Sub(userLP, lpAmount)
+	newTotalLP := new(big.Int).Sub(totalLP, lpAmount)
+
+	if newR0.Sign() < 0 || newR1.Sign() < 0 || newUserLP.Sign() < 0 || newTotalLP.Sign() < 0 {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrArithmetic, "underflow in remove liquidity"),
+		)
+	}
+
+	setLp(providerAddr.String(), newUserLP)
+	setTotalLp(newTotalLP)
+	setReserve0(newR0)
+	setReserve1(newR1)
 
 	// Transfer assets out
 	asset0, err := getAsset0()
 	if err != nil {
-		sdk.Abort(fmt.Sprintf("error retrieving asset: %s", err.Error()))
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrStateAccess, err, "error retrieving asset0"),
+		)
 	}
 	asset1, err := getAsset1()
 	if err != nil {
-		sdk.Abort(fmt.Sprintf("error retrieving asset: %s", err.Error()))
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrStateAccess, err, "error retrieving asset0"),
+		)
 	}
-	if amt0 > 0 {
+	if amt0.Sign() == 1 {
 		asset0.TransferAsset(provider, amt0)
 	}
-	if amt1 > 0 {
+	if amt1.Sign() == 1 {
 		asset1.TransferAsset(provider, amt1)
 	}
 
@@ -379,25 +510,31 @@ func executeRemoveLiquidity(lpAmountU uint64, provider string) *string {
 func GetPool(_ *string) *string {
 	asset0, err := getAsset0()
 	if err != nil {
-		sdk.Abort("pool not initialized")
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrInitialization, err, "pool not initialized"),
+		)
 	}
 	asset1, err := getAsset0()
 	if err != nil {
-		sdk.Abort("pool not initialized")
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrInitialization, err, "pool not initialized"),
+		)
 	}
 
 	poolInfo := PoolInfo{
 		Asset0:   asset0.Name(),
 		Asset1:   asset1.Name(),
-		Reserve0: getReserve0(),
-		Reserve1: getReserve1(),
-		Fee:      getFee(),
-		TotalLp:  getTotalLp(),
+		Reserve0: getReserve0().String(),
+		Reserve1: getReserve1().String(),
+		Fee:      getFee().Uint64(),
+		TotalLp:  getTotalLp().String(),
 	}
 
 	resultBytes, err := tinyjson.Marshal(&poolInfo)
 	if err != nil {
-		return &[]string{"error", "serialization failed"}[1]
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrJson, err, "failed to serialize output"),
+		)
 	}
 
 	result := string(resultBytes)
@@ -409,30 +546,36 @@ func GetPool(_ *string) *string {
 //go:wasmexport claim_fees
 func ClaimFees(payload *string) *string {
 	if !isSystemSender() {
-		return &[]string{"error", "system only"}[1]
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrAuth, "system administrator only"),
+		)
 	}
 
 	asset0, err := getAsset0()
 	if err != nil {
-		sdk.Abort("pool not initialized")
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrStateAccess, err, "pool not initialized"),
+		)
 	}
 	asset1, err := getAsset1()
 	if err != nil {
-		sdk.Abort("pool not initialized")
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrStateAccess, err, "pool not initialized"),
+		)
 	}
 	dao := sdk.Address("system:fr_balance")
 
-	f0 := getUint(keySystemFee0)
-	f1 := getUint(keySystemFee1)
+	f0 := getBigInt(keySystemFee0)
+	f1 := getBigInt(keySystemFee1)
 
 	// can use hive withdraw because its only hbd
-	if f0 > 0 && isHbd(asset0.Name()) {
-		setUint(keySystemFee0, 0)
-		sdk.HiveWithdraw(dao, int64(f0), sdk.Asset(asset0.Name()))
+	if f0.Sign() == 1 && isHbd(asset0.Name()) {
+		setBigInt(keySystemFee0, big.NewInt(0))
+		sdk.HiveWithdraw(dao, f0, sdk.Asset(asset0.Name()))
 	}
-	if f1 > 0 && isHbd(asset1.Name()) {
-		setUint(keySystemFee1, 0)
-		sdk.HiveWithdraw(dao, int64(f1), sdk.Asset(asset1.Name()))
+	if f1.Sign() == 1 && isHbd(asset1.Name()) {
+		setBigInt(keySystemFee1, big.NewInt(0))
+		sdk.HiveWithdraw(dao, f1, sdk.Asset(asset1.Name()))
 	}
 
 	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)

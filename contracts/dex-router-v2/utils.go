@@ -145,3 +145,7 @@ func splitChains(s string) []string {
 	}
 	return out
 }
+
+func strPrt(s string) *string {
+	return &s
+}

@@ -107,7 +107,7 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp1(in *jlexer.Lexe
 		}
 		switch key {
 		case "amount_out":
-			out.AmountOut = uint64(in.Uint64())
+			out.AmountOut = string(in.String())
 		case "pool_state":
 			(out.PoolState).UnmarshalTinyJSON(in)
 		default:
@@ -127,7 +127,7 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp1(out *jwriter.Wr
 	{
 		const prefix string = ",\"amount_out\":"
 		out.RawString(prefix[1:])
-		out.Uint64(uint64(in.AmountOut))
+		out.String(string(in.AmountOut))
 	}
 	{
 		const prefix string = ",\"pool_state\":"
@@ -168,7 +168,7 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp2(in *jlexer.Lexe
 		case "asset_in":
 			out.AssetIn = string(in.String())
 		case "amount_in":
-			out.AmountIn = int64(in.Int64())
+			out.AmountIn = string(in.String())
 		case "asset_out":
 			out.AssetOut = string(in.String())
 		case "min_amount_out":
@@ -177,9 +177,9 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp2(in *jlexer.Lexe
 				out.MinAmountOut = nil
 			} else {
 				if out.MinAmountOut == nil {
-					out.MinAmountOut = new(int64)
+					out.MinAmountOut = new(string)
 				}
-				*out.MinAmountOut = int64(in.Int64())
+				*out.MinAmountOut = string(in.String())
 			}
 		case "recipient":
 			out.Recipient = string(in.String())
@@ -199,9 +199,9 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp2(in *jlexer.Lexe
 				out.RefBps = nil
 			} else {
 				if out.RefBps == nil {
-					out.RefBps = new(int)
+					out.RefBps = new(uint64)
 				}
-				*out.RefBps = int(in.Int())
+				*out.RefBps = uint64(in.Uint64())
 			}
 		default:
 			in.SkipRecursive()
@@ -225,7 +225,7 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp2(out *jwriter.Wr
 	{
 		const prefix string = ",\"amount_in\":"
 		out.RawString(prefix)
-		out.Int64(int64(in.AmountIn))
+		out.String(string(in.AmountIn))
 	}
 	{
 		const prefix string = ",\"asset_out\":"
@@ -235,7 +235,7 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp2(out *jwriter.Wr
 	if in.MinAmountOut != nil {
 		const prefix string = ",\"min_amount_out\":"
 		out.RawString(prefix)
-		out.Int64(int64(*in.MinAmountOut))
+		out.String(string(*in.MinAmountOut))
 	}
 	{
 		const prefix string = ",\"recipient\":"
@@ -250,7 +250,7 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp2(out *jwriter.Wr
 	if in.RefBps != nil {
 		const prefix string = ",\"ref_bps\":"
 		out.RawString(prefix)
-		out.Int(int(*in.RefBps))
+		out.Uint64(uint64(*in.RefBps))
 	}
 	out.RawByte('}')
 }
@@ -420,7 +420,7 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp4(in *jlexer.Lexe
 		case "asset":
 			out.Asset = string(in.String())
 		case "amount":
-			out.Amount = uint64(in.Uint64())
+			out.Amount = string(in.String())
 		case "log":
 			(out.Log).UnmarshalTinyJSON(in)
 		default:
@@ -455,7 +455,7 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp4(out *jwriter.Wr
 	{
 		const prefix string = ",\"amount\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.Amount))
+		out.String(string(in.Amount))
 	}
 	{
 		const prefix string = ",\"log\":"
@@ -755,13 +755,13 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp9(in *jlexer.Lexe
 		case "asset1":
 			out.Asset1 = string(in.String())
 		case "reserve0":
-			out.Reserve0 = uint64(in.Uint64())
+			out.Reserve0 = string(in.String())
 		case "reserve1":
-			out.Reserve1 = uint64(in.Uint64())
+			out.Reserve1 = string(in.String())
 		case "fee":
 			out.Fee = uint64(in.Uint64())
 		case "total_lp":
-			out.TotalLp = uint64(in.Uint64())
+			out.TotalLp = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -789,12 +789,12 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp9(out *jwriter.Wr
 	{
 		const prefix string = ",\"reserve0\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.Reserve0))
+		out.String(string(in.Reserve0))
 	}
 	{
 		const prefix string = ",\"reserve1\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.Reserve1))
+		out.String(string(in.Reserve1))
 	}
 	{
 		const prefix string = ",\"fee\":"
@@ -804,7 +804,7 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp9(out *jwriter.Wr
 	{
 		const prefix string = ",\"total_lp\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.TotalLp))
+		out.String(string(in.TotalLp))
 	}
 	out.RawByte('}')
 }
@@ -1037,11 +1037,11 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp13(in *jlexer.Lex
 		case "original_asset":
 			out.OriginalAsset = string(in.String())
 		case "original_amount":
-			out.OriginalAmount = uint64(in.Uint64())
+			out.OriginalAmount = string(in.String())
 		case "intermediate_asset":
 			out.IntermediateAsset = string(in.String())
 		case "intermediate_amount":
-			out.IntermediateAmount = uint64(in.Uint64())
+			out.IntermediateAmount = string(in.String())
 		case "return_address":
 			if in.IsNull() {
 				in.Skip()
@@ -1086,17 +1086,17 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp13(out *jwriter.W
 	{
 		const prefix string = ",\"original_amount\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.OriginalAmount))
+		out.String(string(in.OriginalAmount))
 	}
 	if in.IntermediateAsset != "" {
 		const prefix string = ",\"intermediate_asset\":"
 		out.RawString(prefix)
 		out.String(string(in.IntermediateAsset))
 	}
-	if in.IntermediateAmount != 0 {
+	if in.IntermediateAmount != "" {
 		const prefix string = ",\"intermediate_amount\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.IntermediateAmount))
+		out.String(string(in.IntermediateAmount))
 	}
 	if in.ReturnAddress != nil {
 		const prefix string = ",\"return_address\":"
@@ -1155,9 +1155,9 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp14(in *jlexer.Lex
 				out.SlippageBps = nil
 			} else {
 				if out.SlippageBps == nil {
-					out.SlippageBps = new(int)
+					out.SlippageBps = new(uint64)
 				}
-				*out.SlippageBps = int(in.Int())
+				*out.SlippageBps = uint64(in.Uint64())
 			}
 		case "min_amount_out":
 			if in.IsNull() {
@@ -1165,9 +1165,9 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp14(in *jlexer.Lex
 				out.MinAmountOut = nil
 			} else {
 				if out.MinAmountOut == nil {
-					out.MinAmountOut = new(int64)
+					out.MinAmountOut = new(string)
 				}
-				*out.MinAmountOut = int64(in.Int64())
+				*out.MinAmountOut = string(in.String())
 			}
 		case "beneficiary":
 			if in.IsNull() {
@@ -1185,9 +1185,9 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp14(in *jlexer.Lex
 				out.RefBps = nil
 			} else {
 				if out.RefBps == nil {
-					out.RefBps = new(int)
+					out.RefBps = new(uint64)
 				}
-				*out.RefBps = int(in.Int())
+				*out.RefBps = uint64(in.Uint64())
 			}
 		case "return_address":
 			if in.IsNull() {
@@ -1220,7 +1220,7 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp14(in *jlexer.Lex
 				in.Delim('}')
 			}
 		case "amount_in":
-			out.AmountIn = int64(in.Int64())
+			out.AmountIn = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1263,12 +1263,12 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp14(out *jwriter.W
 	if in.SlippageBps != nil {
 		const prefix string = ",\"slippage_bps\":"
 		out.RawString(prefix)
-		out.Int(int(*in.SlippageBps))
+		out.Uint64(uint64(*in.SlippageBps))
 	}
 	if in.MinAmountOut != nil {
 		const prefix string = ",\"min_amount_out\":"
 		out.RawString(prefix)
-		out.Int64(int64(*in.MinAmountOut))
+		out.String(string(*in.MinAmountOut))
 	}
 	if in.Beneficiary != nil {
 		const prefix string = ",\"beneficiary\":"
@@ -1278,7 +1278,7 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp14(out *jwriter.W
 	if in.RefBps != nil {
 		const prefix string = ",\"ref_bps\":"
 		out.RawString(prefix)
-		out.Int(int(*in.RefBps))
+		out.Uint64(uint64(*in.RefBps))
 	}
 	if in.ReturnAddress != nil {
 		const prefix string = ",\"return_address\":"
@@ -1307,7 +1307,7 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp14(out *jwriter.W
 	{
 		const prefix string = ",\"amount_in\":"
 		out.RawString(prefix)
-		out.Int64(int64(in.AmountIn))
+		out.String(string(in.AmountIn))
 	}
 	out.RawByte('}')
 }

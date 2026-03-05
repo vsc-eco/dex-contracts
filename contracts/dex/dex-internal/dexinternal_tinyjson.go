@@ -107,7 +107,7 @@ func tinyjsonBbf8afaeDecodeDexDexInternalTinyjsonTmp1(in *jlexer.Lexer, out *Swa
 		}
 		switch key {
 		case "amount_out":
-			out.AmountOut = uint64(in.Uint64())
+			out.AmountOut = string(in.String())
 		case "pool_state":
 			(out.PoolState).UnmarshalTinyJSON(in)
 		default:
@@ -127,7 +127,7 @@ func tinyjsonBbf8afaeEncodeDexDexInternalTinyjsonTmp1(out *jwriter.Writer, in Sw
 	{
 		const prefix string = ",\"amount_out\":"
 		out.RawString(prefix[1:])
-		out.Uint64(uint64(in.AmountOut))
+		out.String(string(in.AmountOut))
 	}
 	{
 		const prefix string = ",\"pool_state\":"
@@ -168,7 +168,7 @@ func tinyjsonBbf8afaeDecodeDexDexInternalTinyjsonTmp2(in *jlexer.Lexer, out *Swa
 		case "asset_in":
 			out.AssetIn = string(in.String())
 		case "amount_in":
-			out.AmountIn = int64(in.Int64())
+			out.AmountIn = string(in.String())
 		case "asset_out":
 			out.AssetOut = string(in.String())
 		case "min_amount_out":
@@ -177,9 +177,9 @@ func tinyjsonBbf8afaeDecodeDexDexInternalTinyjsonTmp2(in *jlexer.Lexer, out *Swa
 				out.MinAmountOut = nil
 			} else {
 				if out.MinAmountOut == nil {
-					out.MinAmountOut = new(int64)
+					out.MinAmountOut = new(string)
 				}
-				*out.MinAmountOut = int64(in.Int64())
+				*out.MinAmountOut = string(in.String())
 			}
 		case "recipient":
 			out.Recipient = string(in.String())
@@ -199,9 +199,9 @@ func tinyjsonBbf8afaeDecodeDexDexInternalTinyjsonTmp2(in *jlexer.Lexer, out *Swa
 				out.RefBps = nil
 			} else {
 				if out.RefBps == nil {
-					out.RefBps = new(int)
+					out.RefBps = new(uint64)
 				}
-				*out.RefBps = int(in.Int())
+				*out.RefBps = uint64(in.Uint64())
 			}
 		default:
 			in.SkipRecursive()
@@ -225,7 +225,7 @@ func tinyjsonBbf8afaeEncodeDexDexInternalTinyjsonTmp2(out *jwriter.Writer, in Sw
 	{
 		const prefix string = ",\"amount_in\":"
 		out.RawString(prefix)
-		out.Int64(int64(in.AmountIn))
+		out.String(string(in.AmountIn))
 	}
 	{
 		const prefix string = ",\"asset_out\":"
@@ -235,7 +235,7 @@ func tinyjsonBbf8afaeEncodeDexDexInternalTinyjsonTmp2(out *jwriter.Writer, in Sw
 	if in.MinAmountOut != nil {
 		const prefix string = ",\"min_amount_out\":"
 		out.RawString(prefix)
-		out.Int64(int64(*in.MinAmountOut))
+		out.String(string(*in.MinAmountOut))
 	}
 	{
 		const prefix string = ",\"recipient\":"
@@ -250,7 +250,7 @@ func tinyjsonBbf8afaeEncodeDexDexInternalTinyjsonTmp2(out *jwriter.Writer, in Sw
 	if in.RefBps != nil {
 		const prefix string = ",\"ref_bps\":"
 		out.RawString(prefix)
-		out.Int(int(*in.RefBps))
+		out.Uint64(uint64(*in.RefBps))
 	}
 	out.RawByte('}')
 }
@@ -284,7 +284,7 @@ func tinyjsonBbf8afaeDecodeDexDexInternalTinyjsonTmp3(in *jlexer.Lexer, out *Rem
 		}
 		switch key {
 		case "lp_amount":
-			out.LpAmount = uint64(in.Uint64())
+			out.LpAmount = string(in.String())
 		case "recipient":
 			out.Recipient = string(in.String())
 		default:
@@ -304,7 +304,7 @@ func tinyjsonBbf8afaeEncodeDexDexInternalTinyjsonTmp3(out *jwriter.Writer, in Re
 	{
 		const prefix string = ",\"lp_amount\":"
 		out.RawString(prefix[1:])
-		out.Uint64(uint64(in.LpAmount))
+		out.String(string(in.LpAmount))
 	}
 	{
 		const prefix string = ",\"recipient\":"
@@ -347,13 +347,13 @@ func tinyjsonBbf8afaeDecodeDexDexInternalTinyjsonTmp4(in *jlexer.Lexer, out *Poo
 		case "asset1":
 			out.Asset1 = string(in.String())
 		case "reserve0":
-			out.Reserve0 = uint64(in.Uint64())
+			out.Reserve0 = string(in.String())
 		case "reserve1":
-			out.Reserve1 = uint64(in.Uint64())
+			out.Reserve1 = string(in.String())
 		case "fee":
 			out.Fee = uint64(in.Uint64())
 		case "total_lp":
-			out.TotalLp = uint64(in.Uint64())
+			out.TotalLp = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -381,12 +381,12 @@ func tinyjsonBbf8afaeEncodeDexDexInternalTinyjsonTmp4(out *jwriter.Writer, in Po
 	{
 		const prefix string = ",\"reserve0\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.Reserve0))
+		out.String(string(in.Reserve0))
 	}
 	{
 		const prefix string = ",\"reserve1\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.Reserve1))
+		out.String(string(in.Reserve1))
 	}
 	{
 		const prefix string = ",\"fee\":"
@@ -396,7 +396,7 @@ func tinyjsonBbf8afaeEncodeDexDexInternalTinyjsonTmp4(out *jwriter.Writer, in Po
 	{
 		const prefix string = ",\"total_lp\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.TotalLp))
+		out.String(string(in.TotalLp))
 	}
 	out.RawByte('}')
 }
@@ -430,7 +430,7 @@ func tinyjsonBbf8afaeDecodeDexDexInternalTinyjsonTmp5(in *jlexer.Lexer, out *Map
 		}
 		switch key {
 		case "amount":
-			out.Amount = int64(in.Int64())
+			out.Amount = string(in.String())
 		case "to":
 			out.To = string(in.String())
 		case "from":
@@ -452,7 +452,7 @@ func tinyjsonBbf8afaeEncodeDexDexInternalTinyjsonTmp5(out *jwriter.Writer, in Ma
 	{
 		const prefix string = ",\"amount\":"
 		out.RawString(prefix[1:])
-		out.Int64(int64(in.Amount))
+		out.String(string(in.Amount))
 	}
 	{
 		const prefix string = ",\"to\":"
@@ -687,9 +687,9 @@ func tinyjsonBbf8afaeDecodeDexDexInternalTinyjsonTmp9(in *jlexer.Lexer, out *Add
 		}
 		switch key {
 		case "amount0":
-			out.Amount0 = uint64(in.Uint64())
+			out.Amount0 = string(in.String())
 		case "amount1":
-			out.Amount1 = uint64(in.Uint64())
+			out.Amount1 = string(in.String())
 		case "recipient":
 			out.Recipient = string(in.String())
 		default:
@@ -709,12 +709,12 @@ func tinyjsonBbf8afaeEncodeDexDexInternalTinyjsonTmp9(out *jwriter.Writer, in Ad
 	{
 		const prefix string = ",\"amount0\":"
 		out.RawString(prefix[1:])
-		out.Uint64(uint64(in.Amount0))
+		out.String(string(in.Amount0))
 	}
 	{
 		const prefix string = ",\"amount1\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.Amount1))
+		out.String(string(in.Amount1))
 	}
 	{
 		const prefix string = ",\"recipient\":"

@@ -1,7 +1,9 @@
 package tests
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"math/bits"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,6 +18,10 @@ import (
 
 	routerV2 "dex-router-v2/router-internal"
 	dex "dex/dex-internal"
+)
+
+const (
+	balancePrefix = "bal-"
 )
 
 // CallResult wraps the contract call result for test assertions
@@ -72,9 +78,37 @@ func dumpStateDiff(t *testing.T, sdm map[string]contract_session.StateDiff) {
 			t.Logf("    %s\n", del)
 		}
 		for key, diff := range sd.KeyDiff {
-			t.Logf("    %*s: %s -> %s\n", 16, key, diff.Previous, diff.Current)
+			t.Logf("    %*s: %s -> %s\n", 16, key, fmtStoredVal(diff.Previous), fmtStoredVal(diff.Current))
 		}
 	}
+}
+
+func fmtStoredVal(s []byte) string {
+	// if it's 1-8 bytes and not printable ASCII, treat as packed uint64
+	if len(s) >= 1 && len(s) <= 8 {
+		for _, c := range []byte(s) {
+			if c < 0x20 || c > 0x7e {
+				// has non-printable bytes, decode as uint64
+				var buf [8]byte
+				copy(buf[8-len(s):], s)
+				return strconv.FormatUint(binary.BigEndian.Uint64(buf[:]), 10)
+			}
+		}
+	}
+	return string(s)
+}
+
+func formatUintAsBytes(t *testing.T, amount uint64) string {
+	t.Helper()
+	if amount == 0 {
+		return ""
+	}
+	n := (bits.Len64(amount) + 7) / 8
+	t.Log("n:", n)
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], amount)
+	t.Log("buf:", buf)
+	return string(buf[8-n:])
 }
 
 func basicSelf(t *testing.T, caller string) *state_engine.TxSelf {
@@ -223,8 +257,8 @@ func (d *DexInfo) addLiquidity(
 	d.ct.Deposit(owner, int64(amount1), ledger_db.Asset(d.asset1))
 
 	input := dex.AddLiquidityParams{
-		Amount0:   amount0,
-		Amount1:   amount1,
+		Amount0:   strconv.FormatUint(amount0, 10),
+		Amount1:   strconv.FormatUint(amount1, 10),
 		Recipient: owner,
 	}
 	payload, _ := tinyjson.Marshal(input)
