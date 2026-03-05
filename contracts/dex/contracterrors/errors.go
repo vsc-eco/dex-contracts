@@ -1,7 +1,7 @@
 package contracterrors
 
 import (
-	"btc-mapping-contract/sdk"
+	"dex/sdk"
 	"errors"
 	"strings"
 )
