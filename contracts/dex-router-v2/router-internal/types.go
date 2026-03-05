@@ -64,14 +64,14 @@ type RegisterTokenParams struct {
 
 //tinyjson:json
 type AddLiquidityParams struct {
-	Amount0   uint64 `json:"amount0"`
-	Amount1   uint64 `json:"amount1"`
+	Amount0   string `json:"amount0"`
+	Amount1   string `json:"amount1"`
 	Recipient string `json:"recipient"`
 }
 
 //tinyjson:json
 type RemoveLiquidityParams struct {
-	LpAmount  uint64 `json:"lp_amount"`
+	LpAmount  string `json:"lp_amount"`
 	Recipient string `json:"recipient"`
 }
 

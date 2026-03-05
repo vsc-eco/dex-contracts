@@ -553,7 +553,7 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp6(in *jlexer.Lexe
 		}
 		switch key {
 		case "lp_amount":
-			out.LpAmount = uint64(in.Uint64())
+			out.LpAmount = string(in.String())
 		case "recipient":
 			out.Recipient = string(in.String())
 		default:
@@ -573,7 +573,7 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp6(out *jwriter.Wr
 	{
 		const prefix string = ",\"lp_amount\":"
 		out.RawString(prefix[1:])
-		out.Uint64(uint64(in.LpAmount))
+		out.String(string(in.LpAmount))
 	}
 	{
 		const prefix string = ",\"recipient\":"
@@ -1326,9 +1326,9 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp15(in *jlexer.Lex
 		}
 		switch key {
 		case "amount0":
-			out.Amount0 = uint64(in.Uint64())
+			out.Amount0 = string(in.String())
 		case "amount1":
-			out.Amount1 = uint64(in.Uint64())
+			out.Amount1 = string(in.String())
 		case "recipient":
 			out.Recipient = string(in.String())
 		default:
@@ -1348,12 +1348,12 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp15(out *jwriter.W
 	{
 		const prefix string = ",\"amount0\":"
 		out.RawString(prefix[1:])
-		out.Uint64(uint64(in.Amount0))
+		out.String(string(in.Amount0))
 	}
 	{
 		const prefix string = ",\"amount1\":"
 		out.RawString(prefix)
-		out.Uint64(uint64(in.Amount1))
+		out.String(string(in.Amount1))
 	}
 	{
 		const prefix string = ",\"recipient\":"

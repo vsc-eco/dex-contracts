@@ -4,7 +4,6 @@ import (
 	sdk "dex-router-v2/sdk"
 	"encoding/json"
 	"math/big"
-	"strconv"
 	"strings"
 
 	ce "dex-router-v2/contracterrors"
@@ -35,20 +34,20 @@ func Init(payload *string) *string {
 //go:wasmexport register_token
 func RegisterToken(payload *string) *string {
 	if payload == nil {
-		return &[]string{"error", "payload required"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
 
 	var params RegisterTokenParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
-		return &[]string{"error", "invalid payload"}[1]
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "invalid payload"))
 	}
 
 	name := params.Name
 	if name == "" {
-		return &[]string{"error", "name required"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "name required"))
 	}
 	if params.Chain == "" {
-		return &[]string{"error", "chain required"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "chain required"))
 	}
 
 	// Validate chain - support HIVE, MAGI, and common mapped chains
@@ -57,19 +56,19 @@ func RegisterToken(payload *string) *string {
 		"BTC": true, "ETH": true, "SOL": true, "SUI": true,
 	}
 	if !validChains[params.Chain] {
-		return &[]string{"error", "unsupported chain: " + params.Chain}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "unsupported chain: "+params.Chain))
 	}
 
 	// Normalize name to lowercase for storage key consistency
 	name = strings.ToLower(name)
 
 	if isAssetRegistered(name) {
-		return &[]string{"error", "asset already registered"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "asset already registered"))
 	}
 
 	info, err := json.Marshal(params.TokenInfo)
 	if err != nil {
-		return &[]string{"error", "error marshaling token info"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "error marshaling token info"))
 	}
 	setStr(assetKey(name), string(info))
 	updateChainsList(params.Chain)
@@ -82,25 +81,35 @@ func RegisterToken(payload *string) *string {
 //go:wasmexport register_pool
 func RegisterPool(payload *string) *string {
 	if payload == nil {
-		return &[]string{"error", "payload required"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
 
 	var params RegisterPoolParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
-		return &[]string{"error", "invalid payload"}[1]
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "invalid payload"))
 	}
 
 	// Validate assets are different
 	if params.Asset0 == params.Asset1 {
-		return &[]string{"error", "assets must be different"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "assets must be different"))
 	}
 
 	// Enforce: both assets must be registered before pool can use them
 	if !isAssetRegistered(params.Asset0) {
-		return &[]string{"error", "asset " + params.Asset0 + " not registered - call register_token first"}[1]
+		ce.CustomAbort(
+			ce.NewContractError(
+				ce.ErrInitialization,
+				"asset "+params.Asset0+" not registered - call register_token first",
+			),
+		)
 	}
 	if !isAssetRegistered(params.Asset1) {
-		return &[]string{"error", "asset " + params.Asset1 + " not registered - call register_token first"}[1]
+		ce.CustomAbort(
+			ce.NewContractError(
+				ce.ErrInitialization,
+				"asset "+params.Asset1+" not registered - call register_token first",
+			),
+		)
 	}
 
 	// Normalize asset order (alphabetical)
@@ -122,19 +131,19 @@ func RegisterPool(payload *string) *string {
 //go:wasmexport execute
 func Execute(payload *string) *string {
 	if payload == nil {
-		return &[]string{"error", "payload required"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
 
 	var instruction DexInstruction
 	if err := tinyjson.Unmarshal([]byte(*payload), &instruction); err != nil {
-		return &[]string{"error", "invalid json payload"}[1]
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "invalid payload"))
 	}
 
 	// Validate required fields
 	if instruction.Type == "" || instruction.Version == "" ||
 		instruction.AssetIn == "" || instruction.AssetOut == "" ||
 		instruction.Recipient == "" {
-		return &[]string{"error", "missing required fields"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "missing required fields"))
 	}
 
 	switch instruction.Type {
@@ -145,7 +154,8 @@ func Execute(payload *string) *string {
 	case "withdrawal":
 		return executeWithdrawal(instruction)
 	default:
-		return &[]string{"error", "unknown instruction type"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "unknown instruction type"))
+		return nil
 	}
 }
 
@@ -163,7 +173,10 @@ func executeSwap(instruction DexInstruction) *string {
 		return executeTwoHopSwap(instruction)
 	}
 
-	return &[]string{"error", "no suitable pool found"}[1]
+	ce.CustomAbort(
+		ce.NewContractError(ce.ErrTransaction, "no suitable pool found"),
+	)
+	return nil
 }
 
 // Find pool by assets
@@ -194,7 +207,9 @@ func executeDirectSwap(dexContractId string, instruction DexInstruction) *string
 
 	swapPayload, err := tinyjson.Marshal(&swapParams)
 	if err != nil {
-		return &[]string{"error", "failed to marshal swap params"}[1]
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrJson, err, "failed to marshal swap params"),
+		)
 	}
 
 	// Call DEX contract's swap method
@@ -461,7 +476,13 @@ func returnAssetToAddress(asset string, amount *big.Int, returnAddr ReturnAddres
 	if returnAddr.Chain == "HIVE" || returnAddr.Chain == "" {
 		// Direct transfer on Hive
 		transferAsset(returnAddr.Address, amount, asset)
-		return &[]string{"error", "swap failed, returned " + amount.String() + " " + asset + " to " + returnAddr.Address}[1]
+		ce.CustomAbort(
+			ce.NewContractError(
+				ce.ErrTransaction,
+				"swap failed, returned "+amount.String()+" "+asset+" to "+returnAddr.Address,
+			),
+		)
+		return nil
 	}
 
 	// Cross-chain return - need bridge integration
@@ -615,51 +636,48 @@ func executeDeposit(instruction DexInstruction) *string {
 	// Find the pool
 	poolId := findPool(instruction.AssetIn, instruction.AssetOut)
 	if poolId == "" {
-		return &[]string{"error", "pool not found"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pool not found"))
 	}
 
 	// For deposit, we need amounts from metadata
 	if instruction.Metadata == nil {
-		return &[]string{"error", "deposit amounts required in metadata"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "deposit amounts required in metadata"))
 	}
 
-	amt0Interface, ok := instruction.Metadata["amount0"]
+	amt0, ok := instruction.Metadata["amount0"]
 	if !ok {
-		return &[]string{"error", "amount0 required in metadata"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount0 required in metadata"))
 	}
-	amt1Interface, ok := instruction.Metadata["amount1"]
+	amt1, ok := instruction.Metadata["amount1"]
 	if !ok {
-		return &[]string{"error", "amount1 required in metadata"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 required in metadata"))
 	}
 
-	amt0Float, err := strconv.ParseFloat(amt0Interface, 64)
-	if err != nil {
-		return &[]string{"error", "amount0 must be number"}[1]
-	}
-	amt1Float, err := strconv.ParseFloat(amt1Interface, 64)
-	if err != nil {
-		return &[]string{"error", "amount1 must be number"}[1]
-	}
-
-	amt0U := uint64(amt0Float)
-	amt1U := uint64(amt1Float)
+	// amt0, ok := new(big.Int).SetString(amt0Interface, 10)
+	// if !ok {
+	// 	ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount0 must be number"))
+	// }
+	// amt1, ok := new(big.Int).SetString(amt1Interface, 10)
+	// if !ok {
+	// 	ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 must be number"))
+	// }
 
 	// Prepare add liquidity parameters
 	addLiqParams := AddLiquidityParams{
-		Amount0:   amt0U,
-		Amount1:   amt1U,
+		Amount0:   amt0,
+		Amount1:   amt1,
 		Recipient: instruction.Recipient,
 	}
 
 	addLiqPayload, err := tinyjson.Marshal(&addLiqParams)
 	if err != nil {
-		return &[]string{"error", "failed to marshal add liquidity params"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "failed to marshal add liquidity params"))
 	}
 
 	// Call DEX contract's add_liquidity method (clone intents for dex to spend user funds)
 	result := sdk.ContractCall(poolId, "add_liquidity", string(addLiqPayload), &sdk.ContractCallOptions{})
 	if result == nil {
-		return &[]string{"error", "add liquidity failed"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "add liquidity returned no result"))
 	}
 
 	return result
@@ -670,41 +688,34 @@ func executeWithdrawal(instruction DexInstruction) *string {
 	// Find the pool
 	poolId := findPool(instruction.AssetIn, instruction.AssetOut)
 	if poolId == "" {
-		return &[]string{"error", "pool not found"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "pool not found"))
 	}
 
 	// For withdrawal, we need LP amount from metadata
 	if instruction.Metadata == nil {
-		return &[]string{"error", "lp_amount required in metadata"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "lp_amount required in metadata"))
 	}
 
-	lpAmountInterface, ok := instruction.Metadata["lp_amount"]
+	lpAmount, ok := instruction.Metadata["lp_amount"]
 	if !ok {
-		return &[]string{"error", "lp_amount required in metadata"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "lp_amount required in metadata"))
 	}
-
-	lpAmountFloat, err := strconv.ParseFloat(lpAmountInterface, 64)
-	if err != nil {
-		return &[]string{"error", "lp_amount must be number"}[1]
-	}
-
-	lpAmountU := uint64(lpAmountFloat)
 
 	// Prepare remove liquidity parameters
 	removeLiqParams := RemoveLiquidityParams{
-		LpAmount:  lpAmountU,
+		LpAmount:  lpAmount,
 		Recipient: instruction.Recipient,
 	}
 
 	removeLiqPayload, err := tinyjson.Marshal(&removeLiqParams)
 	if err != nil {
-		return &[]string{"error", "failed to marshal remove liquidity params"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "failed to marshal remove liquidity params"))
 	}
 
 	// Call DEX contract's remove_liquidity method (clone intents for dex to spend)
 	result := sdk.ContractCall(poolId, "remove_liquidity", string(removeLiqPayload), &sdk.ContractCallOptions{})
 	if result == nil {
-		return &[]string{"error", "remove liquidity failed"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "remove liquidity failed"))
 	}
 
 	return result
@@ -716,24 +727,24 @@ func executeWithdrawal(instruction DexInstruction) *string {
 //go:wasmexport get_pool
 func GetPool(payload *string) *string {
 	if payload == nil {
-		return &[]string{"error", "payload required"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
 
 	var params GetPoolParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
-		return &[]string{"error", "invalid payload"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "invalid payload"))
 	}
 
 	// Find pool
 	poolId := findPool(params.Asset0, params.Asset1)
 	if poolId == "" {
-		return &[]string{"error", "pool not found"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pool not found"))
 	}
 
 	// Query DEX contract for pool info
 	result := sdk.ContractCall(poolId, "get_pool", "", nil)
 	if result == nil {
-		return &[]string{"error", "failed to query pool"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "failed to query pool"))
 	}
 
 	return result
@@ -766,7 +777,7 @@ func GetSchema(payload *string) *string {
 
 	schemaBytes, err := tinyjson.Marshal(&schema)
 	if err != nil {
-		return &[]string{"error", "failed to marshal schema"}[1]
+		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "failed to marshal schema"))
 	}
 
 	result := string(schemaBytes)
