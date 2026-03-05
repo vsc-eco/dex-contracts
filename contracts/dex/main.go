@@ -245,14 +245,9 @@ func Swap(payload *string) *string {
 		refOut := new(big.Int).Set(amountOut)
 		refOut.Mul(refOut, new(big.Int).SetUint64(*params.RefBps))
 		refOut.Div(refOut, big.NewInt(10000))
-		if refOut.Cmp(amountOut) > 0 {
-			ce.CustomAbort(
-				ce.NewContractError(ce.ErrInitialization, "insufficient amount to cover fees"),
-			)
-		}
 		if refOut.Sign() == 1 {
-			if refOut.Cmp(amountOut) >= 0 {
-				refOut.Sub(amountOut, big.NewInt(1))
+			if refOut.Cmp(amountOut) > 0 {
+				refOut.Set(amountOut)
 			}
 			amountOut.Sub(amountOut, refOut)
 			err := outputAsset.TransferAsset(*params.Beneficiary, refOut)

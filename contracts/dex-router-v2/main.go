@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	ce "dex-router-v2/contracterrors"
 	. "dex-router-v2/router-internal"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
@@ -199,7 +200,9 @@ func executeDirectSwap(dexContractId string, instruction DexInstruction) *string
 	// Call DEX contract's swap method
 	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), &sdk.ContractCallOptions{})
 	if result == nil {
-		return &[]string{"error", "swap failed"}[1]
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrTransaction, "unknown swap failure"),
+		)
 	}
 
 	// Parse result to update cache
