@@ -14,7 +14,6 @@ type DexInstruction struct {
 	AssetIn       string            `json:"asset_in"`
 	AssetOut      string            `json:"asset_out"`
 	Recipient     string            `json:"recipient"`
-	SlippageBps   *uint64           `json:"slippage_bps,omitempty"`
 	MinAmountOut  *string           `json:"min_amount_out,omitempty"`
 	Beneficiary   *string           `json:"beneficiary,omitempty"`
 	RefBps        *uint64           `json:"ref_bps,omitempty"`

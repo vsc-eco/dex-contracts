@@ -1149,16 +1149,6 @@ func tinyjson73e1cf70DecodeDexRouterV2RouterInternalTinyjsonTmp14(in *jlexer.Lex
 			out.AssetOut = string(in.String())
 		case "recipient":
 			out.Recipient = string(in.String())
-		case "slippage_bps":
-			if in.IsNull() {
-				in.Skip()
-				out.SlippageBps = nil
-			} else {
-				if out.SlippageBps == nil {
-					out.SlippageBps = new(uint64)
-				}
-				*out.SlippageBps = uint64(in.Uint64())
-			}
 		case "min_amount_out":
 			if in.IsNull() {
 				in.Skip()
@@ -1259,11 +1249,6 @@ func tinyjson73e1cf70EncodeDexRouterV2RouterInternalTinyjsonTmp14(out *jwriter.W
 		const prefix string = ",\"recipient\":"
 		out.RawString(prefix)
 		out.String(string(in.Recipient))
-	}
-	if in.SlippageBps != nil {
-		const prefix string = ",\"slippage_bps\":"
-		out.RawString(prefix)
-		out.Uint64(uint64(*in.SlippageBps))
 	}
 	if in.MinAmountOut != nil {
 		const prefix string = ",\"min_amount_out\":"
