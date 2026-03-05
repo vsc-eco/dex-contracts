@@ -1,9 +1,10 @@
 package contracterrors
 
 import (
-	"dex-router-v2/sdk"
 	"errors"
 	"strings"
+
+	"github.com/vsc-eco/dex-contracts/sdk"
 )
 
 type ErrorSymbol string

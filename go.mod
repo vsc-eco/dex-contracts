@@ -1,7 +1,12 @@
-module github.com/vsc-eco/vsc-dex-mapping
+module github.com/vsc-eco/dex-contracts
 
 go 1.24.0
 
-replace vsc-node => ../go-vsc-node
+// replace vsc-node => github.com/vsc-eco/go-vsc-node v0.0.0-20251120092146-ea108c70b7f0
+replace vsc-node => ../../../milo-go-vsc-node
 
-replace github.com/vsc-eco/vsc-dex-mapping/sdk/go => ./sdk/go
+replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
+
+require github.com/CosmWasm/tinyjson v0.9.0
+
+require github.com/josharian/intern v1.0.0 // indirect

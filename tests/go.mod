@@ -7,18 +7,12 @@ replace vsc-node => ../../milo-go-vsc-node/
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 
-replace vsc-dex-mapping => ..
-
-replace dex-router-v2 => ../contracts/dex-router-v2
-
-replace dex => ../contracts/dex
+replace github.com/vsc-eco/dex-contracts => ..
 
 require (
-	dex v0.0.0-00010101000000-000000000000
-	dex-router-v2 v0.0.0-00010101000000-000000000000
 	github.com/CosmWasm/tinyjson v0.9.0
 	github.com/stretchr/testify v1.11.1
-	vsc-dex-mapping v0.0.0-00010101000000-000000000000
+	github.com/vsc-eco/dex-contracts v0.0.0
 	vsc-node v0.0.0
 )
 

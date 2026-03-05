@@ -1,6 +1,6 @@
-package dexinternal
+package types
 
-import "dex/sdk"
+import "github.com/vsc-eco/dex-contracts/sdk"
 
 func (me *MaybeEnv) UseEnv() *sdk.Env {
 	if me.env == nil {

@@ -16,8 +16,7 @@ import (
 
 	"github.com/CosmWasm/tinyjson"
 
-	routerV2 "dex-router-v2/router-internal"
-	dex "dex/dex-internal"
+	"github.com/vsc-eco/dex-contracts/contracts/types"
 )
 
 const (
@@ -146,7 +145,7 @@ func (c RouterInfo) initRouterV2(
 func (c *RouterInfo) registerToken(
 	t *testing.T,
 	caller string,
-	token routerV2.RegisterTokenParams,
+	token types.RegisterTokenParams,
 ) *test_utils.ContractTestCallResult {
 	t.Helper()
 	payload, _ := tinyjson.Marshal(token)
@@ -165,7 +164,7 @@ func (c *RouterInfo) registerToken(
 func (c *RouterInfo) registerPool(
 	t *testing.T,
 	caller string,
-	pool routerV2.RegisterPoolParams,
+	pool types.RegisterPoolParams,
 ) *test_utils.ContractTestCallResult {
 	t.Helper()
 
@@ -203,7 +202,7 @@ func (c *RouterInfo) getSchema(
 func (c *RouterInfo) execute(
 	t *testing.T,
 	caller string,
-	instruction *routerV2.DexInstruction,
+	instruction *types.DexInstruction,
 	intents []contracts.Intent,
 ) *test_utils.ContractTestCallResult {
 	t.Helper()
@@ -226,7 +225,7 @@ func (c *RouterInfo) execute(
 func (d *DexInfo) initPool(
 	t *testing.T,
 	caller string,
-	instruction *dex.InitParams,
+	instruction *types.InitParams,
 ) *test_utils.ContractTestCallResult {
 	t.Helper()
 	payload, _ := tinyjson.Marshal(instruction)
@@ -256,7 +255,7 @@ func (d *DexInfo) addLiquidity(
 	d.ct.Deposit(owner, int64(amount0), ledger_db.Asset(d.asset0))
 	d.ct.Deposit(owner, int64(amount1), ledger_db.Asset(d.asset1))
 
-	input := dex.AddLiquidityParams{
+	input := types.AddLiquidityParams{
 		Amount0:   strconv.FormatUint(amount0, 10),
 		Amount1:   strconv.FormatUint(amount1, 10),
 		Recipient: owner,
