@@ -8,6 +8,7 @@ import (
 	tinyjson "github.com/CosmWasm/tinyjson"
 
 	ce "github.com/vsc-eco/dex-contracts/contracterrors"
+	"github.com/vsc-eco/dex-contracts/contracts/asset"
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 	"github.com/vsc-eco/dex-contracts/sdk"
 )
@@ -194,6 +195,26 @@ func findPool(assetA, assetB string) string {
 
 // Execute direct swap within a single DEX pool
 func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *string {
+	amountIn, ok := new(big.Int).SetString(instruction.AmountIn, 10)
+	if !ok {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "invalid input amount"))
+	}
+	poolAsset0, err := getPoolAsset(dexContractId, "asset0")
+	poolAsset1, err := getPoolAsset(dexContractId, "asset1")
+	var assetIn asset.Asset
+	var mEnv types.MaybeEnv
+	env := mEnv.UseEnv()
+	switch instruction.AssetIn {
+	case poolAsset0.Name():
+		assetIn = poolAsset0
+	case poolAsset1.Name():
+		assetIn = poolAsset1
+	default:
+		ce.CustomAbort(ce.NewContractError(ce.ErrStateAccess, "cannot find input asset in pool"))
+	}
+
+	assetIn.DrawAssetFrom(amountIn, env.Caller, mEnv)
+
 	// Prepare swap parameters for DEX contract
 	swapParams := types.SwapParams{
 		AssetIn:      instruction.AssetIn,
@@ -212,8 +233,21 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 		)
 	}
 
+	options := sdk.ContractCallOptions{
+		Intents: []sdk.Intent{
+			{
+				Type: types.IntentTransferType,
+				Args: map[string]string{
+					types.IntentAmountKey:     instruction.AmountIn,
+					types.IntentContractIdKey: assetIn.MappingContract(),
+					types.IntentTokenKey:      assetIn.Name(),
+				},
+			},
+		},
+	}
+
 	// Call DEX contract's swap method
-	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), &sdk.ContractCallOptions{})
+	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), &options)
 	if result == nil {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrTransaction, "unknown swap failure"),
@@ -243,6 +277,26 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "no pool found for first hop"))
 	}
 
+	amountIn, ok := new(big.Int).SetString(instruction.AmountIn, 10)
+	if !ok {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "invalid input amount"))
+	}
+	poolAsset0, err := getPoolAsset(pool1Id, "asset0")
+	poolAsset1, err := getPoolAsset(pool1Id, "asset1")
+	var assetIn asset.Asset
+	var mEnv types.MaybeEnv
+	env := mEnv.UseEnv()
+	switch instruction.AssetIn {
+	case poolAsset0.Name():
+		assetIn = poolAsset0
+	case poolAsset1.Name():
+		assetIn = poolAsset1
+	default:
+		ce.CustomAbort(ce.NewContractError(ce.ErrStateAccess, "cannot find input asset in pool"))
+	}
+
+	assetIn.DrawAssetFrom(amountIn, env.Caller, mEnv)
+
 	// Execute first swap: AssetIn -> HBD
 	// Route intermediate HBD to this router contract
 	firstSwapParams := types.SwapParams{
@@ -258,9 +312,22 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error marshalling first hop params"))
 	}
 
+	options1 := sdk.ContractCallOptions{
+		Intents: []sdk.Intent{
+			{
+				Type: types.IntentTransferType,
+				Args: map[string]string{
+					types.IntentAmountKey:     instruction.AmountIn,
+					types.IntentContractIdKey: assetIn.MappingContract(),
+					types.IntentTokenKey:      assetIn.Name(),
+				},
+			},
+		},
+	}
+
 	// Call first DEX contract - VSC will validate intents
 	// If swap fails (slippage, insufficient liquidity, etc.), VSC rolls back automatically
-	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), &sdk.ContractCallOptions{})
+	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), &options1)
 	if firstResult == nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "first hop returned no result"))
 	}
@@ -293,8 +360,20 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error marshalling first hop params"))
 	}
 
-	// Call second DEX contract (intents cloned above, reuse for second hop)
-	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), &sdk.ContractCallOptions{})
+	options2 := sdk.ContractCallOptions{
+		Intents: []sdk.Intent{
+			{
+				Type: types.IntentTransferType,
+				Args: map[string]string{
+					types.IntentAmountKey: instruction.AmountIn,
+					types.IntentTokenKey:  sdk.AssetHbd.String(),
+				},
+			},
+		},
+	}
+
+	// Call second DEX contract
+	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), &options2)
 	if secondResult == nil {
 		// Second swap failed - return intermediate HBD
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "first hop returned no result"))

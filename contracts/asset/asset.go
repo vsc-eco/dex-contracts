@@ -12,19 +12,12 @@ import (
 	jwriter "github.com/CosmWasm/tinyjson/jwriter"
 )
 
-const (
-	intentTransferType  = "transfer.allow"
-	intentContractIdKey = "contract_id"
-	intentAmountKey     = "limit"
-	intentTokenKey      = "token"
-)
-
 // TODO: some sort of balance check for non-native assets?
 // include marshaller but not unmarshaller, to avoid unmarshalling into an empty interface
 type Asset interface {
 	Name() string
 	MappingContract() string
-	DrawAsset(amount *big.Int, mEnv types.MaybeEnv) error
+	DrawAssetFrom(amount *big.Int, from sdk.Address, mEnv types.MaybeEnv) error
 	// transfers balance held by the contract to another magi account
 	TransferAsset(to string, amount *big.Int) error
 	MarshalTinyJSON(w *jwriter.Writer)
@@ -86,8 +79,8 @@ func (ha *HiveAsset) MappingContract() string {
 }
 
 // draws assets from the sender
-func (ha *HiveAsset) DrawAsset(amount *big.Int, me types.MaybeEnv) error {
-	sdk.HiveDrawFrom(me.UseEnv().Sender.Address, amount, sdk.Asset(ha.Asset))
+func (ha *HiveAsset) DrawAssetFrom(amount *big.Int, from sdk.Address, me types.MaybeEnv) error {
+	sdk.HiveDrawFrom(from, amount, sdk.Asset(ha.Asset))
 	return nil
 }
 
@@ -110,12 +103,12 @@ func (ma *MappedAsset) MappingContract() string {
 	return ma.MappingContractId
 }
 
-func (ma *MappedAsset) DrawAsset(amount *big.Int, mEnv types.MaybeEnv) error {
+func (ma *MappedAsset) DrawAssetFrom(amount *big.Int, from sdk.Address, mEnv types.MaybeEnv) error {
 	env := mEnv.UseEnv()
 	input := types.MappingContractInput{
 		Amount: amount.String(),
 		To:     "contract:" + env.ContractId,
-		From:   env.Sender.Address.String(),
+		From:   from.String(),
 	}
 	payload, err := tinyjson.Marshal(input)
 	if err != nil {
@@ -140,11 +133,11 @@ func (ma *MappedAsset) TransferAsset(to string, amount *big.Int) error {
 	sdk.ContractCall(ma.MappingContractId, "transfer", string(payload), &sdk.ContractCallOptions{
 		Intents: []sdk.Intent{
 			{
-				Type: intentTransferType,
+				Type: types.IntentTransferType,
 				Args: map[string]string{
-					intentAmountKey:     amount.String(),
-					intentTokenKey:      ma.Asset,
-					intentContractIdKey: ma.MappingContractId,
+					types.IntentAmountKey:     amount.String(),
+					types.IntentTokenKey:      ma.Asset,
+					types.IntentContractIdKey: ma.MappingContractId,
 				},
 			},
 		},

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
+	"github.com/vsc-eco/dex-contracts/contracts/asset"
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 	"github.com/vsc-eco/dex-contracts/sdk"
 )
@@ -129,6 +130,12 @@ func splitChains(s string) []string {
 	return out
 }
 
-func strPrt(s string) *string {
-	return &s
+func getPoolAsset(poolId, key string) (asset.Asset, error) {
+	assetStr := sdk.ContractStateGet(poolId, key)
+
+	asset, err := asset.AssetFromJson(*assetStr)
+	if err != nil {
+		return nil, err
+	}
+	return asset, nil
 }

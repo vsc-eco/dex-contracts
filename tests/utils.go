@@ -103,10 +103,8 @@ func formatUintAsBytes(t *testing.T, amount uint64) string {
 		return ""
 	}
 	n := (bits.Len64(amount) + 7) / 8
-	t.Log("n:", n)
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], amount)
-	t.Log("buf:", buf)
 	return string(buf[8-n:])
 }
 

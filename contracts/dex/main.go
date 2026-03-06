@@ -239,7 +239,7 @@ func Swap(payload *string) *string {
 
 	maybeEnv := types.MaybeEnv{}
 
-	inputAsset.DrawAsset(amountIn, maybeEnv)
+	inputAsset.DrawAssetFrom(amountIn, maybeEnv.UseEnv().Caller, maybeEnv)
 
 	// Handle referral fees
 	if params.Beneficiary != nil && params.RefBps != nil {
@@ -399,10 +399,10 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string) *string {
 
 	// Pull funds from user intents into contract
 	if amt0.Sign() == 1 {
-		asset0.DrawAsset(amt0, maybeEnv)
+		asset0.DrawAssetFrom(amt0, maybeEnv.UseEnv().Caller, maybeEnv)
 	}
 	if amt1.Sign() == 1 {
-		asset1.DrawAsset(amt1, maybeEnv)
+		asset1.DrawAssetFrom(amt1, maybeEnv.UseEnv().Caller, maybeEnv)
 	}
 
 	// Update reserves and mint LP
