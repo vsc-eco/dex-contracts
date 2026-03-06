@@ -127,15 +127,15 @@ func TestRegisterPool(t *testing.T) {
 
 	t.Log("registration return value:", r.Ret)
 
-	poolState := ct.StateGet(routerContractId, "pool/"+poolParams.Asset0+"/"+poolParams.Asset1)
+	poolState := ct.StateGet(routerContractId, "pool-"+poolParams.Asset0+"-"+poolParams.Asset1)
 	t.Log("pool state value:", poolState)
 	assert.Equal(t, btchbdDexContractId, poolState)
 
-	asset0State := ct.StateGet(routerContractId, "asset/"+poolParams.Asset0)
+	asset0State := ct.StateGet(routerContractId, "asset-"+poolParams.Asset0)
 	t.Log("asset 0 state:", asset0State)
 	assert.NotEmpty(t, asset0State, "asset0 should be registered")
 
-	asset1State := ct.StateGet(routerContractId, "asset/"+poolParams.Asset1)
+	asset1State := ct.StateGet(routerContractId, "asset-"+poolParams.Asset1)
 	t.Log("asset 1 state:", asset1State)
 	assert.NotEmpty(t, asset1State, "asset1 should be registered")
 	dumpStateDiff(t, r.StateDiff)

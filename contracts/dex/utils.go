@@ -17,12 +17,12 @@ const (
 	keyReserve1     = "r1"
 	keyFee          = "fee"
 	keyTotalLP      = "tlp"
-	keyLpPrefix     = "lp/" // lp/{address}
+	keyLpPrefix     = "lp-" // lp/{address}
 	keySystemFee0   = "f0"
 	keySystemFee1   = "f1"
 	keyFeeLastClaim = "flc"
-	// keyRouterAssetPrefix            = "as/"
-	// keyMappingContractBalancePrefix = "bal/"
+	// keyRouterAssetPrefix            = "as-"
+	// keyMappingContractBalancePrefix = "bal-"
 )
 
 const (

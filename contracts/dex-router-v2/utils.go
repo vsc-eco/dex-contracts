@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
+	ce "github.com/vsc-eco/dex-contracts/contracterrors"
 	"github.com/vsc-eco/dex-contracts/contracts/asset"
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 	"github.com/vsc-eco/dex-contracts/sdk"
@@ -13,9 +14,9 @@ import (
 // Keys for state storage
 const (
 	keyVersion     = "version"
-	keyPoolPrefix  = "pool/"  // pool/{asset0}/{asset1}
-	keyStatePrefix = "state/" // state/{pool_id} - cached pool state
-	keyAssetPrefix = "asset/" // asset/{symbol} -> AssetInfo
+	keyPoolPrefix  = "pool-"  // pool/{asset0}/{asset1}
+	keyStatePrefix = "state-" // state/{pool_id} - cached pool state
+	keyAssetPrefix = "asset-" // asset/{symbol} -> AssetInfo
 	keyChainsList  = "chains" // comma-separated list of supported chains
 )
 
@@ -40,7 +41,7 @@ func setStr(key string, val string) {
 
 // Pool key helpers
 func poolKeyForAssets(asset0, asset1 string) string {
-	return keyPoolPrefix + strings.ToLower(asset0) + "/" + strings.ToLower(asset1)
+	return keyPoolPrefix + strings.ToLower(asset0) + "-" + strings.ToLower(asset1)
 }
 
 func poolStateKey(poolId string) string {
@@ -132,6 +133,9 @@ func splitChains(s string) []string {
 
 func getPoolAsset(poolId, key string) (asset.Asset, error) {
 	assetStr := sdk.ContractStateGet(poolId, key)
+	if assetStr == nil {
+		return nil, ce.NewContractError(ce.ErrStateAccess, "could not get pool asset information")
+	}
 
 	asset, err := asset.AssetFromJson(*assetStr)
 	if err != nil {
