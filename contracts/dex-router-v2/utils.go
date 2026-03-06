@@ -2,7 +2,6 @@ package main
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
@@ -12,13 +11,11 @@ import (
 
 // Keys for state storage
 const (
-	keyVersion       = "version"
-	keyPoolPrefix    = "pool/"           // pool/{asset0}/{asset1}
-	keyStatePrefix   = "state/"          // state/{pool_id} - cached pool state
-	keyFailurePrefix = "failure_log/"    // failure_log/{tx_id}
-	keyReturnPrefix  = "return_request/" // return_request/{tx_id}
-	keyAssetPrefix   = "asset/"          // asset/{symbol} -> AssetInfo
-	keyChainsList    = "chains"          // comma-separated list of supported chains
+	keyVersion     = "version"
+	keyPoolPrefix  = "pool/"  // pool/{asset0}/{asset1}
+	keyStatePrefix = "state/" // state/{pool_id} - cached pool state
+	keyAssetPrefix = "asset/" // asset/{symbol} -> AssetInfo
+	keyChainsList  = "chains" // comma-separated list of supported chains
 )
 
 // Supported chains for native tokens (HIVE for HIVE/HBD, MAGI for future MAGI native tokens)
@@ -40,19 +37,6 @@ func setStr(key string, val string) {
 	sdk.StateSetObject(key, val)
 }
 
-func getUint(key string) uint64 {
-	v := sdk.StateGetObject(key)
-	if v == nil {
-		return 0
-	}
-	n, _ := strconv.ParseUint(*v, 10, 64)
-	return n
-}
-
-func setUint(key string, val uint64) {
-	sdk.StateSetObject(key, strconv.FormatUint(val, 10))
-}
-
 // Pool key helpers
 func poolKeyForAssets(asset0, asset1 string) string {
 	return keyPoolPrefix + strings.ToLower(asset0) + "/" + strings.ToLower(asset1)
@@ -62,26 +46,26 @@ func poolStateKey(poolId string) string {
 	return keyStatePrefix + poolId
 }
 
-// Pool state cache helpers
-func getPoolState(poolId string) types.PoolInfo {
-	stateKey := poolStateKey(poolId)
-	stateStr := getStr(stateKey)
-	if stateStr == "" {
-		return types.PoolInfo{} // Empty state
-	}
+// // Pool state cache helpers
+// func getPoolState(poolId string) types.PoolInfo {
+// 	stateKey := poolStateKey(poolId)
+// 	stateStr := getStr(stateKey)
+// 	if stateStr == "" {
+// 		return types.PoolInfo{} // Empty state
+// 	}
 
-	// Parse pool state from stored string
-	// In a real implementation, we'd use tinyjson to unmarshal
-	// For now, return empty - will be populated from swap results
-	return types.PoolInfo{}
-}
+// 	// Parse pool state from stored string
+// 	// In a real implementation, we'd use tinyjson to unmarshal
+// 	// For now, return empty - will be populated from swap results
+// 	return types.PoolInfo{}
+// }
 
-func setPoolState(poolId string, state types.PoolInfo) {
-	stateKey := poolStateKey(poolId)
-	// In a real implementation, we'd marshal state to JSON
-	// For now, store as placeholder
-	setStr(stateKey, "cached")
-}
+// func setPoolState(poolId string, state types.PoolInfo) {
+// 	stateKey := poolStateKey(poolId)
+// 	// In a real implementation, we'd marshal state to JSON
+// 	// For now, store as placeholder
+// 	setStr(stateKey, "cached")
+// }
 
 // Asset registry helpers - tokens MUST be registered before pools can use them
 func assetKey(asset string) string {

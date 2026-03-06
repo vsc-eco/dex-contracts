@@ -15,7 +15,7 @@ import (
 
 func TestContractLoading(t *testing.T) {
 	assert.NotNil(t, dexcontracts.DexWasm, "dex wasm should load")
-	assert.NotNil(t, dexcontracts.DexRouterWasm, "dex router v1 wasm should load")
+	// assert.NotNil(t, dexcontracts.DexRouterWasm, "dex router v1 wasm should load")
 	assert.NotNil(t, dexcontracts.DexRouterV2Wasm, "dex router v2 wasm should load")
 	assert.NotNil(t, dexcontracts.BTCMappingWasm, "btc-mapping wasm should load")
 }
@@ -558,4 +558,5 @@ func TestTwoHop(t *testing.T) {
 	dumpStateDiff(t, r.StateDiff)
 	assert.True(t, r.Success)
 	t.Log("return:", r.Ret)
+	t.Log("rc used:", r.RcUsed)
 }

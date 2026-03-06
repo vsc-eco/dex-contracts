@@ -224,7 +224,7 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 	var swapResult types.SwapResult
 	if err := tinyjson.Unmarshal([]byte(*result), &swapResult); err == nil {
 		// Update cached pool state
-		setPoolState(dexContractId, swapResult.PoolState)
+		// setPoolState(dexContractId, swapResult.PoolState)
 	}
 
 	return result
@@ -276,7 +276,7 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	}
 
 	// Update cached pool state from result
-	setPoolState(pool1Id, swapResult1.PoolState)
+	// setPoolState(pool1Id, swapResult1.PoolState)
 
 	// Execute second swap: HBD -> AssetOut
 	// Use actual HBD received from first swap
@@ -307,7 +307,7 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	}
 
 	// Update cached pool state
-	setPoolState(pool2Id, swapResult2.PoolState)
+	// setPoolState(pool2Id, swapResult2.PoolState)
 
 	// Success - both swaps completed
 	return nil
@@ -323,86 +323,6 @@ type SwapBackResult struct {
 	AmountOut *big.Int
 	Asset     string
 	Error     string
-}
-
-// trySwapBackToOriginal attempts to swap the intermediate asset back to the original asset
-// Returns SwapBackResult with success status and amount received
-func trySwapBackToOriginal(
-	intermediateAsset string,
-	intermediateAmount *big.Int,
-	originalAsset string,
-	instruction types.DexInstruction,
-) *SwapBackResult {
-	// Find pool for reverse swap: intermediateAsset -> originalAsset
-	reversePoolId := findPool(intermediateAsset, originalAsset)
-	if reversePoolId == "" {
-		// No pool available for reverse swap
-		return &SwapBackResult{
-			Success: false,
-			Error:   "no pool found to swap back to " + originalAsset,
-		}
-	}
-
-	// Prepare reverse swap parameters
-	reverseSwapParams := types.SwapParams{
-		AssetIn:      intermediateAsset,
-		AmountIn:     intermediateAmount.String(),
-		AssetOut:     originalAsset,
-		Recipient:    sdk.GetEnv().ContractId, // Route back to router temporarily
-		MinAmountOut: nil,                     // No minimum - we're trying to recover
-	}
-
-	reverseSwapPayload, err := tinyjson.Marshal(&reverseSwapParams)
-	if err != nil {
-		return &SwapBackResult{
-			Success: false,
-			Error:   "failed to marshal reverse swap params",
-		}
-	}
-
-	// Execute reverse swap (clone intents for dex to spend)
-	reverseResult := sdk.ContractCall(reversePoolId, "swap", string(reverseSwapPayload), &sdk.ContractCallOptions{})
-	if reverseResult == nil {
-		// Reverse swap failed
-		return &SwapBackResult{
-			Success: false,
-			Error:   "reverse swap failed",
-		}
-	}
-
-	// Check for error in result
-	if len(*reverseResult) > 0 && len(*reverseResult) >= 6 && (*reverseResult)[:6] == `{"error"` {
-		return &SwapBackResult{
-			Success: false,
-			Error:   "reverse swap failed: " + *reverseResult,
-		}
-	}
-
-	// Parse swap result to update cache
-	var swapResult types.SwapResult
-	if err := tinyjson.Unmarshal([]byte(*reverseResult), &swapResult); err != nil {
-		return &SwapBackResult{
-			Success: false,
-			Error:   "failed to parse reverse swap result",
-		}
-	}
-
-	// Update cached pool state
-	setPoolState(reversePoolId, swapResult.PoolState)
-
-	// Success - we now have the original asset in the router contract
-	amountOut, ok := new(big.Int).SetString(swapResult.AmountOut, 10)
-	if !ok {
-		return &SwapBackResult{
-			Success: false,
-			Error:   "invalid amount from reverse swap result",
-		}
-	}
-	return &SwapBackResult{
-		Success:   true,
-		AmountOut: amountOut,
-		Asset:     originalAsset,
-	}
 }
 
 // Execute deposit (add liquidity)

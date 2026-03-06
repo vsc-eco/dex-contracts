@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vsc-eco/dex-contracts/contracts/dex/asset"
+	"github.com/vsc-eco/dex-contracts/contracts/asset"
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 	"github.com/vsc-eco/dex-contracts/sdk"
 

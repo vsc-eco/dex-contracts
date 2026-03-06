@@ -13,14 +13,14 @@ const artifactsDir = "bin"
 // Pre-loaded byte arrays (nil if file doesn't exist at package init)
 var (
 	DexRouterV2Wasm []byte
-	DexRouterWasm   []byte
-	DexWasm         []byte
-	BTCMappingWasm  []byte
+	// DexRouterWasm   []byte
+	DexWasm        []byte
+	BTCMappingWasm []byte
 )
 
 func init() {
 	DexRouterV2Wasm, _ = loadWasmFile("dex-router-v2.wasm")
-	DexRouterWasm, _ = loadWasmFile("dex-router.wasm")
+	// DexRouterWasm, _ = loadWasmFile("dex-router.wasm")
 	DexWasm, _ = loadWasmFile("dex.wasm")
 	BTCMappingWasm, _ = loadWasmFile("btc-mapping.wasm")
 }

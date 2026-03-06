@@ -2,28 +2,27 @@ package main
 
 import (
 	"math/big"
-	"math/bits"
 	"strings"
 
 	"github.com/vsc-eco/dex-contracts/sdk"
 
-	"github.com/vsc-eco/dex-contracts/contracts/dex/asset"
+	"github.com/vsc-eco/dex-contracts/contracts/asset"
 )
 
 // Keys for state storage
 const (
-	keyAsset0                       = "a1"
-	keyAsset1                       = "a2"
-	keyReserve0                     = "r0"
-	keyReserve1                     = "r1"
-	keyFee                          = "fee"
-	keyTotalLP                      = "tlp"
-	keyLpPrefix                     = "lp/" // lp/{address}
-	keySystemFee0                   = "f0"
-	keySystemFee1                   = "f1"
-	keyFeeLastClaim                 = "flc"
-	keyRouterAssetPrefix            = "as/"
-	keyMappingContractBalancePrefix = "bal/"
+	keyAsset0       = "a1"
+	keyAsset1       = "a2"
+	keyReserve0     = "r0"
+	keyReserve1     = "r1"
+	keyFee          = "fee"
+	keyTotalLP      = "tlp"
+	keyLpPrefix     = "lp/" // lp/{address}
+	keySystemFee0   = "f0"
+	keySystemFee1   = "f1"
+	keyFeeLastClaim = "flc"
+	// keyRouterAssetPrefix            = "as/"
+	// keyMappingContractBalancePrefix = "bal/"
 )
 
 const (
@@ -36,9 +35,9 @@ const (
 
 // Logs
 const (
-	logDelimiter      = "|"
-	logKeyDelimiter   = "="
-	logArrayDelimiter = ","
+	logDelimiter    = "|"
+	logKeyDelimiter = "="
+	// logArrayDelimiter = ","
 )
 
 // State helpers
@@ -140,14 +139,6 @@ func setLp(address string, amount *big.Int) {
 	setBigInt(keyLpPrefix+address, amount)
 }
 
-// Utility functions
-func min64(a, b uint64) uint64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func contractAssert(cond bool) {
 	if !cond {
 		sdk.Abort("assertion failed")
@@ -165,36 +156,9 @@ func isSystemSender() bool {
 	return false
 }
 
-func isValidAsset(s string) bool {
-	a := sdk.Asset(s)
-	switch a {
-	case sdk.AssetHive, sdk.AssetHiveCons, sdk.AssetHbd, sdk.AssetHbdSavings:
-		return true
-	default:
-		return false
-	}
-}
-
 // Check if asset is HBD
 func isHbd(asset string) bool {
 	return asset == sdk.AssetHbd.String()
-}
-
-// sqrt128 returns floor(sqrt(hi:lo)) where hi:lo is a 128-bit unsigned integer
-func sqrt128(hi, lo uint64) uint64 {
-	var low, high uint64 = 0, ^uint64(0) >> 1
-	var ans uint64
-	for low <= high {
-		mid := (low + high) >> 1
-		mh, ml := bits.Mul64(mid, mid)
-		if mh < hi || (mh == hi && ml <= lo) {
-			ans = mid
-			low = mid + 1
-		} else {
-			high = mid - 1
-		}
-	}
-	return ans
 }
 
 func logFee(magiFee, lpFee *big.Int) string {
