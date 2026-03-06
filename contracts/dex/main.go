@@ -75,9 +75,9 @@ func Init(payload *string) *string {
 	setReserve1(big.NewInt(0))
 	setFee(big.NewInt(int64(params.FeeBps)))
 	setTotalLp(big.NewInt(0))
-	setBigInt(keySystemFee0, big.NewInt(0))
-	setBigInt(keySystemFee1, big.NewInt(0))
-	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
+	setBigInt(types.KeySystemFee0, big.NewInt(0))
+	setBigInt(types.KeySystemFee1, big.NewInt(0))
+	setStr(types.KeyFeeLastClaim, sdk.GetEnv().Timestamp)
 
 	return nil
 }
@@ -135,16 +135,16 @@ func Swap(payload *string) *string {
 		// asset0 -> asset1
 		inputAsset = asset0
 		outputAsset = asset1
-		magiFeeKey = keySystemFee0
-		rInKey = keyReserve0
-		rOutKey = keyReserve1
+		magiFeeKey = types.KeySystemFee0
+		rInKey = types.KeyReserve0
+		rOutKey = types.KeyReserve1
 	} else if asset1.Name() == params.AssetIn && asset0.Name() == params.AssetOut {
 		// asset1 -> asset0
 		inputAsset = asset1
 		outputAsset = asset0
-		magiFeeKey = keySystemFee1
-		rInKey = keyReserve1
-		rOutKey = keyReserve0
+		magiFeeKey = types.KeySystemFee1
+		rInKey = types.KeyReserve1
+		rOutKey = types.KeyReserve0
 	} else {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInitialization, "invalid asset pair for pool want "+asset0.Name()+"-"+asset1.Name()+" got "+params.AssetIn+"-"+params.AssetOut),
@@ -562,19 +562,19 @@ func ClaimFees(payload *string) *string {
 	}
 	dao := sdk.Address("system:fr_balance")
 
-	f0 := getBigInt(keySystemFee0)
-	f1 := getBigInt(keySystemFee1)
+	f0 := getBigInt(types.KeySystemFee0)
+	f1 := getBigInt(types.KeySystemFee1)
 
 	// can use hive withdraw because its only hbd
 	if f0.Sign() == 1 && isHbd(asset0.Name()) {
-		setBigInt(keySystemFee0, big.NewInt(0))
+		setBigInt(types.KeySystemFee0, big.NewInt(0))
 		sdk.HiveWithdraw(dao, f0, sdk.Asset(asset0.Name()))
 	}
 	if f1.Sign() == 1 && isHbd(asset1.Name()) {
-		setBigInt(keySystemFee1, big.NewInt(0))
+		setBigInt(types.KeySystemFee1, big.NewInt(0))
 		sdk.HiveWithdraw(dao, f1, sdk.Asset(asset1.Name()))
 	}
 
-	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
+	setStr(types.KeyFeeLastClaim, sdk.GetEnv().Timestamp)
 	return nil
 }

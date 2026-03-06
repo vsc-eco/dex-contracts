@@ -199,8 +199,14 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 	if !ok {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "invalid input amount"))
 	}
-	poolAsset0, err := getPoolAsset(dexContractId, "asset0")
-	poolAsset1, err := getPoolAsset(dexContractId, "asset1")
+	poolAsset0, err := getPoolAsset(dexContractId, types.KeyAsset0)
+	if err != nil {
+		ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "could not retrieve pool asset0"))
+	}
+	poolAsset1, err := getPoolAsset(dexContractId, types.KeyAsset0)
+	if err != nil {
+		ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "could not retrieve pool asset1"))
+	}
 	var assetIn asset.Asset
 	var mEnv types.MaybeEnv
 	env := mEnv.UseEnv()
@@ -281,8 +287,14 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	if !ok {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "invalid input amount"))
 	}
-	poolAsset0, err := getPoolAsset(pool1Id, "asset0")
-	poolAsset1, err := getPoolAsset(pool1Id, "asset1")
+	poolAsset0, err := getPoolAsset(pool1Id, types.KeyAsset0)
+	if err != nil {
+		ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "could not retrieve pool asset 0"))
+	}
+	poolAsset1, err := getPoolAsset(pool1Id, types.KeyAsset1)
+	if err != nil {
+		ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "could not retrieve pool asset 1"))
+	}
 	var assetIn asset.Asset
 	var mEnv types.MaybeEnv
 	env := mEnv.UseEnv()
@@ -303,8 +315,8 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		AssetIn:      instruction.AssetIn,
 		AmountIn:     instruction.AmountIn,
 		AssetOut:     sdk.AssetHbd.String(),
-		Recipient:    sdk.GetEnv().ContractId, // Route to router
-		MinAmountOut: nil,                     // Let DEX calculate
+		Recipient:    mEnv.UseEnv().ContractId, // Route to router
+		MinAmountOut: nil,                      // Let DEX calculate
 	}
 
 	firstSwapPayload, err := tinyjson.Marshal(&firstSwapParams)

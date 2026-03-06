@@ -7,23 +7,10 @@ import (
 	"github.com/vsc-eco/dex-contracts/sdk"
 
 	"github.com/vsc-eco/dex-contracts/contracts/asset"
+	"github.com/vsc-eco/dex-contracts/contracts/types"
 )
 
 // Keys for state storage
-const (
-	keyAsset0       = "a1"
-	keyAsset1       = "a2"
-	keyReserve0     = "r0"
-	keyReserve1     = "r1"
-	keyFee          = "fee"
-	keyTotalLP      = "tlp"
-	keyLpPrefix     = "lp-" // lp/{address}
-	keySystemFee0   = "f0"
-	keySystemFee1   = "f1"
-	keyFeeLastClaim = "flc"
-	// keyRouterAssetPrefix            = "as-"
-	// keyMappingContractBalancePrefix = "bal-"
-)
 
 const (
 	JSON_ERROR = "json_error"
@@ -70,7 +57,7 @@ func setBigInt(key string, val *big.Int) {
 
 // Pool state helpers
 func getAsset0() (asset.Asset, error) {
-	assetStr := getStr(keyAsset0)
+	assetStr := getStr(types.KeyAsset0)
 
 	asset0, err := asset.AssetFromJson(assetStr)
 	if err != nil {
@@ -81,7 +68,7 @@ func getAsset0() (asset.Asset, error) {
 }
 
 func getAsset1() (asset.Asset, error) {
-	assetStr := getStr(keyAsset1)
+	assetStr := getStr(types.KeyAsset1)
 
 	asset1, err := asset.AssetFromJson(assetStr)
 	if err != nil {
@@ -92,51 +79,51 @@ func getAsset1() (asset.Asset, error) {
 }
 
 func getReserve0() *big.Int {
-	return getBigInt(keyReserve0)
+	return getBigInt(types.KeyReserve0)
 }
 
 func getReserve1() *big.Int {
-	return getBigInt(keyReserve1)
+	return getBigInt(types.KeyReserve1)
 }
 
 func getFee() *big.Int {
-	return getBigInt(keyFee)
+	return getBigInt(types.KeyFee)
 }
 
 func getTotalLp() *big.Int {
-	return getBigInt(keyTotalLP)
+	return getBigInt(types.KeyTotalLP)
 }
 
 func getLp(address string) *big.Int {
-	return getBigInt(keyLpPrefix + address)
+	return getBigInt(types.KeyLpPrefix + address)
 }
 
 func setAsset0(asset string) {
-	setStr(keyAsset0, asset)
+	setStr(types.KeyAsset0, asset)
 }
 
 func setAsset1(asset string) {
-	setStr(keyAsset1, asset)
+	setStr(types.KeyAsset1, asset)
 }
 
 func setReserve0(reserve *big.Int) {
-	setBigInt(keyReserve0, reserve)
+	setBigInt(types.KeyReserve0, reserve)
 }
 
 func setReserve1(reserve *big.Int) {
-	setBigInt(keyReserve1, reserve)
+	setBigInt(types.KeyReserve1, reserve)
 }
 
 func setFee(fee *big.Int) {
-	setBigInt(keyFee, fee)
+	setBigInt(types.KeyFee, fee)
 }
 
 func setTotalLp(totalLp *big.Int) {
-	setBigInt(keyTotalLP, totalLp)
+	setBigInt(types.KeyTotalLP, totalLp)
 }
 
 func setLp(address string, amount *big.Int) {
-	setBigInt(keyLpPrefix+address, amount)
+	setBigInt(types.KeyLpPrefix+address, amount)
 }
 
 func contractAssert(cond bool) {

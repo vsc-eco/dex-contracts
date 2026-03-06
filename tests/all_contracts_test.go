@@ -546,7 +546,7 @@ func TestTwoHop(t *testing.T) {
 			Type: "transfer.allow",
 			Args: map[string]string{
 				"token": "hive",
-				"limit": "500000",
+				"limit": "1000000",
 			},
 		},
 	})

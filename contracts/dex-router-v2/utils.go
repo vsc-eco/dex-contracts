@@ -134,7 +134,7 @@ func splitChains(s string) []string {
 func getPoolAsset(poolId, key string) (asset.Asset, error) {
 	assetStr := sdk.ContractStateGet(poolId, key)
 	if assetStr == nil {
-		return nil, ce.NewContractError(ce.ErrStateAccess, "could not get pool asset information")
+		return nil, ce.NewContractError(ce.ErrStateAccess, "no return value for state access")
 	}
 
 	asset, err := asset.AssetFromJson(*assetStr)
