@@ -315,8 +315,8 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		AssetIn:      instruction.AssetIn,
 		AmountIn:     instruction.AmountIn,
 		AssetOut:     sdk.AssetHbd.String(),
-		Recipient:    mEnv.UseEnv().ContractId, // Route to router
-		MinAmountOut: nil,                      // Let DEX calculate
+		Recipient:    "contract:" + mEnv.UseEnv().ContractId, // Route to router
+		MinAmountOut: nil,                                    // Let DEX calculate
 	}
 
 	firstSwapPayload, err := tinyjson.Marshal(&firstSwapParams)
