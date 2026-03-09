@@ -19,7 +19,8 @@ type SwapParams struct {
 	AmountIn     string  `json:"amount_in"`
 	AssetOut     string  `json:"asset_out"`
 	MinAmountOut *string `json:"min_amount_out,omitempty"`
-	Recipient    string  `json:"recipient"`
+	From         string  `json:"from,omitempty"`
+	To           string  `json:"to"`
 	Beneficiary  *string `json:"beneficiary,omitempty"`
 	RefBps       *uint64 `json:"ref_bps,omitempty"`
 }

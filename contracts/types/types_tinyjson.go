@@ -181,8 +181,10 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp2
 				}
 				*out.MinAmountOut = string(in.String())
 			}
-		case "recipient":
-			out.Recipient = string(in.String())
+		case "from":
+			out.From = string(in.String())
+		case "to":
+			out.To = string(in.String())
 		case "beneficiary":
 			if in.IsNull() {
 				in.Skip()
@@ -237,10 +239,15 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp2
 		out.RawString(prefix)
 		out.String(string(*in.MinAmountOut))
 	}
-	{
-		const prefix string = ",\"recipient\":"
+	if in.From != "" {
+		const prefix string = ",\"from\":"
 		out.RawString(prefix)
-		out.String(string(in.Recipient))
+		out.String(string(in.From))
+	}
+	{
+		const prefix string = ",\"to\":"
+		out.RawString(prefix)
+		out.String(string(in.To))
 	}
 	if in.Beneficiary != nil {
 		const prefix string = ",\"beneficiary\":"

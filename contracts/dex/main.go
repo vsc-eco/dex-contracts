@@ -102,7 +102,7 @@ func Swap(payload *string) *string {
 	}
 
 	// Validate required fields
-	if params.AssetIn == "" || params.AssetOut == "" || params.Recipient == "" {
+	if params.AssetIn == "" || params.AssetOut == "" || params.To == "" {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInput, "missing required fields"),
 		)
@@ -239,7 +239,12 @@ func Swap(payload *string) *string {
 
 	maybeEnv := types.MaybeEnv{}
 
-	inputAsset.DrawAsset(amountIn, maybeEnv)
+	from := sdk.Address(params.From)
+	if !from.IsValid() {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "from address ["+params.From+"] invalid"))
+	}
+
+	inputAsset.DrawAssetFrom(amountIn, from, maybeEnv)
 
 	// Handle referral fees
 	if params.Beneficiary != nil && params.RefBps != nil {
@@ -262,7 +267,7 @@ func Swap(payload *string) *string {
 
 	}
 
-	outputAsset.TransferAsset(params.Recipient, amountOut)
+	outputAsset.TransferAsset(params.To, amountOut)
 
 	// Accumulate fees
 	if magiFee.Sign() == 1 {
@@ -399,10 +404,10 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string) *string {
 
 	// Pull funds from user intents into contract
 	if amt0.Sign() == 1 {
-		asset0.DrawAsset(amt0, maybeEnv)
+		asset0.DrawAssetFrom(amt0, maybeEnv.UseEnv().Sender.Address, maybeEnv)
 	}
 	if amt1.Sign() == 1 {
-		asset1.DrawAsset(amt1, maybeEnv)
+		asset1.DrawAssetFrom(amt1, maybeEnv.UseEnv().Sender.Address, maybeEnv)
 	}
 
 	// Update reserves and mint LP
