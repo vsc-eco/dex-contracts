@@ -249,6 +249,11 @@ func Swap(payload *string) *string {
 	// Handle referral fees
 	if params.Beneficiary != nil && params.RefBps != nil {
 		// refOut = amountOut * refBps / 10000
+		if *params.RefBps > 10000 {
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrInput, "ref bps ["+strconv.FormatUint(*params.RefBps, 10)+"] > 10000"),
+			)
+		}
 		refOut := new(big.Int).Set(amountOut)
 		refOut.Mul(refOut, new(big.Int).SetUint64(*params.RefBps))
 		refOut.Div(refOut, big.NewInt(10000))

@@ -2,6 +2,7 @@ package tests
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"math/bits"
 	"strconv"
@@ -17,10 +18,6 @@ import (
 	"github.com/CosmWasm/tinyjson"
 
 	"github.com/vsc-eco/dex-contracts/contracts/types"
-)
-
-const (
-	balancePrefix = "bal-"
 )
 
 // CallResult wraps the contract call result for test assertions
@@ -83,15 +80,9 @@ func dumpStateDiff(t *testing.T, sdm map[string]contract_session.StateDiff) {
 }
 
 func fmtStoredVal(s []byte) string {
-	// if it's 1-8 bytes and not printable ASCII, treat as packed uint64
-	if len(s) >= 1 && len(s) <= 8 {
-		for _, c := range []byte(s) {
-			if c < 0x20 || c > 0x7e {
-				// has non-printable bytes, decode as uint64
-				var buf [8]byte
-				copy(buf[8-len(s):], s)
-				return strconv.FormatUint(binary.BigEndian.Uint64(buf[:]), 10)
-			}
+	for _, c := range s {
+		if c < 0x20 || c > 0x7e {
+			return hex.EncodeToString(s)
 		}
 	}
 	return string(s)

@@ -1,6 +1,6 @@
 module dex-contract-tests
 
-go 1.24.0
+go 1.25.6
 
 // replace vsc-node => ../../go-vsc-node/
 replace vsc-node => ../../milo-go-vsc-node/
@@ -9,8 +9,14 @@ replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-2
 
 replace github.com/vsc-eco/dex-contracts => ..
 
+replace btc-mapping-contract => ../../utxo-mapping/btc-mapping-contract
+
 require (
+	btc-mapping-contract v0.0.0-00010101000000-000000000000
 	github.com/CosmWasm/tinyjson v0.9.0
+	github.com/btcsuite/btcd v0.25.0
+	github.com/btcsuite/btcd/btcutil v1.1.6
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vsc-eco/dex-contracts v0.0.0
 	vsc-node v0.0.0
@@ -26,6 +32,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.14.2 // indirect
 	github.com/bnb-chain/tss-lib/v2 v2.0.2 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.5 // indirect
+	github.com/btcsuite/btclog v1.0.0 // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -147,6 +154,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/panjf2000/ants/v2 v2.8.1 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
+	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pion/datachannel v1.5.10 // indirect
 	github.com/pion/dtls/v2 v2.2.12 // indirect
 	github.com/pion/ice/v2 v2.3.37 // indirect
@@ -181,6 +189,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/supranational/blst v0.3.13 // indirect
+	github.com/tinylib/msgp v1.6.3 // indirect
 	github.com/ugorji/go/codec v1.2.6 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.57.0 // indirect

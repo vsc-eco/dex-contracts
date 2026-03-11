@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"btc-mapping-contract/contract/constants"
 	"encoding/binary"
 	"testing"
 	"vsc-node/lib/test_utils"
@@ -199,8 +200,8 @@ func TestAddLiquidityMappedPool(t *testing.T) {
 
 	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
 	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
-	ct.StateSet(btcMappingId, balancePrefix+owner, formatUintAsBytes(t, 1000000))
-	s := ct.StateGet(btcMappingId, balancePrefix+owner)
+	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 1000000))
+	s := ct.StateGet(btcMappingId, constants.BalancePrefix+owner)
 	var buf [8]byte
 	copy(buf[8-len(s):], s)
 	t.Log(binary.BigEndian.Uint64(buf[:]))
@@ -379,7 +380,7 @@ func TestOneHopMapped(t *testing.T) {
 		Asset1:                poolParams.Asset1,
 		Asset0MappingContract: btcMappingId,
 	})
-	ct.StateSet(btcMappingId, balancePrefix+owner, formatUintAsBytes(t, 2_00000000))
+	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 2_00000000))
 	r = btchbdDex.addLiquidity(t, owner, 1_49000000, 100000_000)
 	ct.Deposit(owner, 10000, ledger_db.AssetHbd)
 
@@ -521,7 +522,7 @@ func TestTwoHop(t *testing.T) {
 	if !r.Success {
 		t.Fatalf("error initializing BTC/HBD pool: %s", r.Ret)
 	}
-	ct.StateSet(btcMappingId, balancePrefix+owner, formatUintAsBytes(t, 20_00000000))
+	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 20_00000000))
 	r = btchbdDex.addLiquidity(t, owner, 14_90000000, 1000000_000)
 	if !r.Success {
 		t.Fatalf("error adding liquidity to BTC/HBD pool: %s: %s", r.Err, r.ErrMsg)
