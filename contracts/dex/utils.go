@@ -21,8 +21,9 @@ const (
 	keySystemFee0   = "f0"
 	keySystemFee1   = "f1"
 	keyFeeLastClaim = "flc"
-	// keyRouterAssetPrefix            = "as/"
-	// keyMappingContractBalancePrefix = "bal/"
+	keyRouter       = "rtr" // authorized router contract ID
+	keyAsset0Name   = "a1n" // cached asset0 lowercase name (avoids JSON unmarshal)
+	keyAsset1Name   = "a2n" // cached asset1 lowercase name
 )
 
 const (

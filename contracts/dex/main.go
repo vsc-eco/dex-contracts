@@ -71,6 +71,9 @@ func Init(payload *string) *string {
 	// Initialize pool state
 	setAsset0(string(asset0json))
 	setAsset1(string(asset1json))
+	// Cache asset names for fast lookup (avoids JSON unmarshal on every swap)
+	setStr(keyAsset0Name, strings.ToLower(params.Asset0))
+	setStr(keyAsset1Name, strings.ToLower(params.Asset1))
 	setReserve0(big.NewInt(0))
 	setReserve1(big.NewInt(0))
 	setFee(big.NewInt(int64(params.FeeBps)))
@@ -78,6 +81,9 @@ func Init(payload *string) *string {
 	setBigInt(keySystemFee0, big.NewInt(0))
 	setBigInt(keySystemFee1, big.NewInt(0))
 	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
+	if params.RouterContract != "" {
+		setStr(keyRouter, params.RouterContract)
+	}
 
 	return nil
 }
@@ -111,44 +117,50 @@ func Swap(payload *string) *string {
 	params.AssetIn = strings.ToLower(params.AssetIn)
 	params.AssetOut = strings.ToLower(params.AssetOut)
 
-	asset0, err := getAsset0()
-	if err != nil {
-		ce.CustomAbort(
-			ce.NewContractError(ce.ErrInitialization, "asset0 not found"),
-		)
-	}
-	asset1, err := getAsset1()
-	if err != nil {
-		ce.CustomAbort(
-			ce.NewContractError(ce.ErrInitialization, "asset1 not found"),
-		)
-	}
+	// Use cached asset names for direction check (avoids JSON unmarshal)
+	asset0Name := getStr(keyAsset0Name)
+	asset1Name := getStr(keyAsset1Name)
 
 	feeBps := getFee()
 
-	// Determine swap direction and calculate output
-	var inputAsset, outputAsset asset.Asset
+	// Determine swap direction using cached names
 	var magiFeeKey string
 	var rInKey, rOutKey string
+	var inputIsAsset0 bool
 
-	if asset0.Name() == params.AssetIn && asset1.Name() == params.AssetOut {
-		// asset0 -> asset1
-		inputAsset = asset0
-		outputAsset = asset1
+	if asset0Name == params.AssetIn && asset1Name == params.AssetOut {
+		inputIsAsset0 = true
 		magiFeeKey = keySystemFee0
 		rInKey = keyReserve0
 		rOutKey = keyReserve1
-	} else if asset1.Name() == params.AssetIn && asset0.Name() == params.AssetOut {
-		// asset1 -> asset0
-		inputAsset = asset1
-		outputAsset = asset0
+	} else if asset1Name == params.AssetIn && asset0Name == params.AssetOut {
+		inputIsAsset0 = false
 		magiFeeKey = keySystemFee1
 		rInKey = keyReserve1
 		rOutKey = keyReserve0
 	} else {
 		ce.CustomAbort(
-			ce.NewContractError(ce.ErrInitialization, "invalid asset pair for pool want "+asset0.Name()+"-"+asset1.Name()+" got "+params.AssetIn+"-"+params.AssetOut),
+			ce.NewContractError(ce.ErrInitialization, "invalid asset pair for pool want "+asset0Name+"-"+asset1Name+" got "+params.AssetIn+"-"+params.AssetOut),
 		)
+	}
+
+	// Only parse full asset objects when needed for transfers
+	asset0, err := getAsset0()
+	if err != nil {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "asset0 not found"))
+	}
+	asset1, err := getAsset1()
+	if err != nil {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "asset1 not found"))
+	}
+
+	var inputAsset, outputAsset asset.Asset
+	if inputIsAsset0 {
+		inputAsset = asset0
+		outputAsset = asset1
+	} else {
+		inputAsset = asset1
+		outputAsset = asset0
 	}
 
 	rIn := getBigInt(rInKey)
@@ -244,17 +256,28 @@ func Swap(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "from address ["+params.From+"] invalid"))
 	}
 
-	inputAsset.DrawAssetFrom(amountIn, from, maybeEnv)
+	// SECURITY: Only trust PreDeposited from the authorized Router contract.
+	// A direct call with PreDeposited=true would skip the deposit and drain the pool.
+	if params.PreDeposited {
+		env := sdk.GetEnv()
+		routerId := getStr(keyRouter)
+		if routerId == "" || env.Caller.String() != "contract:"+routerId {
+			ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "PreDeposited only allowed from the authorized Router"))
+		}
+	}
+	if !params.PreDeposited {
+		inputAsset.DrawAssetFrom(amountIn, from, maybeEnv)
+	}
 
-	// Handle referral fees
+	// Handle referral fees (calculate before state updates)
+	var refOut *big.Int
 	if params.Beneficiary != nil && params.RefBps != nil {
-		// refOut = amountOut * refBps / 10000
 		if *params.RefBps > 10000 {
 			ce.CustomAbort(
 				ce.NewContractError(ce.ErrInput, "ref bps ["+strconv.FormatUint(*params.RefBps, 10)+"] > 10000"),
 			)
 		}
-		refOut := new(big.Int).Set(amountOut)
+		refOut = new(big.Int).Set(amountOut)
 		refOut.Mul(refOut, new(big.Int).SetUint64(*params.RefBps))
 		refOut.Div(refOut, big.NewInt(10000))
 		if refOut.Sign() == 1 {
@@ -262,47 +285,56 @@ func Swap(payload *string) *string {
 				refOut.Set(amountOut)
 			}
 			amountOut.Sub(amountOut, refOut)
-			err := outputAsset.TransferAsset(*params.Beneficiary, refOut)
-			if err != nil {
-				ce.CustomAbort(
-					ce.WrapContractError(ce.ErrInitialization, err, "error transferring beneficiary asset out"),
-				)
-			}
+		} else {
+			refOut = nil
 		}
-
 	}
 
-	outputAsset.TransferAsset(params.To, amountOut)
-
-	// Accumulate fees
+	// --- EFFECTS: update reserves BEFORE external transfers (reentrancy protection) ---
 	if magiFee.Sign() == 1 {
 		currentFee := getBigInt(magiFeeKey)
 		currentFee.Add(currentFee, magiFee)
-		if currentFee.IsUint64() {
-			setBigInt(magiFeeKey, currentFee)
-		}
+		setBigInt(magiFeeKey, currentFee)
 	}
-	// add the LP fee to the input reserve
 	if lpFee.Sign() == 1 {
 		newRIn.Add(newRIn, lpFee)
 	}
-	// set new values for inputs now that fee is added to rIn
 	setBigInt(rInKey, newRIn)
 	setBigInt(rOutKey, newROut)
+
+	// --- INTERACTIONS: external transfers after state is finalized ---
+	if refOut != nil && refOut.Sign() == 1 {
+		err := outputAsset.TransferAsset(*params.Beneficiary, refOut)
+		if err != nil {
+			ce.CustomAbort(
+				ce.WrapContractError(ce.ErrInitialization, err, "error transferring beneficiary asset out"),
+			)
+		}
+	}
+	outputAsset.TransferAsset(params.To, amountOut)
 
 	// log fee and amount swapped
 	sdk.Log(logFee(magiFee, lpFee))
 	sdk.Log(logAmounts(amountIn, amountOut))
 
-	// Return swap result with current pool state
+	// Return swap result — use cached names and local reserve values
+	// to avoid redundant state reads.
+	var resultR0, resultR1 string
+	if inputIsAsset0 {
+		resultR0 = newRIn.String()
+		resultR1 = newROut.String()
+	} else {
+		resultR0 = newROut.String()
+		resultR1 = newRIn.String()
+	}
 	result := types.SwapResult{
 		AmountOut: amountOut.String(),
 		PoolState: types.PoolInfo{
-			Asset0:   asset0.Name(),
-			Asset1:   asset1.Name(),
-			Reserve0: getReserve0().String(),
-			Reserve1: getReserve1().String(),
-			Fee:      getFee().Uint64(),
+			Asset0:   asset0Name,
+			Asset1:   asset1Name,
+			Reserve0: resultR0,
+			Reserve1: resultR1,
+			Fee:      feeBps.Uint64(),
 			TotalLp:  getTotalLp().String(),
 		},
 	}
@@ -356,7 +388,7 @@ func AddLiquidity(payload *string) *string {
 		)
 	}
 
-	return executeAddLiquidity(amt0, amt1, params.Recipient)
+	return executeAddLiquidity(amt0, amt1, params.Recipient, params)
 }
 
 // Remove liquidity from the pool
@@ -395,7 +427,7 @@ func RemoveLiquidity(payload *string) *string {
 }
 
 // Execute add liquidity operation
-func executeAddLiquidity(amt0, amt1 *big.Int, provider string) *string {
+func executeAddLiquidity(amt0, amt1 *big.Int, provider string, params types.AddLiquidityParams) *string {
 	asset0, err := getAsset0()
 	if err != nil {
 		sdk.Abort("pool not initialized")
@@ -407,11 +439,19 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string) *string {
 
 	maybeEnv := types.MaybeEnv{}
 
-	// Pull funds from user intents into contract
-	if amt0.Sign() == 1 {
+	// SECURITY: Only trust PreDeposited flags from the authorized Router.
+	if params.PreDeposited0 || params.PreDeposited1 {
+		env := maybeEnv.UseEnv()
+		routerId := getStr(keyRouter)
+		if routerId == "" || env.Caller.String() != "contract:"+routerId {
+			ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "PreDeposited only allowed from the authorized Router"))
+		}
+	}
+	// Draw each asset independently — skip if pre-deposited by Router.
+	if amt0.Sign() == 1 && !params.PreDeposited0 {
 		asset0.DrawAssetFrom(amt0, maybeEnv.UseEnv().Sender.Address, maybeEnv)
 	}
-	if amt1.Sign() == 1 {
+	if amt1.Sign() == 1 && !params.PreDeposited1 {
 		asset1.DrawAssetFrom(amt1, maybeEnv.UseEnv().Sender.Address, maybeEnv)
 	}
 
@@ -440,9 +480,13 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string) *string {
 	}
 	contractAssert(minted.Sign() == 1)
 
-	setReserve0(new(big.Int).Add(r0, amt0))
-	setReserve1(new(big.Int).Add(r1, amt1))
-	setTotalLp(new(big.Int).Add(totalLP, minted))
+	// Reuse big.Int objects to avoid extra allocations
+	r0.Add(r0, amt0)
+	r1.Add(r1, amt1)
+	totalLP.Add(totalLP, minted)
+	setReserve0(r0)
+	setReserve1(r1)
+	setTotalLp(totalLP)
 
 	// Mint LP tokens to provider
 	providerAddr := sdk.Address(provider)
@@ -498,7 +542,7 @@ func executeRemoveLiquidity(lpAmount *big.Int, provider string) *string {
 	asset1, err := getAsset1()
 	if err != nil {
 		ce.CustomAbort(
-			ce.WrapContractError(ce.ErrStateAccess, err, "error retrieving asset0"),
+			ce.WrapContractError(ce.ErrStateAccess, err, "error retrieving asset1"),
 		)
 	}
 	if amt0.Sign() == 1 {
@@ -515,22 +559,10 @@ func executeRemoveLiquidity(lpAmount *big.Int, provider string) *string {
 //
 //go:wasmexport get_pool
 func GetPool(_ *string) *string {
-	asset0, err := getAsset0()
-	if err != nil {
-		ce.CustomAbort(
-			ce.WrapContractError(ce.ErrInitialization, err, "pool not initialized"),
-		)
-	}
-	asset1, err := getAsset0()
-	if err != nil {
-		ce.CustomAbort(
-			ce.WrapContractError(ce.ErrInitialization, err, "pool not initialized"),
-		)
-	}
-
+	// Use cached names — avoids JSON unmarshal of full asset objects
 	poolInfo := types.PoolInfo{
-		Asset0:   asset0.Name(),
-		Asset1:   asset1.Name(),
+		Asset0:   getStr(keyAsset0Name),
+		Asset1:   getStr(keyAsset1Name),
 		Reserve0: getReserve0().String(),
 		Reserve1: getReserve1().String(),
 		Fee:      getFee().Uint64(),
@@ -558,31 +590,22 @@ func ClaimFees(payload *string) *string {
 		)
 	}
 
-	asset0, err := getAsset0()
-	if err != nil {
-		ce.CustomAbort(
-			ce.WrapContractError(ce.ErrStateAccess, err, "pool not initialized"),
-		)
-	}
-	asset1, err := getAsset1()
-	if err != nil {
-		ce.CustomAbort(
-			ce.WrapContractError(ce.ErrStateAccess, err, "pool not initialized"),
-		)
-	}
+	// Use cached names — avoids JSON unmarshal of full asset objects
+	asset0Name := getStr(keyAsset0Name)
+	asset1Name := getStr(keyAsset1Name)
 	dao := sdk.Address("system:fr_balance")
 
 	f0 := getBigInt(keySystemFee0)
 	f1 := getBigInt(keySystemFee1)
 
 	// can use hive withdraw because its only hbd
-	if f0.Sign() == 1 && isHbd(asset0.Name()) {
+	if f0.Sign() == 1 && isHbd(asset0Name) {
 		setBigInt(keySystemFee0, big.NewInt(0))
-		sdk.HiveWithdraw(dao, f0, sdk.Asset(asset0.Name()))
+		sdk.HiveWithdraw(dao, f0, sdk.Asset(asset0Name))
 	}
-	if f1.Sign() == 1 && isHbd(asset1.Name()) {
+	if f1.Sign() == 1 && isHbd(asset1Name) {
 		setBigInt(keySystemFee1, big.NewInt(0))
-		sdk.HiveWithdraw(dao, f1, sdk.Asset(asset1.Name()))
+		sdk.HiveWithdraw(dao, f1, sdk.Asset(asset1Name))
 	}
 
 	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)

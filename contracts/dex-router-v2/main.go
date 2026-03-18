@@ -33,6 +33,10 @@ func Init(payload *string) *string {
 //
 //go:wasmexport register_token
 func RegisterToken(payload *string) *string {
+	env := sdk.GetEnv()
+	if env.Caller.String() != *sdk.GetEnvKey("contract.owner") {
+		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "action must be performed by the contract owner"))
+	}
 	if payload == nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
@@ -54,6 +58,7 @@ func RegisterToken(payload *string) *string {
 	validChains := map[string]bool{
 		chainHIVE: true, chainMAGI: true,
 		"BTC": true, "ETH": true, "SOL": true, "SUI": true,
+		"LTC": true, "DASH": true, "DOGE": true, "BCH": true,
 	}
 	if !validChains[params.Chain] {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "unsupported chain: "+params.Chain))
@@ -80,6 +85,10 @@ func RegisterToken(payload *string) *string {
 //
 //go:wasmexport register_pool
 func RegisterPool(payload *string) *string {
+	env := sdk.GetEnv()
+	if env.Caller.String() != *sdk.GetEnvKey("contract.owner") {
+		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "action must be performed by the contract owner"))
+	}
 	if payload == nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
@@ -134,6 +143,21 @@ func Execute(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
 
+	// Auth: either the sender signed with active auth (direct user call),
+	// or the caller is a contract (swap-via-map from mapping contract).
+	env := sdk.GetEnv()
+	callerIsContract := env.Caller.Domain() == sdk.AddressDomainContract
+	senderHasAuth := false
+	for _, auth := range env.Sender.RequiredAuths {
+		if auth == env.Sender.Address {
+			senderHasAuth = true
+			break
+		}
+	}
+	if !callerIsContract && !senderHasAuth {
+		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "active auth required or must be called by a contract"))
+	}
+
 	var instruction types.DexInstruction
 	if err := tinyjson.Unmarshal([]byte(*payload), &instruction); err != nil {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "invalid payload"))
@@ -161,6 +185,10 @@ func Execute(payload *string) *string {
 
 // Execute swap operation with 2-step routing
 func executeSwap(instruction types.DexInstruction) *string {
+	// Normalize once — all downstream functions expect lowercase
+	instruction.AssetIn = strings.ToLower(instruction.AssetIn)
+	instruction.AssetOut = strings.ToLower(instruction.AssetOut)
+
 	// Try direct pool first
 	directPoolId := findPool(instruction.AssetIn, instruction.AssetOut)
 	if directPoolId != "" {
@@ -168,8 +196,8 @@ func executeSwap(instruction types.DexInstruction) *string {
 	}
 
 	// Try two-hop swap via HBD
-	if strings.ToLower(instruction.AssetIn) != sdk.AssetHbd.String() &&
-		strings.ToLower(instruction.AssetOut) != sdk.AssetHbd.String() {
+	hbd := sdk.AssetHbd.String()
+	if instruction.AssetIn != hbd && instruction.AssetOut != hbd {
 		return executeTwoHopSwap(instruction)
 	}
 
@@ -195,16 +223,24 @@ func findPool(assetA, assetB string) string {
 // Execute direct swap within a single DEX pool
 func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *string {
 	env := sdk.GetEnv()
-	// Prepare swap parameters for DEX contract
+	userAddr := env.Sender.Address.String()
+
+	// For mapped assets: pre-fund the pool via Router's ERC-20 allowance.
+	// For native assets: pass protocol-level intent so Pool can HiveDrawFrom.
+	preDeposited := preFundMappedAsset(
+		instruction.AssetIn, instruction.AmountIn, userAddr, dexContractId,
+	)
+
 	swapParams := types.SwapParams{
 		AssetIn:      instruction.AssetIn,
 		AmountIn:     instruction.AmountIn,
 		AssetOut:     instruction.AssetOut,
 		MinAmountOut: instruction.MinAmountOut,
 		To:           instruction.Recipient,
-		From:         env.Sender.Address.String(),
+		From:         userAddr,
 		Beneficiary:  instruction.Beneficiary,
 		RefBps:       instruction.RefBps,
+		PreDeposited: preDeposited,
 	}
 
 	swapPayload, err := tinyjson.Marshal(&swapParams)
@@ -214,50 +250,65 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 		)
 	}
 
-	// Call DEX contract's swap method
-	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), &sdk.ContractCallOptions{})
+	// For native assets, pass protocol intent so Pool can HiveDrawFrom.
+	// For mapped assets (pre-deposited), no intent needed.
+	var opts *sdk.ContractCallOptions
+	if !preDeposited {
+		opts = buildNativeIntent(instruction.AssetIn, instruction.AmountIn)
+	} else {
+		opts = &sdk.ContractCallOptions{}
+	}
+
+	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), opts)
 	if result == nil {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrTransaction, "unknown swap failure"),
 		)
 	}
 
-	// Parse result to update cache
-	var swapResult types.SwapResult
-	if err := tinyjson.Unmarshal([]byte(*result), &swapResult); err == nil {
-		// Update cached pool state
-		// setPoolState(dexContractId, swapResult.PoolState)
-	}
-
 	return result
 }
 
-// Execute two-hop swap via HBD with intent-based bag checking and proper failure handling
+// Execute two-hop swap via HBD using ERC-20 allowances for mapped assets
+// and protocol-level intents for native assets (HBD between hops).
 func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	pool1Id := findPool(instruction.AssetIn, sdk.AssetHbd.String())
 	if pool1Id == "" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "no pool found for first hop"))
 	}
 
-	// Find second pool: HBD -> AssetOut
 	pool2Id := findPool(sdk.AssetHbd.String(), instruction.AssetOut)
 	if pool2Id == "" {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "no pool found for first hop"))
+		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "no pool found for second hop"))
 	}
 
 	var mEnv types.MaybeEnv
+	env := mEnv.UseEnv()
+	contractAccId := "contract:" + env.ContractId
+	userAddr := env.Sender.Address.String()
 
-	contractAccId := "contract:" + mEnv.UseEnv().ContractId
+	// --- First hop: AssetIn → HBD ---
+	// Pre-fund mapped input asset into pool1 via ERC-20 allowance.
+	preDeposited := preFundMappedAsset(instruction.AssetIn, instruction.AmountIn, userAddr, pool1Id)
 
-	// Execute first swap: AssetIn -> HBD
-	// Route intermediate HBD to this router contract
+	// First hop slippage: users can optionally set "min_intermediate" in metadata.
+	// Even without it, the second hop's MinAmountOut provides atomic protection —
+	// if first hop gets sandwiched, second hop produces less output and reverts.
+	var firstHopMinOut *string
+	if instruction.Metadata != nil {
+		if v, ok := instruction.Metadata["min_intermediate"]; ok {
+			firstHopMinOut = &v
+		}
+	}
+
 	firstSwapParams := types.SwapParams{
 		AssetIn:      instruction.AssetIn,
 		AmountIn:     instruction.AmountIn,
 		AssetOut:     sdk.AssetHbd.String(),
-		From:         mEnv.UseEnv().Sender.Address.String(),
-		To:           contractAccId, // Route to router
-		MinAmountOut: nil,           // Let DEX calculate
+		From:         userAddr,
+		To:           contractAccId, // Intermediate HBD goes to Router
+		MinAmountOut: firstHopMinOut,
+		PreDeposited: preDeposited,
 	}
 
 	firstSwapPayload, err := tinyjson.Marshal(&firstSwapParams)
@@ -265,14 +316,18 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error marshalling first hop params"))
 	}
 
-	// Call first DEX contract - VSC will validate intents
-	// If swap fails (slippage, insufficient liquidity, etc.), VSC rolls back automatically
-	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), &sdk.ContractCallOptions{})
+	var firstHopOpts *sdk.ContractCallOptions
+	if !preDeposited {
+		firstHopOpts = buildNativeIntent(instruction.AssetIn, instruction.AmountIn)
+	} else {
+		firstHopOpts = &sdk.ContractCallOptions{}
+	}
+
+	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), firstHopOpts)
 	if firstResult == nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "first hop returned no result"))
 	}
 
-	// Parse swap result (includes pool state)
 	var swapResult1 types.SwapResult
 	if err := tinyjson.Unmarshal([]byte(*firstResult), &swapResult1); err != nil {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error unmarshalling first hop result"))
@@ -281,61 +336,78 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	if !ok {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "first hop returned non-integer amount out"))
 	}
+	if res1AmountOut.Sign() <= 0 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "first hop returned zero or negative amount"))
+	}
 
-	// Update cached pool state from result
-	// setPoolState(pool1Id, swapResult1.PoolState)
-
-	// Execute second swap: HBD -> AssetOut
-	// Use actual HBD received from first swap
+	// --- Second hop: HBD → AssetOut ---
+	// HBD is native — Router received it from first pool. Pass protocol-level
+	// intent so second pool can HiveDrawFrom the Router.
 	secondSwapParams := types.SwapParams{
 		AssetIn:      sdk.AssetHbd.String(),
 		AmountIn:     res1AmountOut.String(),
 		AssetOut:     instruction.AssetOut,
 		From:         contractAccId,
 		To:           instruction.Recipient,
-		MinAmountOut: instruction.MinAmountOut, // User's slippage protection
+		MinAmountOut: instruction.MinAmountOut,
 	}
 
 	secondSwapPayload, err := tinyjson.Marshal(&secondSwapParams)
 	if err != nil {
-		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error marshalling first hop params"))
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error marshalling second hop params"))
 	}
 
-	secondSwapOptions := &sdk.ContractCallOptions{
+	// HBD is native — protocol intent authorizes HiveDrawFrom
+	secondSwapOptions := buildNativeIntent("hbd", res1AmountOut.String())
+
+	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), secondSwapOptions)
+	if secondResult == nil {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "second hop returned no result"))
+	}
+
+	return secondResult
+}
+
+// preFundMappedAsset checks if the asset is a mapped asset (has a mapping contract).
+// If so, it calls transferFrom on the mapping contract to move tokens from the
+// user directly into the target pool, using the Router's ERC-20 allowance from the user.
+// Returns true if tokens were pre-deposited, false if asset is native (HIVE/HBD).
+func preFundMappedAsset(asset string, amount string, from string, toPool string) bool {
+	mappingContract := getMappingContract(strings.ToLower(asset))
+	if mappingContract == "" {
+		return false // native asset — Pool will draw via HiveDrawFrom
+	}
+	input := types.MappingContractInput{
+		Amount: amount,
+		To:     "contract:" + toPool,
+		From:   from,
+	}
+	payload, err := tinyjson.Marshal(input)
+	if err != nil {
+		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "failed to marshal transferFrom payload"))
+	}
+	// Router is the caller; user has approved Router via mapping.approve().
+	// This transfers tokens directly: user → pool.
+	sdk.ContractCall(mappingContract, "transferFrom", string(payload), &sdk.ContractCallOptions{})
+	return true
+}
+
+// buildNativeIntent builds a protocol-level intent for native asset draws
+// (HIVE/HBD). These are NOT contract-level intents — they authorize
+// HiveDrawFrom at the protocol level. Mapped assets use ERC-20 allowances instead.
+func buildNativeIntent(asset string, amount string) *sdk.ContractCallOptions {
+	return &sdk.ContractCallOptions{
 		Intents: []sdk.Intent{
 			{
 				Type: types.IntentTransferType,
 				Args: map[string]string{
-					types.IntentAmountKey: res1AmountOut.String(),
-					types.IntentTokenKey:  "hbd",
+					types.IntentAmountKey: amount,
+					types.IntentTokenKey:  strings.ToLower(asset),
 				},
 			},
 		},
 	}
-
-	// Call second DEX contract (intents cloned above, reuse for second hop)
-	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), secondSwapOptions)
-	if secondResult == nil {
-		// Second swap failed - return intermediate HBD
-		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "first hop returned no result"))
-	}
-
-	// Parse second swap result
-	var swapResult2 types.SwapResult
-	if err := tinyjson.Unmarshal([]byte(*secondResult), &swapResult2); err != nil {
-		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error unmarshalling first hop result"))
-	}
-
-	// Update cached pool state
-	// setPoolState(pool2Id, swapResult2.PoolState)
-
-	// Success - both swaps completed
-	return nil
 }
-
-// getAssetChain returns the blockchain chain for a given asset symbol
-// This function is in utils.go - using it here for consistency
-// Chains are determined dynamically from registrations, not hardcoded
 
 // SwapBackResult contains the result of attempting to swap back to original asset
 type SwapBackResult struct {
@@ -376,20 +448,52 @@ func executeDeposit(instruction types.DexInstruction) *string {
 	// 	ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 must be number"))
 	// }
 
-	// Prepare add liquidity parameters
-	addLiqParams := types.AddLiquidityParams{
-		Amount0:   amt0,
-		Amount1:   amt1,
-		Recipient: instruction.Recipient,
-	}
+	// Pre-fund mapped assets into the pool via ERC-20 allowances.
+	env := sdk.GetEnv()
+	userAddr := env.Sender.Address.String()
+	preDeposited0 := preFundMappedAsset(instruction.AssetIn, amt0, userAddr, poolId)
+	preDeposited1 := preFundMappedAsset(instruction.AssetOut, amt1, userAddr, poolId)
 
+	// Prepare and marshal params once (after pre-deposit flags are known)
+	addLiqParams := types.AddLiquidityParams{
+		Amount0:       amt0,
+		Amount1:       amt1,
+		Recipient:     instruction.Recipient,
+		PreDeposited0: preDeposited0,
+		PreDeposited1: preDeposited1,
+	}
 	addLiqPayload, err := tinyjson.Marshal(&addLiqParams)
 	if err != nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "failed to marshal add liquidity params"))
 	}
 
-	// Call DEX contract's add_liquidity method (clone intents for dex to spend user funds)
-	result := sdk.ContractCall(poolId, "add_liquidity", string(addLiqPayload), &sdk.ContractCallOptions{})
+	// Build protocol intents for any native assets that need HiveDrawFrom.
+	depositOpts := &sdk.ContractCallOptions{}
+	var nativeIntents []sdk.Intent
+	if !preDeposited0 {
+		nativeIntents = append(nativeIntents, sdk.Intent{
+			Type: types.IntentTransferType,
+			Args: map[string]string{
+				types.IntentAmountKey: amt0,
+				types.IntentTokenKey:  strings.ToLower(instruction.AssetIn),
+			},
+		})
+	}
+	if !preDeposited1 {
+		nativeIntents = append(nativeIntents, sdk.Intent{
+			Type: types.IntentTransferType,
+			Args: map[string]string{
+				types.IntentAmountKey: amt1,
+				types.IntentTokenKey:  strings.ToLower(instruction.AssetOut),
+			},
+		})
+	}
+	if len(nativeIntents) > 0 {
+		depositOpts.Intents = nativeIntents
+	}
+
+	// Call DEX contract's add_liquidity method
+	result := sdk.ContractCall(poolId, "add_liquidity", string(addLiqPayload), depositOpts)
 	if result == nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "add liquidity returned no result"))
 	}

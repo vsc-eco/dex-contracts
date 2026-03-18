@@ -11,6 +11,9 @@ type InitParams struct {
 	FeeBps                uint64 `json:"fee_bps"`
 	Asset0MappingContract string `json:"asset0_mapping_contract,omitempty"`
 	Asset1MappingContract string `json:"asset1_mapping_contract,omitempty"`
+	// RouterContract is the authorized router that can set PreDeposited flags.
+	// If empty, PreDeposited is rejected for all callers.
+	RouterContract string `json:"router_contract,omitempty"`
 }
 
 //tinyjson:json
@@ -23,6 +26,10 @@ type SwapParams struct {
 	To           string  `json:"to"`
 	Beneficiary  *string `json:"beneficiary,omitempty"`
 	RefBps       *uint64 `json:"ref_bps,omitempty"`
+	// PreDeposited indicates that mapped input tokens have already been
+	// transferred into the pool by the router via ERC-20 allowances.
+	// When true, the pool skips DrawAssetFrom for mapped assets.
+	PreDeposited bool `json:"pre_deposited,omitempty"`
 }
 
 //tinyjson:json
@@ -30,6 +37,10 @@ type AddLiquidityParams struct {
 	Amount0   string `json:"amount0"`
 	Amount1   string `json:"amount1"`
 	Recipient string `json:"recipient"`
+	// Per-asset pre-deposit flags. When true, the corresponding asset was
+	// already transferred into the pool by the router via ERC-20 allowances.
+	PreDeposited0 bool `json:"pre_deposited_0,omitempty"`
+	PreDeposited1 bool `json:"pre_deposited_1,omitempty"`
 }
 
 //tinyjson:json

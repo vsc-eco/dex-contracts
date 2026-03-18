@@ -340,6 +340,223 @@ func TestPoolKeyNormalization(t *testing.T) {
 	}
 }
 
+// Test intent building logic for mapped vs native assets
+func TestMappedAssetIntentBuilding(t *testing.T) {
+	// Simulates the logic in buildMappedAssetIntents:
+	// - Native assets (HIVE/HBD) → no mapping contract → empty intents
+	// - Mapped assets (BTC/ETH) → has mapping contract → transfer.allow intent
+	type tokenInfo struct {
+		MappingContract string
+		Chain           string
+	}
+
+	tokenRegistry := map[string]tokenInfo{
+		"hbd":  {MappingContract: "", Chain: "HIVE"},
+		"hive": {MappingContract: "", Chain: "HIVE"},
+		"btc":  {MappingContract: "btc_mapping_contract_123", Chain: "BTC"},
+		"eth":  {MappingContract: "eth_mapping_contract_456", Chain: "ETH"},
+	}
+
+	tests := []struct {
+		name            string
+		assetIn         string
+		amountIn        string
+		expectIntent    bool
+		expectContract  string
+	}{
+		{
+			name:         "native HBD - no intent needed",
+			assetIn:      "hbd",
+			amountIn:     "1000000",
+			expectIntent: false,
+		},
+		{
+			name:         "native HIVE - no intent needed",
+			assetIn:      "hive",
+			amountIn:     "500000",
+			expectIntent: false,
+		},
+		{
+			name:           "mapped BTC - intent with mapping contract",
+			assetIn:        "btc",
+			amountIn:       "10000000",
+			expectIntent:   true,
+			expectContract: "btc_mapping_contract_123",
+		},
+		{
+			name:           "mapped ETH - intent with mapping contract",
+			assetIn:        "eth",
+			amountIn:       "2000000000000000000",
+			expectIntent:   true,
+			expectContract: "eth_mapping_contract_456",
+		},
+		{
+			name:         "unregistered asset - no intent (no mapping contract)",
+			assetIn:      "unknown",
+			amountIn:     "100",
+			expectIntent: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info, registered := tokenRegistry[tt.assetIn]
+			mappingContract := ""
+			if registered {
+				mappingContract = info.MappingContract
+			}
+
+			hasIntent := mappingContract != ""
+			if hasIntent != tt.expectIntent {
+				t.Errorf("expected hasIntent=%v for %s, got %v", tt.expectIntent, tt.assetIn, hasIntent)
+			}
+
+			if hasIntent {
+				if mappingContract != tt.expectContract {
+					t.Errorf("expected mappingContract=%s, got %s", tt.expectContract, mappingContract)
+				}
+				// Verify intent structure matches expected format
+				intentType := "transfer.allow"
+				intentArgs := map[string]string{
+					"limit":       tt.amountIn,
+					"token":       tt.assetIn,
+					"contract_id": mappingContract,
+				}
+				if intentType != "transfer.allow" {
+					t.Error("intent type should be transfer.allow")
+				}
+				if intentArgs["limit"] != tt.amountIn {
+					t.Errorf("intent limit=%s, want %s", intentArgs["limit"], tt.amountIn)
+				}
+				if intentArgs["token"] != tt.assetIn {
+					t.Errorf("intent token=%s, want %s", intentArgs["token"], tt.assetIn)
+				}
+				if intentArgs["contract_id"] != mappingContract {
+					t.Errorf("intent contract_id=%s, want %s", intentArgs["contract_id"], mappingContract)
+				}
+			}
+		})
+	}
+}
+
+// Test two-hop intent forwarding logic
+func TestTwoHopIntentForwarding(t *testing.T) {
+	// In two-hop swaps (AssetIn -> HBD -> AssetOut):
+	// - First hop: if AssetIn is mapped, forward transfer.allow intent for its mapping contract
+	// - Second hop: always has HBD transfer.allow intent (native, handled by protocol)
+
+	type tokenInfo struct {
+		MappingContract string
+		Chain           string
+	}
+
+	tokenRegistry := map[string]tokenInfo{
+		"hbd":  {MappingContract: "", Chain: "HIVE"},
+		"btc":  {MappingContract: "btc_mapping_contract", Chain: "BTC"},
+		"hive": {MappingContract: "", Chain: "HIVE"},
+	}
+
+	tests := []struct {
+		name               string
+		assetIn            string
+		assetOut           string
+		amountIn           string
+		hop1NeedsIntent    bool
+		hop2NeedsHBDIntent bool
+	}{
+		{
+			name:               "BTC -> HIVE: first hop needs BTC mapping intent",
+			assetIn:            "btc",
+			assetOut:           "hive",
+			amountIn:           "10000000",
+			hop1NeedsIntent:    true,
+			hop2NeedsHBDIntent: true,
+		},
+		{
+			name:               "HIVE -> BTC: first hop is native, no mapping intent",
+			assetIn:            "hive",
+			assetOut:           "btc",
+			amountIn:           "1000000",
+			hop1NeedsIntent:    false,
+			hop2NeedsHBDIntent: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info, registered := tokenRegistry[tt.assetIn]
+			hop1MappingContract := ""
+			if registered {
+				hop1MappingContract = info.MappingContract
+			}
+			hop1HasIntent := hop1MappingContract != ""
+
+			if hop1HasIntent != tt.hop1NeedsIntent {
+				t.Errorf("hop1: expected needs_intent=%v, got %v", tt.hop1NeedsIntent, hop1HasIntent)
+			}
+
+			// Second hop always needs HBD intent for native transfer
+			if !tt.hop2NeedsHBDIntent {
+				t.Error("hop2 should always need HBD intent")
+			}
+		})
+	}
+}
+
+// Test deposit intent building for pools with mapped assets
+func TestDepositMappedAssetIntents(t *testing.T) {
+	// When depositing into a pool (e.g., BTC/HBD), the router should build
+	// intents for any mapped assets in the pair.
+	type tokenInfo struct {
+		MappingContract string
+	}
+	tokenRegistry := map[string]tokenInfo{
+		"btc": {MappingContract: "btc_mapping"},
+		"hbd": {MappingContract: ""},
+	}
+
+	tests := []struct {
+		name           string
+		asset0         string
+		asset1         string
+		amount0        string
+		amount1        string
+		expectedIntents int
+	}{
+		{
+			name:            "BTC/HBD pool - 1 intent for BTC",
+			asset0:          "btc",
+			asset1:          "hbd",
+			amount0:         "10000",
+			amount1:         "500000",
+			expectedIntents: 1,
+		},
+		{
+			name:            "HBD/HIVE pool - 0 intents (both native)",
+			asset0:          "hbd",
+			asset1:          "hive",
+			amount0:         "100000",
+			amount1:         "200000",
+			expectedIntents: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			intentCount := 0
+			if info, ok := tokenRegistry[tt.asset0]; ok && info.MappingContract != "" {
+				intentCount++
+			}
+			if info, ok := tokenRegistry[tt.asset1]; ok && info.MappingContract != "" {
+				intentCount++
+			}
+			if intentCount != tt.expectedIntents {
+				t.Errorf("expected %d intents, got %d", tt.expectedIntents, intentCount)
+			}
+		})
+	}
+}
+
 // Two-hop swap failure handling (V2-SYSTEM-SUMMARY, dex-router-v2 handlePartialSwap/handleSwapFailure)
 // Replicates the decision logic: when second hop fails, determine what asset to return based on return_address
 

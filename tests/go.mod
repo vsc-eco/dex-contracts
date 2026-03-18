@@ -3,7 +3,7 @@ module dex-contract-tests
 go 1.25.6
 
 // replace vsc-node => ../../go-vsc-node/
-replace vsc-node => ../../milo-go-vsc-node/
+replace vsc-node => ../../../magi/testnet/go-vsc-node/
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 

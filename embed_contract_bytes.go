@@ -12,17 +12,23 @@ const artifactsDir = "bin"
 
 // Pre-loaded byte arrays (nil if file doesn't exist at package init)
 var (
-	DexRouterV2Wasm []byte
-	// DexRouterWasm   []byte
-	DexWasm        []byte
-	BTCMappingWasm []byte
+	DexRouterV2Wasm  []byte
+	DexWasm          []byte
+	BTCMappingWasm   []byte
+	LTCMappingWasm   []byte
+	DASHMappingWasm  []byte
+	DOGEMappingWasm  []byte
+	BCHMappingWasm   []byte
 )
 
 func init() {
 	DexRouterV2Wasm, _ = loadWasmFile("dex-router-v2.wasm")
-	// DexRouterWasm, _ = loadWasmFile("dex-router.wasm")
 	DexWasm, _ = loadWasmFile("dex.wasm")
 	BTCMappingWasm, _ = loadWasmFile("btc-mapping.wasm")
+	LTCMappingWasm, _ = loadWasmFile("ltc-mapping.wasm")
+	DASHMappingWasm, _ = loadWasmFile("dash-mapping.wasm")
+	DOGEMappingWasm, _ = loadWasmFile("doge-mapping.wasm")
+	BCHMappingWasm, _ = loadWasmFile("bch-mapping.wasm")
 }
 
 // loadWasmFile reads a WASM file from the embedded artifacts directory

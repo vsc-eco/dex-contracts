@@ -128,19 +128,7 @@ func (ma *MappedAsset) TransferAsset(to string, amount *big.Int) error {
 	if err != nil {
 		return fmt.Errorf("invalid input to contract")
 	}
-	// error in the contract call will abort the whole transaction
-	// sdk.ContractCall(ma.mappingContractId, "unmap", string(payload), &sdk.ContractCallOptions{
-	sdk.ContractCall(ma.MappingContractId, "transfer", string(payload), &sdk.ContractCallOptions{
-		Intents: []sdk.Intent{
-			{
-				Type: types.IntentTransferType,
-				Args: map[string]string{
-					types.IntentAmountKey:     amount.String(),
-					types.IntentTokenKey:      ma.Asset,
-					types.IntentContractIdKey: ma.MappingContractId,
-				},
-			},
-		},
-	})
+	// Pool owns these tokens — no allowance or intent needed for self-transfers.
+	sdk.ContractCall(ma.MappingContractId, "transfer", string(payload), &sdk.ContractCallOptions{})
 	return nil
 }
