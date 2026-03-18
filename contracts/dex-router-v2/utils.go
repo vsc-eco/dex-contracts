@@ -38,8 +38,9 @@ func setStr(key string, val string) {
 }
 
 // Pool key helpers
+// poolKeyForAssets expects already-lowercased asset names.
 func poolKeyForAssets(asset0, asset1 string) string {
-	return keyPoolPrefix + strings.ToLower(asset0) + "/" + strings.ToLower(asset1)
+	return keyPoolPrefix + asset0 + "/" + asset1
 }
 
 func poolStateKey(poolId string) string {
@@ -127,6 +128,21 @@ func splitChains(s string) []string {
 		}
 	}
 	return out
+}
+
+// getMappingContract returns the mapping contract ID for a mapped asset,
+// or empty string for native assets. Looks up the token registry.
+func getMappingContract(asset string) string {
+	infoStr := getStr(assetKey(asset))
+	if infoStr == "" {
+		return ""
+	}
+	var tokenInfo types.TokenInfo
+	err := tinyjson.Unmarshal([]byte(infoStr), &tokenInfo)
+	if err != nil {
+		return ""
+	}
+	return tokenInfo.MappingContract
 }
 
 func strPrt(s string) *string {

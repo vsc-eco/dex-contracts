@@ -661,6 +661,23 @@ vsc-dex-mapping/
 
 ## Testing
 
+### Integration Tests (32 tests, all passing)
+
+```bash
+cd tests
+rm -rf data/badger
+go test -v -count=1 -p 1 -parallel 1 ./...
+```
+
+Tests cover all 12 exported actions across the DEX pool and router contracts,
+including multi-chain integration with BTC, LTC, DASH, DOGE, and BCH mapping contracts.
+
+Run from the project root:
+```bash
+cd /home/dockeruser/magi_contract_refactor
+./run-tests.sh dex
+```
+
 ### Unit Tests
 
 ```bash

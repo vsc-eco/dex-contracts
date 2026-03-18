@@ -1,10 +1,11 @@
 package types
 
+// Protocol-level intent constants for native asset draws (HIVE/HBD).
+// Mapped assets (BTC, ETH, etc.) use ERC-20 allowances instead.
 const (
-	IntentTransferType  = "transfer.allow"
-	IntentContractIdKey = "contract_id"
-	IntentAmountKey     = "limit"
-	IntentTokenKey      = "token"
+	IntentTransferType = "transfer.allow"
+	IntentAmountKey    = "limit"
+	IntentTokenKey     = "token"
 )
 
 const (

@@ -22,7 +22,6 @@ import (
 	dexcontracts "github.com/vsc-eco/dex-contracts"
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 
-	"btc-mapping-contract/contract/blocklist"
 	"btc-mapping-contract/contract/constants"
 	btcconstants "btc-mapping-contract/contract/constants"
 	"btc-mapping-contract/contract/mapping"
@@ -131,9 +130,9 @@ func TestSwapViaMap(t *testing.T) {
 	ct := test_utils.NewContractTest()
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
-	btcMappingId := "btc_mapping_contract"
-	btchbdDexId := "btc_hbd_dex"
-	routerContractId := "router_v2_contract"
+	btcMappingId := "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj"
+	btchbdDexId := "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3"
+	routerContractId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
 	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
@@ -179,8 +178,9 @@ func TestSwapViaMap(t *testing.T) {
 		t.Fatalf("init pool: %s: %s", r.Err, r.ErrMsg)
 	}
 
-	// Seed owner's BTC mapping balance and add liquidity (BTC + HBD)
+	// Seed owner's BTC mapping balance and approve DEX pool, then add liquidity
 	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 2_00000000))
+	ct.StateSet(btcMappingId, constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId, formatUintAsBytes(t, 2_00000000))
 	r = btchbdDex.addLiquidity(t, owner, 1_49000000, 100000_000)
 	if !r.Success {
 		t.Fatalf("add liquidity: %s: %s", r.Err, r.ErrMsg)
@@ -189,7 +189,7 @@ func TestSwapViaMap(t *testing.T) {
 	// Seed BTC mapping contract state: supply, block headers, public keys, router ID
 	ct.StateSet(btcMappingId, btcconstants.SupplyKey,
 		string(mapping.MarshalSupply(&mapping.SystemSupply{BaseFeeRate: 1})))
-	ct.StateSet(btcMappingId, blocklist.LastHeightKey, strconv.Itoa(int(blockHeight)))
+	ct.StateSet(btcMappingId, constants.LastHeightKey, strconv.Itoa(int(blockHeight)))
 	ct.StateSet(btcMappingId, btcconstants.BlockPrefix+strconv.Itoa(int(blockHeight)), blockHeaderRaw)
 	ct.StateSet(btcMappingId, btcconstants.PrimaryPublicKeyStateKey,
 		swapTestDecodeHex(t, swapTestPrimaryPubKeyHex))

@@ -205,6 +205,8 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp2
 				}
 				*out.RefBps = uint64(in.Uint64())
 			}
+		case "pre_deposited":
+			out.PreDeposited = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -258,6 +260,11 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp2
 		const prefix string = ",\"ref_bps\":"
 		out.RawString(prefix)
 		out.Uint64(uint64(*in.RefBps))
+	}
+	if in.PreDeposited {
+		const prefix string = ",\"pre_deposited\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.PreDeposited))
 	}
 	out.RawByte('}')
 }
@@ -1054,6 +1061,8 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			out.Asset0MappingContract = string(in.String())
 		case "asset1_mapping_contract":
 			out.Asset1MappingContract = string(in.String())
+		case "router_contract":
+			out.RouterContract = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1092,6 +1101,11 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		const prefix string = ",\"asset1_mapping_contract\":"
 		out.RawString(prefix)
 		out.String(string(in.Asset1MappingContract))
+	}
+	if in.RouterContract != "" {
+		const prefix string = ",\"router_contract\":"
+		out.RawString(prefix)
+		out.String(string(in.RouterContract))
 	}
 	out.RawByte('}')
 }
@@ -1484,6 +1498,10 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			out.Amount1 = string(in.String())
 		case "recipient":
 			out.Recipient = string(in.String())
+		case "pre_deposited_0":
+			out.PreDeposited0 = bool(in.Bool())
+		case "pre_deposited_1":
+			out.PreDeposited1 = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -1512,6 +1530,16 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		const prefix string = ",\"recipient\":"
 		out.RawString(prefix)
 		out.String(string(in.Recipient))
+	}
+	if in.PreDeposited0 {
+		const prefix string = ",\"pre_deposited_0\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.PreDeposited0))
+	}
+	if in.PreDeposited1 {
+		const prefix string = ",\"pre_deposited_1\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.PreDeposited1))
 	}
 	out.RawByte('}')
 }
