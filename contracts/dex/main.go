@@ -601,22 +601,30 @@ func ClaimFees(payload *string) *string {
 		)
 	}
 
-	// Use cached names — avoids JSON unmarshal of full asset objects
-	asset0Name := getStr(keyAsset0Name)
-	asset1Name := getStr(keyAsset1Name)
-	dao := sdk.Address("system:fr_balance")
+	dao := "system:fr_balance"
 
 	f0 := getBigInt(keySystemFee0)
 	f1 := getBigInt(keySystemFee1)
 
-	// can use hive withdraw because its only hbd
-	if f0.Sign() == 1 && isHbd(asset0Name) {
+	if f0.Sign() == 1 {
+		asset0, err := getAsset0()
+		if err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "error retrieving asset0"))
+		}
 		setBigInt(keySystemFee0, big.NewInt(0))
-		sdk.HiveWithdraw(dao, f0, sdk.Asset(asset0Name))
+		if err := asset0.TransferAsset(dao, f0); err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "failed to transfer asset0 fees"))
+		}
 	}
-	if f1.Sign() == 1 && isHbd(asset1Name) {
+	if f1.Sign() == 1 {
+		asset1, err := getAsset1()
+		if err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "error retrieving asset1"))
+		}
 		setBigInt(keySystemFee1, big.NewInt(0))
-		sdk.HiveWithdraw(dao, f1, sdk.Asset(asset1Name))
+		if err := asset1.TransferAsset(dao, f1); err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "failed to transfer asset1 fees"))
+		}
 	}
 
 	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
