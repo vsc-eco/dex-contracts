@@ -230,11 +230,8 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 	env := sdk.GetEnv()
 	userAddr := env.Sender.Address.String()
 
-	// For mapped assets: pre-fund the pool via Router's ERC-20 allowance.
-	// For native assets: pass protocol-level intent so Pool can HiveDrawFrom.
-	preDeposited := preFundMappedAsset(
-		instruction.AssetIn, instruction.AmountIn, userAddr, dexContractId,
-	)
+	// Pre-fund input asset into the pool (mapped via transferFrom, native via HiveDraw+HiveTransfer).
+	preFundAsset(instruction.AssetIn, instruction.AmountIn, userAddr, dexContractId)
 
 	swapParams := types.SwapParams{
 		AssetIn:      instruction.AssetIn,
@@ -245,7 +242,7 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 		From:         userAddr,
 		Beneficiary:  instruction.Beneficiary,
 		RefBps:       instruction.RefBps,
-		PreDeposited: preDeposited,
+		PreDeposited: true,
 	}
 
 	swapPayload, err := tinyjson.Marshal(&swapParams)
@@ -255,16 +252,7 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 		)
 	}
 
-	// For native assets, pass protocol intent so Pool can HiveDrawFrom.
-	// For mapped assets (pre-deposited), no intent needed.
-	var opts *sdk.ContractCallOptions
-	if !preDeposited {
-		opts = buildNativeIntent(instruction.AssetIn, instruction.AmountIn)
-	} else {
-		opts = &sdk.ContractCallOptions{}
-	}
-
-	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), opts)
+	result := sdk.ContractCall(dexContractId, "swap", string(swapPayload), &sdk.ContractCallOptions{})
 	if result == nil {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrTransaction, "unknown swap failure"),
@@ -293,8 +281,8 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	userAddr := env.Sender.Address.String()
 
 	// --- First hop: AssetIn → HBD ---
-	// Pre-fund mapped input asset into pool1 via ERC-20 allowance.
-	preDeposited := preFundMappedAsset(instruction.AssetIn, instruction.AmountIn, userAddr, pool1Id)
+	// Pre-fund input asset into pool1 (mapped via transferFrom, native via HiveDraw+HiveTransfer).
+	preFundAsset(instruction.AssetIn, instruction.AmountIn, userAddr, pool1Id)
 
 	// First hop slippage: users can optionally set "min_intermediate" in metadata.
 	// Even without it, the second hop's MinAmountOut provides atomic protection —
@@ -313,7 +301,7 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		From:         userAddr,
 		To:           contractAccId, // Intermediate HBD goes to Router
 		MinAmountOut: firstHopMinOut,
-		PreDeposited: preDeposited,
+		PreDeposited: true,
 	}
 
 	firstSwapPayload, err := tinyjson.Marshal(&firstSwapParams)
@@ -321,14 +309,7 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error marshalling first hop params"))
 	}
 
-	var firstHopOpts *sdk.ContractCallOptions
-	if !preDeposited {
-		firstHopOpts = buildNativeIntent(instruction.AssetIn, instruction.AmountIn)
-	} else {
-		firstHopOpts = &sdk.ContractCallOptions{}
-	}
-
-	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), firstHopOpts)
+	firstResult := sdk.ContractCall(pool1Id, "swap", string(firstSwapPayload), &sdk.ContractCallOptions{})
 	if firstResult == nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "first hop returned no result"))
 	}
@@ -346,8 +327,9 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	}
 
 	// --- Second hop: HBD → AssetOut ---
-	// HBD is native — Router received it from first pool. Pass protocol-level
-	// intent so second pool can HiveDrawFrom the Router.
+	// Router received intermediate HBD from first pool. Transfer it to pool2.
+	sdk.HiveTransfer(sdk.Address("contract:"+pool2Id), res1AmountOut, sdk.AssetHbd)
+
 	secondSwapParams := types.SwapParams{
 		AssetIn:      sdk.AssetHbd.String(),
 		AmountIn:     res1AmountOut.String(),
@@ -355,6 +337,7 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		From:         contractAccId,
 		To:           instruction.Recipient,
 		MinAmountOut: instruction.MinAmountOut,
+		PreDeposited: true,
 	}
 
 	secondSwapPayload, err := tinyjson.Marshal(&secondSwapParams)
@@ -362,10 +345,7 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error marshalling second hop params"))
 	}
 
-	// HBD is native — protocol intent authorizes HiveDrawFrom
-	secondSwapOptions := buildNativeIntent("hbd", res1AmountOut.String())
-
-	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), secondSwapOptions)
+	secondResult := sdk.ContractCall(pool2Id, "swap", string(secondSwapPayload), &sdk.ContractCallOptions{})
 	if secondResult == nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "second hop returned no result"))
 	}
@@ -373,45 +353,37 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	return secondResult
 }
 
-// preFundMappedAsset checks if the asset is a mapped asset (has a mapping contract).
-// If so, it calls transferFrom on the mapping contract to move tokens from the
-// user directly into the target pool, using the Router's ERC-20 allowance from the user.
-// Returns true if tokens were pre-deposited, false if asset is native (HIVE/HBD).
-func preFundMappedAsset(asset string, amount string, from string, toPool string) bool {
+// preFundAsset pre-funds an asset into the target pool before calling the pool contract.
+// For mapped assets: calls transferFrom on the mapping contract (user → pool).
+// For native assets: draws from user into router, then transfers to pool.
+// Returns true (asset is pre-deposited in the pool, pool should skip DrawAssetFrom).
+func preFundAsset(asset string, amount string, from string, toPool string) bool {
 	mappingContract := getMappingContract(strings.ToLower(asset))
-	if mappingContract == "" {
-		return false // native asset — Pool will draw via HiveDrawFrom
+	if mappingContract != "" {
+		// Mapped asset: transfer via ERC-20 allowance (user → pool).
+		input := types.MappingContractInput{
+			Amount: amount,
+			To:     "contract:" + toPool,
+			From:   from,
+		}
+		payload, err := tinyjson.Marshal(input)
+		if err != nil {
+			ce.CustomAbort(ce.NewContractError(ce.ErrJson, "failed to marshal transferFrom payload"))
+		}
+		sdk.ContractCall(mappingContract, "transferFrom", string(payload), &sdk.ContractCallOptions{})
+		return true
 	}
-	input := types.MappingContractInput{
-		Amount: amount,
-		To:     "contract:" + toPool,
-		From:   from,
-	}
-	payload, err := tinyjson.Marshal(input)
-	if err != nil {
-		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "failed to marshal transferFrom payload"))
-	}
-	// Router is the caller; user has approved Router via mapping.approve().
-	// This transfers tokens directly: user → pool.
-	sdk.ContractCall(mappingContract, "transferFrom", string(payload), &sdk.ContractCallOptions{})
-	return true
-}
 
-// buildNativeIntent builds a protocol-level intent for native asset draws
-// (HIVE/HBD). These are NOT contract-level intents — they authorize
-// HiveDrawFrom at the protocol level. Mapped assets use ERC-20 allowances instead.
-func buildNativeIntent(asset string, amount string) *sdk.ContractCallOptions {
-	return &sdk.ContractCallOptions{
-		Intents: []sdk.Intent{
-			{
-				Type: types.IntentTransferType,
-				Args: map[string]string{
-					types.IntentAmountKey: amount,
-					types.IntentTokenKey:  strings.ToLower(asset),
-				},
-			},
-		},
+	// Native asset: draw from user into router, then transfer to pool.
+	// Router's Caller is the user, so HiveDraw pulls from the user's balance
+	// up to the transfer.allow intent limit set in the original transaction.
+	amt, ok := new(big.Int).SetString(amount, 10)
+	if !ok || amt.Sign() <= 0 {
+		return false
 	}
+	sdk.HiveDraw(amt, sdk.Asset(strings.ToLower(asset)))
+	sdk.HiveTransfer(sdk.Address("contract:"+toPool), amt, sdk.Asset(strings.ToLower(asset)))
+	return true
 }
 
 // SwapBackResult contains the result of attempting to swap back to original asset
@@ -453,52 +425,27 @@ func executeDeposit(instruction types.DexInstruction) *string {
 	// 	ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 must be number"))
 	// }
 
-	// Pre-fund mapped assets into the pool via ERC-20 allowances.
+	// Pre-fund both assets into the pool (mapped via transferFrom, native via HiveDraw+HiveTransfer).
 	env := sdk.GetEnv()
 	userAddr := env.Sender.Address.String()
-	preDeposited0 := preFundMappedAsset(instruction.AssetIn, amt0, userAddr, poolId)
-	preDeposited1 := preFundMappedAsset(instruction.AssetOut, amt1, userAddr, poolId)
+	preFundAsset(instruction.AssetIn, amt0, userAddr, poolId)
+	preFundAsset(instruction.AssetOut, amt1, userAddr, poolId)
 
-	// Prepare and marshal params once (after pre-deposit flags are known)
+	// All assets are pre-deposited — pool skips DrawAssetFrom for both.
 	addLiqParams := types.AddLiquidityParams{
 		Amount0:       amt0,
 		Amount1:       amt1,
 		Recipient:     instruction.Recipient,
-		PreDeposited0: preDeposited0,
-		PreDeposited1: preDeposited1,
+		PreDeposited0: true,
+		PreDeposited1: true,
 	}
 	addLiqPayload, err := tinyjson.Marshal(&addLiqParams)
 	if err != nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "failed to marshal add liquidity params"))
 	}
 
-	// Build protocol intents for any native assets that need HiveDrawFrom.
-	depositOpts := &sdk.ContractCallOptions{}
-	var nativeIntents []sdk.Intent
-	if !preDeposited0 {
-		nativeIntents = append(nativeIntents, sdk.Intent{
-			Type: types.IntentTransferType,
-			Args: map[string]string{
-				types.IntentAmountKey: amt0,
-				types.IntentTokenKey:  strings.ToLower(instruction.AssetIn),
-			},
-		})
-	}
-	if !preDeposited1 {
-		nativeIntents = append(nativeIntents, sdk.Intent{
-			Type: types.IntentTransferType,
-			Args: map[string]string{
-				types.IntentAmountKey: amt1,
-				types.IntentTokenKey:  strings.ToLower(instruction.AssetOut),
-			},
-		})
-	}
-	if len(nativeIntents) > 0 {
-		depositOpts.Intents = nativeIntents
-	}
-
 	// Call DEX contract's add_liquidity method
-	result := sdk.ContractCall(poolId, "add_liquidity", string(addLiqPayload), depositOpts)
+	result := sdk.ContractCall(poolId, "add_liquidity", string(addLiqPayload), &sdk.ContractCallOptions{})
 	if result == nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "add liquidity returned no result"))
 	}

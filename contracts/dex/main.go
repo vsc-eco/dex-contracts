@@ -266,7 +266,9 @@ func Swap(payload *string) *string {
 		}
 	}
 	if !params.PreDeposited {
-		inputAsset.DrawAssetFrom(amountIn, from, maybeEnv)
+		if err := inputAsset.DrawAssetFrom(amountIn, from, maybeEnv); err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "failed to draw input asset"))
+		}
 	}
 
 	// Handle referral fees (calculate before state updates)
@@ -449,10 +451,14 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string, params types.AddL
 	}
 	// Draw each asset independently — skip if pre-deposited by Router.
 	if amt0.Sign() == 1 && !params.PreDeposited0 {
-		asset0.DrawAssetFrom(amt0, maybeEnv.UseEnv().Sender.Address, maybeEnv)
+		if err := asset0.DrawAssetFrom(amt0, maybeEnv.UseEnv().Sender.Address, maybeEnv); err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "failed to draw asset0"))
+		}
 	}
 	if amt1.Sign() == 1 && !params.PreDeposited1 {
-		asset1.DrawAssetFrom(amt1, maybeEnv.UseEnv().Sender.Address, maybeEnv)
+		if err := asset1.DrawAssetFrom(amt1, maybeEnv.UseEnv().Sender.Address, maybeEnv); err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "failed to draw asset1"))
+		}
 	}
 
 	// Update reserves and mint LP
