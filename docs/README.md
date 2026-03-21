@@ -2,26 +2,23 @@
 
 ## Core Documentation
 
-### [Instruction Schema](./instruction-schema.md)
-Complete specification for DEX instructions, including dynamic schema generation based on registered pools.
+### [Setup](./setup.md)
+How to deploy and configure the router and DEX contracts, including token and pool registration.
+
+### [Examples](./examples.md)
+Example flows for swapping and providing liquidity, for both native and mapped tokens.
+
+### [Router Instruction Schema](./router-instruction-schema.md)
+Complete specification for DEX router instructions, including dynamic schema generation based on registered pools.
+
+### [DEX Instruction Schema](./dex-instruction-schema.md)
+Schema for individual DEX pool operations (init, swap, add_liquidity, remove_liquidity).
 
 ### [Asset and Chain Registration](./asset-chain-registration.md)
 How assets and chains are registered dynamically, following the utxo-mapping contract pattern. **Future-proof design** - no hardcoded chains.
 
-### [Indexer API](./indexer-api.md)
-REST API documentation for querying DEX data, including the dynamic schema endpoint.
-
-### [Architecture v2](./architecture-v2.md)
-System architecture overview and component descriptions.
-
 ### [V2 System Summary](./V2-SYSTEM-SUMMARY.md)
 Complete summary of the V2 system with all features and implementation status.
-
-### [Schema Consistency](./SCHEMA-CONSISTENCY.md)
-Verification checklist ensuring all documentation is consistent with chain-aware return addresses.
-
-### [Docs to Tests Mapping](./docs-to-tests-mapping.md)
-Maps published features and user journeys from the docs to their test coverage. Use to verify all documented functionality is tested.
 
 ## Key Features
 
@@ -43,11 +40,6 @@ Maps published features and user journeys from the docs to their test coverage. 
 - Handles cross-chain returns via bridge system
 
 ## Quick Reference
-
-### Get Current Schema
-```bash
-curl http://localhost:8081/api/v1/schema
-```
 
 ### Register Pool (with chain info)
 ```json

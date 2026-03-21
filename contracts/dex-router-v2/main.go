@@ -54,6 +54,10 @@ func RegisterToken(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "chain required"))
 	}
 
+	// Normalize chain to uppercase and name to lowercase for storage key consistency
+	params.Chain = strings.ToUpper(params.Chain)
+	name = strings.ToLower(name)
+
 	// Validate chain - support HIVE, MAGI, and common mapped chains
 	validChains := map[string]bool{
 		chainHIVE: true, chainMAGI: true,
@@ -63,9 +67,6 @@ func RegisterToken(payload *string) *string {
 	if !validChains[params.Chain] {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "unsupported chain: "+params.Chain))
 	}
-
-	// Normalize name to lowercase for storage key consistency
-	name = strings.ToLower(name)
 
 	if isAssetRegistered(name) {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "asset already registered"))
@@ -97,6 +98,10 @@ func RegisterPool(payload *string) *string {
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "invalid payload"))
 	}
+
+	// Normalize asset names to lowercase
+	params.Asset0 = strings.ToLower(params.Asset0)
+	params.Asset1 = strings.ToLower(params.Asset1)
 
 	// Validate assets are different
 	if params.Asset0 == params.Asset1 {
