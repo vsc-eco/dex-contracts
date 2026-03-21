@@ -1333,8 +1333,8 @@ func TestSecondLiquidityProvider(t *testing.T) {
 	assert.True(t, afterTotalLp > 10000, "total LP should increase beyond initial, got %d", afterTotalLp)
 
 	// Check that both owner and alice have LP tokens
-	ownerLp := ct.StateGet(dexId, "lp/"+owner)
-	aliceLp := ct.StateGet(dexId, "lp/"+alice)
+	ownerLp := ct.StateGet(dexId, "lp"+types.DirPathDelimiter+owner)
+	aliceLp := ct.StateGet(dexId, "lp"+types.DirPathDelimiter+alice)
 	assert.NotEmpty(t, ownerLp, "owner should have LP tokens")
 	assert.NotEmpty(t, aliceLp, "alice should have LP tokens")
 	t.Logf("owner LP raw length: %d, alice LP raw length: %d", len(ownerLp), len(aliceLp))

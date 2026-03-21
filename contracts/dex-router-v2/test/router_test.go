@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/vsc-eco/dex-contracts/contracts/types"
 )
 
 // Test pool registration
@@ -39,10 +41,10 @@ func TestPoolRegistration(t *testing.T) {
 			}
 
 			// Expected pool key
-			expectedKey := "pool/" + asset0 + "/" + asset1
+			expectedKey := "pool" + types.DirPathDelimiter + asset0 + types.DirPathDelimiter + asset1
 
-			if expectedKey != "pool/HBD/HIVE" {
-				t.Errorf("expected normalized key pool/HBD/HIVE, got %s", expectedKey)
+			if expectedKey != "pool"+types.DirPathDelimiter+"HBD"+types.DirPathDelimiter+"HIVE" {
+				t.Errorf("expected normalized key pool%sHBD%sHIVE, got %s", types.DirPathDelimiter, types.DirPathDelimiter, expectedKey)
 			}
 		})
 	}
@@ -63,7 +65,7 @@ func TestFindPool(t *testing.T) {
 			assetA: "HBD",
 			assetB: "HIVE",
 			pools: map[string]string{
-				"pool/HBD/HIVE": "dex-hbd-hive-123",
+				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-123",
 			},
 			expected:  "dex-hbd-hive-123",
 			shouldFind: true,
@@ -73,7 +75,7 @@ func TestFindPool(t *testing.T) {
 			assetA: "HIVE",
 			assetB: "HBD",
 			pools: map[string]string{
-				"pool/HBD/HIVE": "dex-hbd-hive-123",
+				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-123",
 			},
 			expected:  "dex-hbd-hive-123",
 			shouldFind: true,
@@ -83,7 +85,7 @@ func TestFindPool(t *testing.T) {
 			assetA: "BTC",
 			assetB: "ETH",
 			pools: map[string]string{
-				"pool/HBD/HIVE": "dex-hbd-hive-123",
+				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-123",
 			},
 			expected:  "",
 			shouldFind: false,
@@ -98,7 +100,7 @@ func TestFindPool(t *testing.T) {
 				asset0, asset1 = asset1, asset0
 			}
 
-			poolKey := "pool/" + asset0 + "/" + asset1
+			poolKey := "pool" + types.DirPathDelimiter + asset0 + types.DirPathDelimiter + asset1
 			contractID, found := tt.pools[poolKey]
 
 			if found != tt.shouldFind {
@@ -128,8 +130,8 @@ func TestTwoHopRouting(t *testing.T) {
 			assetIn: "BTC",
 			assetOut: "HIVE",
 			pools: map[string]string{
-				"pool/BTC/HBD":  "dex-btc-hbd-123",
-				"pool/HBD/HIVE": "dex-hbd-hive-456",
+				"pool" + types.DirPathDelimiter + "BTC" + types.DirPathDelimiter + "HBD":  "dex-btc-hbd-123",
+				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-456",
 			},
 			expectedHop1: "dex-btc-hbd-123",
 			expectedHop2: "dex-hbd-hive-456",
@@ -140,8 +142,8 @@ func TestTwoHopRouting(t *testing.T) {
 			assetIn: "BTC",
 			assetOut: "ETH",
 			pools: map[string]string{
-				"pool/BTC/HBD":  "dex-btc-hbd-123",
-				"pool/HBD/HIVE": "dex-hbd-hive-456",
+				"pool" + types.DirPathDelimiter + "BTC" + types.DirPathDelimiter + "HBD":  "dex-btc-hbd-123",
+				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-456",
 			},
 			shouldRoute: false,
 		},
@@ -154,7 +156,7 @@ func TestTwoHopRouting(t *testing.T) {
 			if asset0 > asset1 {
 				asset0, asset1 = asset1, asset0
 			}
-			directKey := "pool/" + asset0 + "/" + asset1
+			directKey := "pool" + types.DirPathDelimiter + asset0 + types.DirPathDelimiter + asset1
 			_, hasDirect := tt.pools[directKey]
 
 			if hasDirect {
@@ -173,7 +175,7 @@ func TestTwoHopRouting(t *testing.T) {
 			if hop1Key0 > hop1Key1 {
 				hop1Key0, hop1Key1 = hop1Key1, hop1Key0
 			}
-			hop1Key := "pool/" + hop1Key0 + "/" + hop1Key1
+			hop1Key := "pool" + types.DirPathDelimiter + hop1Key0 + types.DirPathDelimiter + hop1Key1
 			hop1Contract, hasHop1 := tt.pools[hop1Key]
 
 			// Find second hop: HBD -> AssetOut
@@ -181,7 +183,7 @@ func TestTwoHopRouting(t *testing.T) {
 			if hop2Key0 > hop2Key1 {
 				hop2Key0, hop2Key1 = hop2Key1, hop2Key0
 			}
-			hop2Key := "pool/" + hop2Key0 + "/" + hop2Key1
+			hop2Key := "pool" + types.DirPathDelimiter + hop2Key0 + types.DirPathDelimiter + hop2Key1
 			hop2Contract, hasHop2 := tt.pools[hop2Key]
 
 			canRoute := hasHop1 && hasHop2
@@ -324,16 +326,16 @@ func TestPoolKeyNormalization(t *testing.T) {
 		asset0, asset1 string
 		expectedKey    string
 	}{
-		{"HBD", "HIVE", "pool/HBD/HIVE"},
-		{"HIVE", "HBD", "pool/HBD/HIVE"},
-		{"BTC", "HBD", "pool/BTC/HBD"},
+		{"HBD", "HIVE", "pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE"},
+		{"HIVE", "HBD", "pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE"},
+		{"BTC", "HBD", "pool" + types.DirPathDelimiter + "BTC" + types.DirPathDelimiter + "HBD"},
 	}
 	for _, tt := range tests {
 		a0, a1 := tt.asset0, tt.asset1
 		if a0 > a1 {
 			a0, a1 = a1, a0
 		}
-		key := "pool/" + a0 + "/" + a1
+		key := "pool" + types.DirPathDelimiter + a0 + types.DirPathDelimiter + a1
 		if key != tt.expectedKey {
 			t.Errorf("poolKey(%s,%s)=%s, want %s", tt.asset0, tt.asset1, key, tt.expectedKey)
 		}

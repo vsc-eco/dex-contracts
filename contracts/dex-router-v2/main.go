@@ -228,10 +228,13 @@ func findPool(assetA, assetB string) string {
 // Execute direct swap within a single DEX pool
 func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *string {
 	env := sdk.GetEnv()
-	userAddr := env.Sender.Address.String()
+	userAddr := env.Caller.String()
 
 	// Pre-fund input asset into the pool (mapped via transferFrom, native via HiveDraw+HiveTransfer).
-	preFundAsset(instruction.AssetIn, instruction.AmountIn, userAddr, dexContractId)
+	err := preFundAsset(instruction.AssetIn, instruction.AmountIn, userAddr, &env)
+	if err != nil {
+		ce.CustomAbort(ce.Prepend(err, "error pre-funding asset to dex"))
+	}
 
 	swapParams := types.SwapParams{
 		AssetIn:      instruction.AssetIn,
@@ -278,11 +281,14 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	var mEnv types.MaybeEnv
 	env := mEnv.UseEnv()
 	contractAccId := "contract:" + env.ContractId
-	userAddr := env.Sender.Address.String()
+	userAddr := env.Caller.String()
 
 	// --- First hop: AssetIn → HBD ---
 	// Pre-fund input asset into pool1 (mapped via transferFrom, native via HiveDraw+HiveTransfer).
-	preFundAsset(instruction.AssetIn, instruction.AmountIn, userAddr, pool1Id)
+	err := preFundAsset(instruction.AssetIn, instruction.AmountIn, pool1Id, env)
+	if err != nil {
+		ce.CustomAbort(ce.Prepend(err, "error pre-funding asset to dex"))
+	}
 
 	// First hop slippage: users can optionally set "min_intermediate" in metadata.
 	// Even without it, the second hop's MinAmountOut provides atomic protection —
@@ -357,21 +363,21 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 // For mapped assets: calls transferFrom on the mapping contract (user → pool).
 // For native assets: draws from user into router, then transfers to pool.
 // Returns true (asset is pre-deposited in the pool, pool should skip DrawAssetFrom).
-func preFundAsset(asset string, amount string, from string, toPool string) bool {
+func preFundAsset(asset string, amount string, toPool string, env *sdk.Env) error {
 	mappingContract := getMappingContract(strings.ToLower(asset))
 	if mappingContract != "" {
 		// Mapped asset: transfer via ERC-20 allowance (user → pool).
 		input := types.MappingContractInput{
 			Amount: amount,
 			To:     "contract:" + toPool,
-			From:   from,
+			From:   env.Caller.String(),
 		}
 		payload, err := tinyjson.Marshal(input)
 		if err != nil {
-			ce.CustomAbort(ce.NewContractError(ce.ErrJson, "failed to marshal transferFrom payload"))
+			return ce.WrapContractError(ce.ErrJson, err, "failed to marshal transferFrom payload")
 		}
 		sdk.ContractCall(mappingContract, "transferFrom", string(payload), &sdk.ContractCallOptions{})
-		return true
+		return nil
 	}
 
 	// Native asset: draw from user into router, then transfer to pool.
@@ -379,11 +385,11 @@ func preFundAsset(asset string, amount string, from string, toPool string) bool 
 	// up to the transfer.allow intent limit set in the original transaction.
 	amt, ok := new(big.Int).SetString(amount, 10)
 	if !ok || amt.Sign() <= 0 {
-		return false
+		return ce.NewContractError(ce.ErrInput, "amount must be positive")
 	}
 	sdk.HiveDraw(amt, sdk.Asset(strings.ToLower(asset)))
 	sdk.HiveTransfer(sdk.Address("contract:"+toPool), amt, sdk.Asset(strings.ToLower(asset)))
-	return true
+	return nil
 }
 
 // SwapBackResult contains the result of attempting to swap back to original asset
@@ -427,9 +433,14 @@ func executeDeposit(instruction types.DexInstruction) *string {
 
 	// Pre-fund both assets into the pool (mapped via transferFrom, native via HiveDraw+HiveTransfer).
 	env := sdk.GetEnv()
-	userAddr := env.Sender.Address.String()
-	preFundAsset(instruction.AssetIn, amt0, userAddr, poolId)
-	preFundAsset(instruction.AssetOut, amt1, userAddr, poolId)
+	err := preFundAsset(instruction.AssetIn, amt0, poolId, &env)
+	if err != nil {
+		ce.CustomAbort(ce.Prepend(err, "error pre-funding asset to dex"))
+	}
+	err = preFundAsset(instruction.AssetOut, amt1, poolId, &env)
+	if err != nil {
+		ce.CustomAbort(ce.Prepend(err, "error pre-funding asset to dex"))
+	}
 
 	// All assets are pre-deposited — pool skips DrawAssetFrom for both.
 	addLiqParams := types.AddLiquidityParams{

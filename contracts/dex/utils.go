@@ -4,9 +4,9 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/vsc-eco/dex-contracts/sdk"
-
 	"github.com/vsc-eco/dex-contracts/contracts/asset"
+	"github.com/vsc-eco/dex-contracts/contracts/types"
+	"github.com/vsc-eco/dex-contracts/sdk"
 )
 
 // Keys for state storage
@@ -17,7 +17,7 @@ const (
 	keyReserve1     = "r1"
 	keyFee          = "fee"
 	keyTotalLP      = "tlp"
-	keyLpPrefix     = "lp/" // lp/{address}
+	keyLpPrefix     = "lp" + types.DirPathDelimiter // lp-{address}
 	keySystemFee0   = "f0"
 	keySystemFee1   = "f1"
 	keyFeeLastClaim = "flc"

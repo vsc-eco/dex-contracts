@@ -15,10 +15,12 @@ const (
 	KeyReserve1     = "r1"
 	KeyFee          = "fee"
 	KeyTotalLP      = "tlp"
-	KeyLpPrefix     = "lp-" // lp/{address}
+	KeyLpPrefix     = "lp" + DirPathDelimiter // lp-{address} or lp/{address}
 	KeySystemFee0   = "f0"
 	KeySystemFee1   = "f1"
 	KeyFeeLastClaim = "flc"
 	// KeyRouterAssetPrefix            = "as-"
 	// KeyMappingContractBalancePrefix = "bal-"
 )
+
+const DirPathDelimiter = "-"

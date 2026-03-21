@@ -12,10 +12,10 @@ import (
 // Keys for state storage
 const (
 	keyVersion     = "version"
-	keyPoolPrefix  = "pool/"  // pool/{asset0}/{asset1}
-	keyStatePrefix = "state/" // state/{pool_id} - cached pool state
-	keyAssetPrefix = "asset/" // asset/{symbol} -> AssetInfo
-	keyChainsList  = "chains" // comma-separated list of supported chains
+	keyPoolPrefix  = "pool" + types.DirPathDelimiter  // pool-{asset0}-{asset1}
+	keyStatePrefix = "state" + types.DirPathDelimiter // state-{pool_id}
+	keyAssetPrefix = "asset" + types.DirPathDelimiter // asset-{symbol} -> AssetInfo
+	keyChainsList  = "chains"                         // comma-separated list of supported chains
 )
 
 // Supported chains for native tokens (HIVE for HIVE/HBD, MAGI for future MAGI native tokens)
@@ -40,7 +40,7 @@ func setStr(key string, val string) {
 // Pool key helpers
 // poolKeyForAssets expects already-lowercased asset names.
 func poolKeyForAssets(asset0, asset1 string) string {
-	return keyPoolPrefix + asset0 + "/" + asset1
+	return keyPoolPrefix + asset0 + types.DirPathDelimiter + asset1
 }
 
 func poolStateKey(poolId string) string {

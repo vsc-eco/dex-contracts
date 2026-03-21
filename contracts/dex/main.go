@@ -262,7 +262,9 @@ func Swap(payload *string) *string {
 		env := sdk.GetEnv()
 		routerId := getStr(keyRouter)
 		if routerId == "" || env.Caller.String() != "contract:"+routerId {
-			ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "PreDeposited only allowed from the authorized Router"))
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrNoPermission, "PreDeposited only allowed from the authorized Router"),
+			)
 		}
 	}
 	if !params.PreDeposited {
@@ -446,17 +448,19 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string, params types.AddL
 		env := maybeEnv.UseEnv()
 		routerId := getStr(keyRouter)
 		if routerId == "" || env.Caller.String() != "contract:"+routerId {
-			ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "PreDeposited only allowed from the authorized Router"))
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrNoPermission, "PreDeposited only allowed from the authorized Router"),
+			)
 		}
 	}
 	// Draw each asset independently — skip if pre-deposited by Router.
 	if amt0.Sign() == 1 && !params.PreDeposited0 {
-		if err := asset0.DrawAssetFrom(amt0, maybeEnv.UseEnv().Sender.Address, maybeEnv); err != nil {
+		if err := asset0.DrawAssetFrom(amt0, maybeEnv.UseEnv().Caller, maybeEnv); err != nil {
 			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "failed to draw asset0"))
 		}
 	}
 	if amt1.Sign() == 1 && !params.PreDeposited1 {
-		if err := asset1.DrawAssetFrom(amt1, maybeEnv.UseEnv().Sender.Address, maybeEnv); err != nil {
+		if err := asset1.DrawAssetFrom(amt1, maybeEnv.UseEnv().Caller, maybeEnv); err != nil {
 			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "failed to draw asset1"))
 		}
 	}
