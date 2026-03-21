@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/vsc-eco/dex-contracts/contracterrors"
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 	"github.com/vsc-eco/dex-contracts/sdk"
 
@@ -80,7 +81,10 @@ func (ha *HiveAsset) MappingContract() string {
 
 // draws assets from the sender
 func (ha *HiveAsset) DrawAssetFrom(amount *big.Int, from sdk.Address, me types.MaybeEnv) error {
-	sdk.HiveDrawFrom(from, amount, sdk.Asset(ha.Asset))
+	if from != me.UseEnv().Caller {
+		return contracterrors.NewContractError(contracterrors.ErrAuth, "can only draw native assets from caller")
+	}
+	sdk.HiveDraw(amount, sdk.Asset(ha.Asset))
 	return nil
 }
 

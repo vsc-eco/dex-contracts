@@ -233,7 +233,11 @@ func TestAddLiquidityMappedPool(t *testing.T) {
 	dumpStateDiff(t, r.StateDiff)
 
 	// Approve DEX pool to spend owner's mapped BTC tokens
-	ct.StateSet(btcMappingId, constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId, formatUintAsBytes(t, 1000000))
+	ct.StateSet(
+		btcMappingId,
+		constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId,
+		formatUintAsBytes(t, 1000000),
+	)
 
 	r = btchbdDex.addLiquidity(t, owner, 1000, 1000)
 
@@ -395,7 +399,11 @@ func TestOneHopMapped(t *testing.T) {
 	})
 	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 2_00000000))
 	// Approve DEX pool to spend owner's mapped BTC tokens (for addLiquidity)
-	ct.StateSet(btcMappingId, constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId, formatUintAsBytes(t, 2_00000000))
+	ct.StateSet(
+		btcMappingId,
+		constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId,
+		formatUintAsBytes(t, 2_00000000),
+	)
 	r = btchbdDex.addLiquidity(t, owner, 1_49000000, 100000_000)
 	ct.Deposit(owner, 10000, ledger_db.AssetHbd)
 
@@ -404,7 +412,11 @@ func TestOneHopMapped(t *testing.T) {
 	}
 
 	// Approve router to spend owner's mapped BTC tokens (for swap)
-	ct.StateSet(btcMappingId, constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+routerId, formatUintAsBytes(t, 50000))
+	ct.StateSet(
+		btcMappingId,
+		constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+routerId,
+		formatUintAsBytes(t, 50000),
+	)
 
 	r = router.execute(t, owner, &types.DexInstruction{
 		Type:      "swap",
@@ -534,7 +546,11 @@ func TestTwoHop(t *testing.T) {
 	}
 	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 20_00000000))
 	// Approve DEX pool to spend owner's mapped BTC tokens (for addLiquidity)
-	ct.StateSet(btcMappingId, constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId, formatUintAsBytes(t, 20_00000000))
+	ct.StateSet(
+		btcMappingId,
+		constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId,
+		formatUintAsBytes(t, 20_00000000),
+	)
 	r = btchbdDex.addLiquidity(t, owner, 14_90000000, 1000000_000)
 	if !r.Success {
 		t.Fatalf("error adding liquidity to BTC/HBD pool: %s: %s", r.Err, r.ErrMsg)
@@ -1004,9 +1020,9 @@ func TestSwapFeeAccumulation(t *testing.T) {
 // contracts all work with the DEX — same flow as BTC (add liquidity + swap).
 func TestMultiChainDexIntegration(t *testing.T) {
 	chains := []struct {
-		name      string
-		asset     string
-		wasm      []byte
+		name  string
+		asset string
+		wasm  []byte
 	}{
 		{"ltc", "ltc", dexcontracts.LTCMappingWasm},
 		{"dash", "dash", dexcontracts.DASHMappingWasm},
@@ -1077,7 +1093,11 @@ func TestMultiChainDexIntegration(t *testing.T) {
 
 			// Seed mapped asset balance and allowance
 			ct.StateSet(mappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 1_00000000))
-			ct.StateSet(mappingId, constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+dexId, formatUintAsBytes(t, 1_00000000))
+			ct.StateSet(
+				mappingId,
+				constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+dexId,
+				formatUintAsBytes(t, 1_00000000),
+			)
 			ct.Deposit(owner, 100000_000, "hbd")
 
 			// Add liquidity
@@ -1090,11 +1110,11 @@ func TestMultiChainDexIntegration(t *testing.T) {
 			// Swap HBD → chain asset via router
 			ct.Deposit(owner, 1000, "hbd")
 			r = router.execute(t, owner, &types.DexInstruction{
-				Type:     "swap",
-				Version:  "1.0.0",
-				AssetIn:  "hbd",
-				AssetOut: chain.asset,
-				AmountIn: "500",
+				Type:      "swap",
+				Version:   "1.0.0",
+				AssetIn:   "hbd",
+				AssetOut:  chain.asset,
+				AmountIn:  "500",
 				Recipient: owner,
 				ReturnAddress: &types.ReturnAddress{
 					Chain:   "VSC",
@@ -1347,7 +1367,11 @@ func TestRemoveLiquidityMappedPool(t *testing.T) {
 	}
 
 	// Approve DEX pool to spend owner's mapped BTC tokens
-	ct.StateSet(btcMappingId, constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId, formatUintAsBytes(t, 1000000))
+	ct.StateSet(
+		btcMappingId,
+		constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId,
+		formatUintAsBytes(t, 1000000),
+	)
 
 	r = btchbdDex.addLiquidity(t, owner, 1000, 1000)
 	if !r.Success {
@@ -1392,7 +1416,12 @@ func TestRemoveLiquidityMappedPool(t *testing.T) {
 	reserve1, _ := strconv.ParseUint(pool.Reserve1, 10, 64)
 	assert.True(t, reserve0 < 1000, "reserve0 should decrease after removal, got %d", reserve0)
 	assert.True(t, reserve1 < 1000, "reserve1 should decrease after removal, got %d", reserve1)
-	t.Logf("mapped pool after removal: reserve0=%s, reserve1=%s, totalLp=%s", pool.Reserve0, pool.Reserve1, pool.TotalLp)
+	t.Logf(
+		"mapped pool after removal: reserve0=%s, reserve1=%s, totalLp=%s",
+		pool.Reserve0,
+		pool.Reserve1,
+		pool.TotalLp,
+	)
 }
 
 func TestRemoveMoreLpThanOwned(t *testing.T) {
@@ -1701,7 +1730,11 @@ func TestSwapMappedToNative(t *testing.T) {
 
 	// Seed mapped BTC balance and allowance for adding liquidity
 	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 2_00000000))
-	ct.StateSet(btcMappingId, constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId, formatUintAsBytes(t, 2_00000000))
+	ct.StateSet(
+		btcMappingId,
+		constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId,
+		formatUintAsBytes(t, 2_00000000),
+	)
 
 	r = btchbdDex.addLiquidity(t, owner, 1_00000000, 100000_000)
 	if !r.Success {
@@ -1711,7 +1744,11 @@ func TestSwapMappedToNative(t *testing.T) {
 	// Now swap BTC -> HBD directly on the DEX pool
 	// Need BTC balance and allowance for the swap
 	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 50000))
-	ct.StateSet(btcMappingId, constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId, formatUintAsBytes(t, 50000))
+	ct.StateSet(
+		btcMappingId,
+		constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId,
+		formatUintAsBytes(t, 50000),
+	)
 
 	swapPayload, _ := tinyjson.Marshal(types.SwapParams{
 		AssetIn:  "btc",

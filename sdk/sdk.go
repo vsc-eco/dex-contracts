@@ -144,17 +144,10 @@ func GetBalance(address Address, asset Asset) int64 {
 }
 
 // Transfer assets from caller account to the contract up to the limit specified in `intents`. The transaction must be signed using active authority for Hive accounts.
-func HiveDraw(amount int64, asset Asset) {
-	amt := strconv.FormatInt(amount, 10)
-	as := asset.String()
-	hiveDraw(&amt, &as)
-}
-
-func HiveDrawFrom(from Address, amount *big.Int, asset Asset) {
-	frm := from.String()
+func HiveDraw(amount *big.Int, asset Asset) {
 	amt := amount.String()
 	as := asset.String()
-	hiveDrawFrom(&frm, &amt, &as)
+	hiveDraw(&amt, &as)
 }
 
 // Transfer assets from the contract to another account.

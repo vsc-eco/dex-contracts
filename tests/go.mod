@@ -3,13 +3,15 @@ module dex-contract-tests
 go 1.25.6
 
 // replace vsc-node => ../../go-vsc-node/
-replace vsc-node => ../../../magi/testnet/go-vsc-node/
+replace vsc-node => github.com/vsc-eco/go-vsc-node v0.0.0-20260320225114-449abceddb15
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 
 replace github.com/vsc-eco/dex-contracts => ..
 
 replace btc-mapping-contract => ../../utxo-mapping/btc-mapping-contract
+
+require vsc-node v0.0.0
 
 require (
 	btc-mapping-contract v0.0.0-00010101000000-000000000000
@@ -19,7 +21,6 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vsc-eco/dex-contracts v0.0.0
-	vsc-node v0.0.0
 )
 
 require (

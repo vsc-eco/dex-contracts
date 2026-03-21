@@ -45,11 +45,11 @@ contracts:
 			name=$$(basename $$dir); \
 			wasm_file="$(BIN_DIR)/$$name.wasm"; \
 			\
-			# Check if wasm exists and find if any file in 'dir' is newer \
-			if [ -f "$$wasm_file" ] && [ -z "$$(find $$dir/.. -type f -not -name "*.wasm" -newer $$wasm_file)" ]; then \
-				echo "  ⏩ $$name is up to date, skipping"; \
-				continue; \
-			fi; \
+# 			# Check if wasm exists and find if any file in 'dir' is newer \
+# 			if [ -f "$$wasm_file" ] && [ -z "$$(find $$dir/.. -type f -not -name "*.wasm" -newer $$wasm_file)" ]; then \
+# 				echo "  ⏩ $$name is up to date, skipping"; \
+# 				continue; \
+# 			fi; \
 			\
 			echo "Building contract $$name"; \
 			if [ "$(USE_DOCKER)" = "1" ]; then \
