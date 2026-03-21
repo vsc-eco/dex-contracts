@@ -158,11 +158,6 @@ func isSystemSender() bool {
 	return false
 }
 
-// Check if asset is HBD
-func isHbd(asset string) bool {
-	return asset == sdk.AssetHbd.String()
-}
-
 func logFee(magiFee, lpFee *big.Int) string {
 	totalFee := new(big.Int).Add(magiFee, lpFee)
 	var b strings.Builder
