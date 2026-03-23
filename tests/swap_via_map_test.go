@@ -119,7 +119,7 @@ func buildSwapMapFixture(t *testing.T, instruction string, amount int64) (rawTxH
 func TestSwapViaMap(t *testing.T) {
 	const blockHeight = uint32(100)
 	const swapAmount = int64(10_000_000) // 0.1 BTC in satoshis
-	const recipient = "hive:milo.vsc"
+	const recipient = "hive:milo-vsc"
 	const oracle = "did:vsc:oracle:btc"
 	const owner = "hive:milo-hpr"
 
@@ -144,7 +144,7 @@ func TestSwapViaMap(t *testing.T) {
 	// Register tokens in the router
 	r := router.registerToken(t, owner, types.RegisterTokenParams{
 		Name:      "BTC",
-		TokenInfo: types.TokenInfo{Chain: "BTC"},
+		TokenInfo: types.TokenInfo{Chain: "BTC", MappingContract: btcMappingId},
 	})
 	if !r.Success {
 		t.Fatalf("register BTC token: %s", r.Ret)
@@ -173,6 +173,7 @@ func TestSwapViaMap(t *testing.T) {
 		Asset1:                "hbd",
 		FeeBps:                100,
 		Asset0MappingContract: btcMappingId,
+		RouterContract:        routerContractId,
 	})
 	if !r.Success {
 		t.Fatalf("init pool: %s: %s", r.Err, r.ErrMsg)
