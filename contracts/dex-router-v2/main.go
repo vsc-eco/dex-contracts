@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"math/big"
 	"strings"
 
@@ -72,7 +71,7 @@ func RegisterToken(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "asset already registered"))
 	}
 
-	info, err := json.Marshal(params.TokenInfo)
+	info, err := tinyjson.Marshal(params.TokenInfo)
 	if err != nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "error marshaling token info"))
 	}
@@ -131,8 +130,11 @@ func RegisterPool(payload *string) *string {
 		params.Asset0, params.Asset1 = params.Asset1, params.Asset0
 	}
 
-	// Store pool mapping
+	// Store pool mapping (reject if pool already exists)
 	poolKey := poolKeyForAssets(params.Asset0, params.Asset1)
+	if existing := getStr(poolKey); existing != "" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "pool already registered for "+params.Asset0+"-"+params.Asset1))
+	}
 	setStr(poolKey, params.DexContractId)
 
 	return nil
@@ -392,14 +394,6 @@ func preFundAsset(asset string, amount string, toPool string, env *sdk.Env) erro
 	return nil
 }
 
-// SwapBackResult contains the result of attempting to swap back to original asset
-type SwapBackResult struct {
-	Success   bool
-	AmountOut *big.Int
-	Asset     string
-	Error     string
-}
-
 // Execute deposit (add liquidity)
 func executeDeposit(instruction types.DexInstruction) *string {
 	// Find the pool
@@ -422,14 +416,12 @@ func executeDeposit(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 required in metadata"))
 	}
 
-	// amt0, ok := new(big.Int).SetString(amt0Interface, 10)
-	// if !ok {
-	// 	ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount0 must be number"))
-	// }
-	// amt1, ok := new(big.Int).SetString(amt1Interface, 10)
-	// if !ok {
-	// 	ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 must be number"))
-	// }
+	if _, ok2 := new(big.Int).SetString(amt0, 10); !ok2 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount0 must be a valid number"))
+	}
+	if _, ok2 := new(big.Int).SetString(amt1, 10); !ok2 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 must be a valid number"))
+	}
 
 	// Pre-fund both assets into the pool (mapped via transferFrom, native via HiveDraw+HiveTransfer).
 	env := sdk.GetEnv()
