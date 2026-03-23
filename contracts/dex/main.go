@@ -17,6 +17,7 @@ import (
 
 func main() {}
 
+
 // Contract initialization
 // Payload: JSON with pool parameters
 // {"asset0": "HBD", "asset1": "HIVE", "fee_bps": 8}
@@ -620,4 +621,59 @@ func ClaimFees(payload *string) *string {
 
 	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
 	return nil
+}
+
+// Migrate contract state to latest version.
+// Owner-only. Each version runs once; re-calling is a no-op.
+// Payload: JSON {"router_contract": "vsc1..."} (optional, for v1)
+//
+//go:wasmexport migrate
+func Migrate(payload *string) *string {
+	env := sdk.GetEnv()
+	if env.Caller.String() != *sdk.GetEnvKey("contract.owner") {
+		ce.CustomAbort(ce.NewContractError(ce.ErrAuth, "owner only"))
+	}
+
+	version := getStr(keyMigrateVersion)
+
+	// --- v1: populate cached asset name keys (a1n, a2n) and router (rtr) ---
+	if version < "1" {
+		asset0, err := getAsset0()
+		if err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "migrate v1: cannot read asset0"))
+		}
+		asset1, err := getAsset1()
+		if err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "migrate v1: cannot read asset1"))
+		}
+		setStr(keyAsset0Name, asset0.Name())
+		setStr(keyAsset1Name, asset1.Name())
+
+		if payload != nil && *payload != "" {
+			// Simple extraction: {"router_contract": "vsc1..."}
+			p := *payload
+			if idx := strings.Index(p, "router_contract"); idx >= 0 {
+				// Find the value after the key
+				rest := p[idx+len("router_contract"):]
+				// Skip past ": " or ":" and opening quote
+				start := strings.IndexByte(rest, '"')
+				if start >= 0 {
+					rest = rest[start+1:]
+					end := strings.IndexByte(rest, '"')
+					if end > 0 {
+						setStr(keyRouter, rest[:end])
+					}
+				}
+			}
+		}
+
+		setStr(keyMigrateVersion, "1")
+		sdk.Log("migrate|v=1|a0=" + asset0.Name() + "|a1=" + asset1.Name())
+	}
+
+	// --- future migrations go here ---
+	// if version < "2" { ... setStr(keyMigrateVersion, "2") }
+
+	resultStr := getStr(keyMigrateVersion)
+	return &resultStr
 }
