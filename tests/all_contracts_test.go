@@ -1521,9 +1521,10 @@ func TestDuplicatePoolRegistration(t *testing.T) {
 	r = router.registerPool(t, owner, poolParams)
 	assert.True(t, r.Success, "first pool registration should succeed, got: %s", r.ErrMsg)
 
-	// Second registration - should succeed (overwrites)
+	// Second registration - should fail (duplicate rejected)
 	r = router.registerPool(t, owner, poolParams)
-	assert.True(t, r.Success, "duplicate pool registration should succeed (idempotent overwrite)")
+	assert.False(t, r.Success, "duplicate pool registration should be rejected")
+	assert.Contains(t, r.ErrMsg, "already registered")
 }
 
 func TestNonOwnerRegisterToken(t *testing.T) {
