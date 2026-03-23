@@ -231,7 +231,7 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 	userAddr := env.Caller.String()
 
 	// Pre-fund input asset into the pool (mapped via transferFrom, native via HiveDraw+HiveTransfer).
-	err := preFundAsset(instruction.AssetIn, instruction.AmountIn, userAddr, &env)
+	err := preFundAsset(instruction.AssetIn, instruction.AmountIn, dexContractId, &env)
 	if err != nil {
 		ce.CustomAbort(ce.Prepend(err, "error pre-funding asset to dex"))
 	}
