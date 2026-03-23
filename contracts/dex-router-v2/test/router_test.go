@@ -10,24 +10,24 @@ import (
 // Test pool registration
 func TestPoolRegistration(t *testing.T) {
 	tests := []struct {
-		name         string
-		asset0       string
-		asset1       string
-		dexContract  string
+		name            string
+		asset0          string
+		asset1          string
+		dexContract     string
 		shouldNormalize bool
 	}{
 		{
-			name:         "normal order",
-			asset0:       "HBD",
-			asset1:       "HIVE",
-			dexContract:  "dex-hbd-hive-123",
+			name:            "normal order",
+			asset0:          "HBD",
+			asset1:          "HIVE",
+			dexContract:     "dex-hbd-hive-123",
 			shouldNormalize: false,
 		},
 		{
-			name:         "reverse order should normalize",
-			asset0:       "HIVE",
-			asset1:       "HBD",
-			dexContract:  "dex-hbd-hive-123",
+			name:            "reverse order should normalize",
+			asset0:          "HIVE",
+			asset1:          "HBD",
+			dexContract:     "dex-hbd-hive-123",
 			shouldNormalize: true,
 		},
 	}
@@ -44,7 +44,12 @@ func TestPoolRegistration(t *testing.T) {
 			expectedKey := "pool" + types.DirPathDelimiter + asset0 + types.DirPathDelimiter + asset1
 
 			if expectedKey != "pool"+types.DirPathDelimiter+"HBD"+types.DirPathDelimiter+"HIVE" {
-				t.Errorf("expected normalized key pool%sHBD%sHIVE, got %s", types.DirPathDelimiter, types.DirPathDelimiter, expectedKey)
+				t.Errorf(
+					"expected normalized key pool%sHBD%sHIVE, got %s",
+					types.DirPathDelimiter,
+					types.DirPathDelimiter,
+					expectedKey,
+				)
 			}
 		})
 	}
@@ -53,11 +58,11 @@ func TestPoolRegistration(t *testing.T) {
 // Test pool finding logic
 func TestFindPool(t *testing.T) {
 	tests := []struct {
-		name      string
-		assetA    string
-		assetB    string
-		pools     map[string]string // pool key -> contract ID
-		expected  string
+		name       string
+		assetA     string
+		assetB     string
+		pools      map[string]string // pool key -> contract ID
+		expected   string
 		shouldFind bool
 	}{
 		{
@@ -67,7 +72,7 @@ func TestFindPool(t *testing.T) {
 			pools: map[string]string{
 				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-123",
 			},
-			expected:  "dex-hbd-hive-123",
+			expected:   "dex-hbd-hive-123",
 			shouldFind: true,
 		},
 		{
@@ -77,7 +82,7 @@ func TestFindPool(t *testing.T) {
 			pools: map[string]string{
 				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-123",
 			},
-			expected:  "dex-hbd-hive-123",
+			expected:   "dex-hbd-hive-123",
 			shouldFind: true,
 		},
 		{
@@ -87,7 +92,7 @@ func TestFindPool(t *testing.T) {
 			pools: map[string]string{
 				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-123",
 			},
-			expected:  "",
+			expected:   "",
 			shouldFind: false,
 		},
 	}
@@ -117,17 +122,17 @@ func TestFindPool(t *testing.T) {
 // Test two-hop routing logic
 func TestTwoHopRouting(t *testing.T) {
 	tests := []struct {
-		name        string
-		assetIn     string
-		assetOut    string
-		pools       map[string]string
+		name         string
+		assetIn      string
+		assetOut     string
+		pools        map[string]string
 		expectedHop1 string
 		expectedHop2 string
-		shouldRoute bool
+		shouldRoute  bool
 	}{
 		{
-			name:   "route BTC -> HIVE via HBD",
-			assetIn: "BTC",
+			name:     "route BTC -> HIVE via HBD",
+			assetIn:  "BTC",
 			assetOut: "HIVE",
 			pools: map[string]string{
 				"pool" + types.DirPathDelimiter + "BTC" + types.DirPathDelimiter + "HBD":  "dex-btc-hbd-123",
@@ -135,11 +140,11 @@ func TestTwoHopRouting(t *testing.T) {
 			},
 			expectedHop1: "dex-btc-hbd-123",
 			expectedHop2: "dex-hbd-hive-456",
-			shouldRoute: true,
+			shouldRoute:  true,
 		},
 		{
-			name:   "cannot route without intermediate pool",
-			assetIn: "BTC",
+			name:     "cannot route without intermediate pool",
+			assetIn:  "BTC",
 			assetOut: "ETH",
 			pools: map[string]string{
 				"pool" + types.DirPathDelimiter + "BTC" + types.DirPathDelimiter + "HBD":  "dex-btc-hbd-123",
@@ -207,12 +212,12 @@ func TestTwoHopRouting(t *testing.T) {
 // Test token registry - tokens must be registered before pools can use them
 func TestTokenRegistryEnforcement(t *testing.T) {
 	tests := []struct {
-		name               string
-		asset0             string
-		asset1             string
-		asset0Registered   bool
-		asset1Registered   bool
-		shouldReject       bool
+		name             string
+		asset0           string
+		asset1           string
+		asset0Registered bool
+		asset1Registered bool
+		shouldReject     bool
 	}{
 		{
 			name:             "both assets registered - allow",
@@ -360,11 +365,11 @@ func TestMappedAssetIntentBuilding(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		assetIn         string
-		amountIn        string
-		expectIntent    bool
-		expectContract  string
+		name           string
+		assetIn        string
+		amountIn       string
+		expectIntent   bool
+		expectContract string
 	}{
 		{
 			name:         "native HBD - no intent needed",
@@ -518,11 +523,11 @@ func TestDepositMappedAssetIntents(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		asset0         string
-		asset1         string
-		amount0        string
-		amount1        string
+		name            string
+		asset0          string
+		asset1          string
+		amount0         string
+		amount1         string
 		expectedIntents int
 	}{
 		{
