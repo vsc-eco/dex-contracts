@@ -38,8 +38,8 @@ func NewAsset(assetName string, mappingContract ...string) (Asset, error) {
 			Asset: normalizedName,
 		}, nil
 	} else {
-		if len(mappingContract) != 1 {
-			return nil, fmt.Errorf("must provide exactly 1 mapping contract for mapped asset: %s, received %d", normalizedName, len(mappingContract))
+		if len(mappingContract) != 1 || mappingContract[0] == "" {
+			return nil, fmt.Errorf("must provide exactly 1 non-empty mapping contract for mapped asset: %s", normalizedName)
 		}
 		return &MappedAsset{
 			Asset:             normalizedName,
@@ -49,7 +49,9 @@ func NewAsset(assetName string, mappingContract ...string) (Asset, error) {
 }
 
 func AssetFromJson(s string) (Asset, error) {
-	if strings.Contains(s, "mapping_contract_id") {
+	// Try mapped asset first — if JSON contains mapping_contract_id field, it's a mapped asset.
+	// This is safe because the JSON is always contract-generated, never user input.
+	if strings.Contains(s, `"mapping_contract_id"`) {
 		var ma MappedAsset
 		err := tinyjson.Unmarshal([]byte(s), &ma)
 		if err != nil {
@@ -109,6 +111,9 @@ func (ma *MappedAsset) MappingContract() string {
 
 func (ma *MappedAsset) DrawAssetFrom(amount *big.Int, from sdk.Address, mEnv types.MaybeEnv) error {
 	env := mEnv.UseEnv()
+	if from != env.Caller {
+		return contracterrors.NewContractError(contracterrors.ErrAuth, "can only draw mapped assets from caller")
+	}
 	input := types.MappingContractInput{
 		Amount: amount.String(),
 		To:     "contract:" + env.ContractId,

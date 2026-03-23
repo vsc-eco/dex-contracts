@@ -141,9 +141,13 @@ func setLp(address string, amount *big.Int) {
 	setBigInt(keyLpPrefix+address, amount)
 }
 
-func contractAssert(cond bool) {
+func contractAssert(cond bool, msgs ...string) {
 	if !cond {
-		sdk.Abort("assertion failed")
+		msg := "assertion failed"
+		if len(msgs) > 0 {
+			msg = msgs[0]
+		}
+		sdk.Abort(msg)
 	}
 }
 
@@ -152,8 +156,10 @@ func isSystemSender() bool {
 	if env.Sender.Address.Domain() == sdk.AddressDomainSystem {
 		return true
 	}
-	if len(env.Sender.RequiredAuths) > 0 && env.Sender.RequiredAuths[0].Domain() == sdk.AddressDomainSystem {
-		return true
+	for _, auth := range env.Sender.RequiredAuths {
+		if auth.Domain() == sdk.AddressDomainSystem {
+			return true
+		}
 	}
 	return false
 }

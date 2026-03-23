@@ -234,22 +234,6 @@ func Swap(payload *string) *string {
 	// newROut = rOut - amountOut
 	newROut := new(big.Int).Sub(rOut, amountOut)
 
-	// Apply slippage protection if specified
-
-	if params.MinAmountOut != nil {
-		minOut, ok := new(big.Int).SetString(*params.MinAmountOut, 10)
-		if !ok {
-			ce.CustomAbort(
-				ce.NewContractError(ce.ErrInitialization, "invalid minimum amount out"),
-			)
-		}
-		if amountOut.Cmp(minOut) < 0 {
-			ce.CustomAbort(
-				ce.NewContractError(ce.ErrInitialization, "slippage tolerance exceeded"),
-			)
-		}
-	}
-
 	maybeEnv := types.MaybeEnv{}
 
 	from := sdk.Address(params.From)
@@ -292,6 +276,22 @@ func Swap(payload *string) *string {
 			amountOut.Sub(amountOut, refOut)
 		} else {
 			refOut = nil
+		}
+	}
+
+	// Apply slippage protection AFTER referral deduction so min_amount_out
+	// reflects what the user actually receives.
+	if params.MinAmountOut != nil {
+		minOut, ok := new(big.Int).SetString(*params.MinAmountOut, 10)
+		if !ok {
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrInitialization, "invalid minimum amount out"),
+			)
+		}
+		if amountOut.Cmp(minOut) < 0 {
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrInitialization, "slippage tolerance exceeded"),
+			)
 		}
 	}
 
@@ -387,7 +387,7 @@ func AddLiquidity(payload *string) *string {
 		)
 	}
 
-	if amt0.Sign() == 0 || amt1.Sign() == 0 || params.Recipient == "" {
+	if amt0.Sign() <= 0 || amt1.Sign() <= 0 || params.Recipient == "" {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInput, "missing required fields"),
 		)
@@ -511,6 +511,15 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string, params types.AddL
 // Execute remove liquidity operation
 func executeRemoveLiquidity(lpAmount *big.Int, provider string) *string {
 	providerAddr := sdk.Address(provider)
+
+	// Only the LP owner, the authorized router, or system can remove liquidity.
+	env := sdk.GetEnv()
+	routerId := getStr(keyRouter)
+	isRouter := routerId != "" && env.Caller.String() == "contract:"+routerId
+	if env.Caller.String() != providerAddr.String() && !isRouter && !isSystemSender() {
+		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "caller is not the LP owner"))
+	}
+
 	userLP := getLp(providerAddr.String())
 	totalLP := getTotalLp()
 
@@ -601,12 +610,24 @@ func ClaimFees(payload *string) *string {
 		)
 	}
 
+<<<<<<< HEAD
 	dao := "system:fr_balance"
+=======
+	// Fee destination: contract owner receives fees.
+	// HiveWithdraw requires a valid hive: address and only supports HBD.
+	// Mapped assets are transferred via the mapping contract.
+	ownerPtr := sdk.GetEnvKey("contract.owner")
+	if ownerPtr == nil || *ownerPtr == "" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrStateAccess, "contract owner not set"))
+	}
+	owner := *ownerPtr
+>>>>>>> 92efe83 (fix: address all security audit findings)
 
 	f0 := getBigInt(keySystemFee0)
 	f1 := getBigInt(keySystemFee1)
 
 	if f0.Sign() == 1 {
+<<<<<<< HEAD
 		asset0, err := getAsset0()
 		if err != nil {
 			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "error retrieving asset0"))
@@ -624,6 +645,29 @@ func ClaimFees(payload *string) *string {
 		setBigInt(keySystemFee1, big.NewInt(0))
 		if err := asset1.TransferAsset(dao, f1); err != nil {
 			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "failed to transfer asset1 fees"))
+=======
+		setBigInt(keySystemFee0, big.NewInt(0))
+		asset0, err := getAsset0()
+		if err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "claim_fees: cannot read asset0"))
+		}
+		if asset0.MappingContract() == "" {
+			sdk.HiveWithdraw(sdk.Address(owner), f0, sdk.Asset(asset0.Name()))
+		} else {
+			asset0.TransferAsset(owner, f0)
+		}
+	}
+	if f1.Sign() == 1 {
+		setBigInt(keySystemFee1, big.NewInt(0))
+		asset1, err := getAsset1()
+		if err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "claim_fees: cannot read asset1"))
+		}
+		if asset1.MappingContract() == "" {
+			sdk.HiveWithdraw(sdk.Address(owner), f1, sdk.Asset(asset1.Name()))
+		} else {
+			asset1.TransferAsset(owner, f1)
+>>>>>>> 92efe83 (fix: address all security audit findings)
 		}
 	}
 
