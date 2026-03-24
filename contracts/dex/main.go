@@ -17,7 +17,6 @@ import (
 
 func main() {}
 
-
 // Contract initialization
 // Payload: JSON with pool parameters
 // {"asset0": "HBD", "asset1": "HIVE", "fee_bps": 8}
@@ -610,9 +609,6 @@ func ClaimFees(payload *string) *string {
 		)
 	}
 
-<<<<<<< HEAD
-	dao := "system:fr_balance"
-=======
 	// Fee destination: contract owner receives fees.
 	// HiveWithdraw requires a valid hive: address and only supports HBD.
 	// Mapped assets are transferred via the mapping contract.
@@ -621,31 +617,11 @@ func ClaimFees(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrStateAccess, "contract owner not set"))
 	}
 	owner := *ownerPtr
->>>>>>> 92efe83 (fix: address all security audit findings)
 
 	f0 := getBigInt(keySystemFee0)
 	f1 := getBigInt(keySystemFee1)
 
 	if f0.Sign() == 1 {
-<<<<<<< HEAD
-		asset0, err := getAsset0()
-		if err != nil {
-			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "error retrieving asset0"))
-		}
-		setBigInt(keySystemFee0, big.NewInt(0))
-		if err := asset0.TransferAsset(dao, f0); err != nil {
-			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "failed to transfer asset0 fees"))
-		}
-	}
-	if f1.Sign() == 1 {
-		asset1, err := getAsset1()
-		if err != nil {
-			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "error retrieving asset1"))
-		}
-		setBigInt(keySystemFee1, big.NewInt(0))
-		if err := asset1.TransferAsset(dao, f1); err != nil {
-			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "failed to transfer asset1 fees"))
-=======
 		setBigInt(keySystemFee0, big.NewInt(0))
 		asset0, err := getAsset0()
 		if err != nil {
@@ -667,7 +643,6 @@ func ClaimFees(payload *string) *string {
 			sdk.HiveWithdraw(sdk.Address(owner), f1, sdk.Asset(asset1.Name()))
 		} else {
 			asset1.TransferAsset(owner, f1)
->>>>>>> 92efe83 (fix: address all security audit findings)
 		}
 	}
 
