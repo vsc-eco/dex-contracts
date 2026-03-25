@@ -85,6 +85,8 @@ func Init(payload *string) *string {
 		setStr(keyRouter, params.RouterContract)
 	}
 
+	sdk.Log("pool_init|a0=" + strings.ToLower(params.Asset0) + "|a1=" + strings.ToLower(params.Asset1) + "|fee=" + strconv.FormatUint(params.FeeBps, 10))
+
 	return nil
 }
 
@@ -110,7 +112,7 @@ func Swap(payload *string) *string {
 	// Validate required fields
 	if params.AssetIn == "" || params.AssetOut == "" || params.To == "" {
 		ce.CustomAbort(
-			ce.NewContractError(ce.ErrInput, "missing required fields"),
+			ce.NewContractError(ce.ErrInput, "asset_in, asset_out, and recipient are required"),
 		)
 	}
 
@@ -182,7 +184,7 @@ func Swap(payload *string) *string {
 	}
 	if amountIn.Cmp(maxSwap) > 0 {
 		ce.CustomAbort(
-			ce.NewContractError(ce.ErrTransaction, "amount > input asset liquidty / 2", "swap too large"),
+			ce.NewContractError(ce.ErrTransaction, "amount exceeds input asset liquidity / 2", "swap too large"),
 		)
 	}
 
@@ -315,11 +317,16 @@ func Swap(payload *string) *string {
 			)
 		}
 	}
-	outputAsset.TransferAsset(params.To, amountOut)
+	if err := outputAsset.TransferAsset(params.To, amountOut); err != nil {
+		ce.CustomAbort(
+			ce.WrapContractError(ce.ErrTransaction, err, "error transferring output asset"),
+		)
+	}
 
 	// log fee and amount swapped
 	sdk.Log(logFee(magiFee, lpFee))
 	sdk.Log(logAmounts(amountIn, amountOut))
+	sdk.Log("swap|in=" + params.AssetIn + "|out=" + params.AssetOut + "|ai=" + amountIn.String() + "|ao=" + amountOut.String() + "|to=" + params.To)
 
 	// Return swap result — use cached names and local reserve values
 	// to avoid redundant state reads.
@@ -346,7 +353,7 @@ func Swap(payload *string) *string {
 	resultBytes, err := tinyjson.Marshal(&result)
 	if err != nil {
 		ce.CustomAbort(
-			ce.WrapContractError(ce.ErrJson, err, "failed to serialze output"),
+			ce.WrapContractError(ce.ErrJson, err, "failed to serialize output"),
 		)
 	}
 
@@ -388,7 +395,7 @@ func AddLiquidity(payload *string) *string {
 
 	if amt0.Sign() <= 0 || amt1.Sign() <= 0 || params.Recipient == "" {
 		ce.CustomAbort(
-			ce.NewContractError(ce.ErrInput, "missing required fields"),
+			ce.NewContractError(ce.ErrInput, "positive amount0, amount1, and recipient are required"),
 		)
 	}
 
@@ -423,7 +430,7 @@ func RemoveLiquidity(payload *string) *string {
 
 	if lpAmt.Sign() == 0 || params.Recipient == "" {
 		ce.CustomAbort(
-			ce.NewContractError(ce.ErrInput, "missing required fields"),
+			ce.NewContractError(ce.ErrInput, "positive lp_amount and recipient are required"),
 		)
 	}
 
@@ -504,6 +511,8 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string, params types.AddL
 	newLP := new(big.Int).Add(currentLP, minted)
 	setLp(providerAddr.String(), newLP)
 
+	sdk.Log("add_liq|p=" + providerAddr.String() + "|a0=" + amt0.String() + "|a1=" + amt1.String() + "|lp=" + minted.String())
+
 	return nil
 }
 
@@ -565,11 +574,17 @@ func executeRemoveLiquidity(lpAmount *big.Int, provider string) *string {
 		)
 	}
 	if amt0.Sign() == 1 {
-		asset0.TransferAsset(provider, amt0)
+		if err := asset0.TransferAsset(provider, amt0); err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "error transferring asset0 to provider"))
+		}
 	}
 	if amt1.Sign() == 1 {
-		asset1.TransferAsset(provider, amt1)
+		if err := asset1.TransferAsset(provider, amt1); err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "error transferring asset1 to provider"))
+		}
 	}
+
+	sdk.Log("rem_liq|p=" + providerAddr.String() + "|a0=" + amt0.String() + "|a1=" + amt1.String() + "|lp=" + lpAmount.String())
 
 	return nil
 }
@@ -630,7 +645,9 @@ func ClaimFees(payload *string) *string {
 		if asset0.MappingContract() == "" {
 			sdk.HiveWithdraw(sdk.Address(owner), f0, sdk.Asset(asset0.Name()))
 		} else {
-			asset0.TransferAsset(owner, f0)
+			if err := asset0.TransferAsset(owner, f0); err != nil {
+				ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "error transferring fee asset0"))
+			}
 		}
 	}
 	if f1.Sign() == 1 {
@@ -642,7 +659,9 @@ func ClaimFees(payload *string) *string {
 		if asset1.MappingContract() == "" {
 			sdk.HiveWithdraw(sdk.Address(owner), f1, sdk.Asset(asset1.Name()))
 		} else {
-			asset1.TransferAsset(owner, f1)
+			if err := asset1.TransferAsset(owner, f1); err != nil {
+				ce.CustomAbort(ce.WrapContractError(ce.ErrTransaction, err, "error transferring fee asset1"))
+			}
 		}
 	}
 

@@ -137,6 +137,8 @@ func RegisterPool(payload *string) *string {
 	}
 	setStr(poolKey, params.DexContractId)
 
+	sdk.Log("reg_pool|a0=" + params.Asset0 + "|a1=" + params.Asset1 + "|pool=" + params.DexContractId)
+
 	return nil
 }
 
@@ -174,7 +176,7 @@ func Execute(payload *string) *string {
 	if instruction.Type == "" || instruction.Version == "" ||
 		instruction.AssetIn == "" || instruction.AssetOut == "" ||
 		instruction.Recipient == "" {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "missing required fields"))
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "type, version, asset_in, asset_out, and recipient are required"))
 	}
 
 	switch instruction.Type {
@@ -185,7 +187,7 @@ func Execute(payload *string) *string {
 	case "withdrawal":
 		return executeWithdrawal(instruction)
 	default:
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "unknown instruction type"))
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "unknown instruction type: "+instruction.Type))
 		return nil
 	}
 }
@@ -378,7 +380,10 @@ func preFundAsset(asset string, amount string, toPool string, env *sdk.Env) erro
 		if err != nil {
 			return ce.WrapContractError(ce.ErrJson, err, "failed to marshal transferFrom payload")
 		}
-		sdk.ContractCall(mappingContract, "transferFrom", string(payload), &sdk.ContractCallOptions{})
+		result := sdk.ContractCall(mappingContract, "transferFrom", string(payload), &sdk.ContractCallOptions{})
+		if result == nil {
+			return ce.NewContractError(ce.ErrTransaction, "transferFrom on mapping contract returned no result")
+		}
 		return nil
 	}
 
