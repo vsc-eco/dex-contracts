@@ -36,7 +36,8 @@ func loadWasmFile(filename string) ([]byte, error) {
 	path := fmt.Sprintf("%s/%s", artifactsDir, filename)
 	data, err := artifactsFS.ReadFile(path)
 	if err != nil {
-		panic(fmt.Sprintf("wasm file not found: %s", filename))
+		fmt.Printf("warning: wasm file not found: %s\n", filename)
+		return nil, err
 	}
 	return data, nil
 }

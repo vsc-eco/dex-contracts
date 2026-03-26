@@ -81,9 +81,10 @@ func Init(payload *string) *string {
 	setBigInt(keySystemFee0, big.NewInt(0))
 	setBigInt(keySystemFee1, big.NewInt(0))
 	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
-	if params.RouterContract != "" {
-		setStr(keyRouter, params.RouterContract)
+	if params.RouterContract == "" {
+		sdk.Abort("router_contract is required")
 	}
+	setStr(keyRouter, params.RouterContract)
 
 	sdk.Log("pool_init|a0=" + strings.ToLower(params.Asset0) + "|a1=" + strings.ToLower(params.Asset1) + "|fee=" + strconv.FormatUint(params.FeeBps, 10))
 
@@ -612,6 +613,27 @@ func GetPool(_ *string) *string {
 
 	result := string(resultBytes)
 	return &result
+}
+
+// Update the authorized router contract (owner only)
+// Payload: router contract ID string (e.g. "vsc1BoZJMQqpmdLxUfyRt5Tz82YM7Z57r7Dos7")
+//
+//go:wasmexport update_router
+func UpdateRouter(payload *string) *string {
+	env := sdk.GetEnv()
+	ownerPtr := sdk.GetEnvKey("contract.owner")
+	if ownerPtr == nil || env.Caller.String() != *ownerPtr {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrNoPermission, "action must be performed by the contract owner"),
+		)
+	}
+	if payload == nil || *payload == "" {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "router contract ID required"),
+		)
+	}
+	setStr(keyRouter, *payload)
+	return nil
 }
 
 // Claim fees (system only)
