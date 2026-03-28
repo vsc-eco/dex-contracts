@@ -82,11 +82,23 @@ func Init(payload *string) *string {
 	setBigInt(keySystemFee1, big.NewInt(0))
 	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
 	if params.RouterContract == "" {
-		sdk.Abort("router_contract is required")
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "router_contract is required"))
+	}
+	if sdk.VerifyAddress(params.RouterContract) != "contract" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "router_contract must be a valid contract ID"))
 	}
 	setStr(keyRouter, params.RouterContract)
 
-	sdk.Log("pool_init|a0=" + strings.ToLower(params.Asset0) + "|a1=" + strings.ToLower(params.Asset1) + "|fee=" + strconv.FormatUint(params.FeeBps, 10))
+	sdk.Log(
+		"pool_init|a0=" + strings.ToLower(
+			params.Asset0,
+		) + "|a1=" + strings.ToLower(
+			params.Asset1,
+		) + "|fee=" + strconv.FormatUint(
+			params.FeeBps,
+			10,
+		),
+	)
 
 	return nil
 }
@@ -327,7 +339,9 @@ func Swap(payload *string) *string {
 	// log fee and amount swapped
 	sdk.Log(logFee(magiFee, lpFee))
 	sdk.Log(logAmounts(amountIn, amountOut))
-	sdk.Log("swap|in=" + params.AssetIn + "|out=" + params.AssetOut + "|ai=" + amountIn.String() + "|ao=" + amountOut.String() + "|to=" + params.To)
+	sdk.Log(
+		"swap|in=" + params.AssetIn + "|out=" + params.AssetOut + "|ai=" + amountIn.String() + "|ao=" + amountOut.String() + "|to=" + params.To,
+	)
 
 	// Return swap result — use cached names and local reserve values
 	// to avoid redundant state reads.
@@ -512,7 +526,9 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string, params types.AddL
 	newLP := new(big.Int).Add(currentLP, minted)
 	setLp(providerAddr.String(), newLP)
 
-	sdk.Log("add_liq|p=" + providerAddr.String() + "|a0=" + amt0.String() + "|a1=" + amt1.String() + "|lp=" + minted.String())
+	sdk.Log(
+		"add_liq|p=" + providerAddr.String() + "|a0=" + amt0.String() + "|a1=" + amt1.String() + "|lp=" + minted.String(),
+	)
 
 	return nil
 }
@@ -585,7 +601,9 @@ func executeRemoveLiquidity(lpAmount *big.Int, provider string) *string {
 		}
 	}
 
-	sdk.Log("rem_liq|p=" + providerAddr.String() + "|a0=" + amt0.String() + "|a1=" + amt1.String() + "|lp=" + lpAmount.String())
+	sdk.Log(
+		"rem_liq|p=" + providerAddr.String() + "|a0=" + amt0.String() + "|a1=" + amt1.String() + "|lp=" + lpAmount.String(),
+	)
 
 	return nil
 }
@@ -615,26 +633,26 @@ func GetPool(_ *string) *string {
 	return &result
 }
 
-// Update the authorized router contract (owner only)
-// Payload: router contract ID string (e.g. "vsc1BoZJMQqpmdLxUfyRt5Tz82YM7Z57r7Dos7")
-//
-//go:wasmexport update_router
-func UpdateRouter(payload *string) *string {
-	env := sdk.GetEnv()
-	ownerPtr := sdk.GetEnvKey("contract.owner")
-	if ownerPtr == nil || env.Caller.String() != *ownerPtr {
-		ce.CustomAbort(
-			ce.NewContractError(ce.ErrNoPermission, "action must be performed by the contract owner"),
-		)
-	}
-	if payload == nil || *payload == "" {
-		ce.CustomAbort(
-			ce.NewContractError(ce.ErrInput, "router contract ID required"),
-		)
-	}
-	setStr(keyRouter, *payload)
-	return nil
-}
+// // Update the authorized router contract (owner only)
+// // Payload: router contract ID string (e.g. "vsc1BoZJMQqpmdLxUfyRt5Tz82YM7Z57r7Dos7")
+// //
+// //go:wasmexport update_router
+// func UpdateRouter(payload *string) *string {
+// 	env := sdk.GetEnv()
+// 	ownerPtr := sdk.GetEnvKey("contract.owner")
+// 	if ownerPtr == nil || env.Caller.String() != *ownerPtr {
+// 		ce.CustomAbort(
+// 			ce.NewContractError(ce.ErrNoPermission, "action must be performed by the contract owner"),
+// 		)
+// 	}
+// 	if payload == nil || *payload == "" {
+// 		ce.CustomAbort(
+// 			ce.NewContractError(ce.ErrInput, "router contract ID required"),
+// 		)
+// 	}
+// 	setStr(keyRouter, *payload)
+// 	return nil
+// }
 
 // Claim fees (system only)
 //
