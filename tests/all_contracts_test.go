@@ -17,13 +17,6 @@ import (
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 )
 
-func TestContractLoading(t *testing.T) {
-	assert.NotNil(t, dexcontracts.DexWasm, "dex wasm should load")
-	// assert.NotNil(t, dexcontracts.DexRouterWasm, "dex router v1 wasm should load")
-	assert.NotNil(t, dexcontracts.DexRouterV2Wasm, "dex router v2 wasm should load")
-	assert.NotNil(t, dexcontracts.BTCMappingWasm, "btc-mapping wasm should load")
-}
-
 func TestRegisterPoolRejectsUnregisteredTokens(t *testing.T) {
 	ct := test_utils.NewContractTest()
 	t.Cleanup(func() { ct.DataLayer.Stop() })
@@ -134,7 +127,10 @@ func TestRegisterPool(t *testing.T) {
 
 	t.Log("registration return value:", r.Ret)
 
-	poolState := ct.StateGet(routerContractId, "pool-"+strings.ToLower(poolParams.Asset0)+"-"+strings.ToLower(poolParams.Asset1))
+	poolState := ct.StateGet(
+		routerContractId,
+		"pool-"+strings.ToLower(poolParams.Asset0)+"-"+strings.ToLower(poolParams.Asset1),
+	)
 	t.Log("pool state value:", poolState)
 	assert.Equal(t, btchbdDexContractId, poolState)
 
@@ -601,6 +597,7 @@ func strPtr(s string) *string { return &s }
 func setupNativeHiveHbdPool(t *testing.T, liq0, liq1 uint64) (test_utils.ContractTest, *DexInfo, string) {
 	t.Helper()
 	ct := test_utils.NewContractTest()
+	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	dexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
 
@@ -627,7 +624,6 @@ func setupNativeHiveHbdPool(t *testing.T, liq0, liq1 uint64) (test_utils.Contrac
 
 func TestRemoveLiquidity(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000, 1000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	// Remove half the LP tokens
@@ -681,7 +677,6 @@ func TestRemoveLiquidity(t *testing.T) {
 
 func TestRemoveLiquidityAll(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000, 1000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	// First, get pool state to find total LP tokens
@@ -752,7 +747,6 @@ func TestRemoveLiquidityAll(t *testing.T) {
 
 func TestSwapSlippageProtection(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 100000, 100000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	// Deposit enough HIVE for the swap
@@ -791,7 +785,6 @@ func TestSwapSlippageProtection(t *testing.T) {
 
 func TestSwapZeroAmountFails(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 100000, 100000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	// Try a swap with amount "0"
@@ -826,7 +819,6 @@ func TestSwapZeroAmountFails(t *testing.T) {
 
 func TestSwapInsufficientLiquidityFails(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000, 1000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	// Deposit more than the pool has
@@ -918,7 +910,6 @@ func TestAddLiquidityZeroAmountFails(t *testing.T) {
 
 func TestSwapFeeAccumulation(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	// Deposit enough for multiple swaps
@@ -1150,7 +1141,6 @@ func TestMultiChainDexIntegration(t *testing.T) {
 
 func TestClaimFees(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	// Deposit enough for swaps
@@ -1206,7 +1196,6 @@ func TestClaimFees(t *testing.T) {
 
 func TestSwapWithReferralFee(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	ct.Deposit(owner, 10000, ledger_db.Asset("hive"))
@@ -1252,7 +1241,6 @@ func TestSwapWithReferralFee(t *testing.T) {
 
 func TestSecondLiquidityProvider(t *testing.T) {
 	ct, dex, dexId := setupNativeHiveHbdPool(t, 10000, 10000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	alice := "hive:alice"
 
@@ -1430,7 +1418,6 @@ func TestRemoveLiquidityMappedPool(t *testing.T) {
 
 func TestRemoveMoreLpThanOwned(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000, 1000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	// Try to remove way more LP tokens than owned

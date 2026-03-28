@@ -23,7 +23,6 @@ import (
 
 func TestAuditH01_DrawAssetFrom_AttackerCannotUseVictimAddress(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 100000, 100000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	victim := "hive:victim-user"
 	attacker := "hive:attacker"
@@ -64,7 +63,6 @@ func TestAuditH01_DrawAssetFrom_AttackerCannotUseVictimAddress(t *testing.T) {
 
 func TestAuditH01_DrawAssetFrom_LegitimateSwap(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 100000, 100000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
 	ct.Deposit(owner, 10000, ledger_db.Asset("hive"))
@@ -105,7 +103,6 @@ func TestAuditH01_DrawAssetFrom_LegitimateSwap(t *testing.T) {
 
 func TestAuditC04_RemoveLiquidity_NonOwnerRejected(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 10000, 10000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	attacker := "hive:attacker"
 
@@ -129,7 +126,6 @@ func TestAuditC04_RemoveLiquidity_NonOwnerRejected(t *testing.T) {
 
 func TestAuditC04_RemoveLiquidity_OwnerSucceeds(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 10000, 10000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
 
@@ -203,7 +199,6 @@ func TestAuditC04_RemoveLiquidity_RouterSucceeds(t *testing.T) {
 
 func TestAuditH03_ClaimFees_NativePool(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	// Do swaps to accumulate fees
@@ -349,7 +344,6 @@ func TestAuditH03_ClaimFees_MappedPool(t *testing.T) {
 
 func TestAuditM01_SlippageAfterReferral_Fail(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	ct.Deposit(owner, 100000, ledger_db.Asset("hive"))
@@ -397,7 +391,6 @@ func TestAuditM01_SlippageAfterReferral_Fail(t *testing.T) {
 
 func TestAuditM01_SlippageAfterReferral_Pass(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	ct.Deposit(owner, 100000, ledger_db.Asset("hive"))
@@ -705,7 +698,6 @@ func TestAuditL03_EmptyMappingContract_Rejected(t *testing.T) {
 
 func TestAuditL04_SystemSenderInSecondAuth(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	// Accumulate some fees
@@ -767,7 +759,6 @@ func TestAuditL04_SystemSenderInSecondAuth(t *testing.T) {
 
 func TestAuditL04_NonSystemSenderRejected(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	// Non-system user tries to claim fees
 	attacker := "hive:attacker"
@@ -860,7 +851,6 @@ func TestAuditH01_MappedAsset_AttackerCannotUseVictimAddress(t *testing.T) {
 
 func TestAuditH01_PreDeposited_DirectCallRejected(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 100000, 100000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	attacker := "hive:attacker"
 	ct.Deposit(attacker, 10000, ledger_db.Asset("hive"))
@@ -894,7 +884,6 @@ func TestAuditH01_PreDeposited_DirectCallRejected(t *testing.T) {
 
 func TestAuditC04_SecondProvider_CannotStealFirstProviderLP(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 10000, 10000)
-	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
 	alice := "hive:alice"

@@ -67,6 +67,10 @@ func RegisterToken(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "unsupported chain: "+params.Chain))
 	}
 
+	if params.MappingContract != "" && sdk.VerifyAddress(params.MappingContract) != "contract" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "mapping_contract must be a valid contract ID"))
+	}
+
 	if isAssetRegistered(name) {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "asset already registered"))
 	}
@@ -130,6 +134,10 @@ func RegisterPool(payload *string) *string {
 		params.Asset0, params.Asset1 = params.Asset1, params.Asset0
 	}
 
+	if sdk.VerifyAddress(params.DexContractId) != "contract" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "dex_contract_id must be a valid contract ID"))
+	}
+
 	// Store pool mapping (reject if pool already exists)
 	poolKey := poolKeyForAssets(params.Asset0, params.Asset1)
 	if existing := getStr(poolKey); existing != "" {
@@ -155,7 +163,7 @@ func Execute(payload *string) *string {
 	// Auth: either the sender signed with active auth (direct user call),
 	// or the caller is a contract (swap-via-map from mapping contract).
 	env := sdk.GetEnv()
-	callerIsContract := env.Caller.Domain() == sdk.AddressDomainContract
+	callerIsContract := sdk.VerifyAddress(env.Caller.String()) == "contract"
 	senderHasAuth := false
 	for _, auth := range env.Sender.RequiredAuths {
 		if auth == env.Sender.Address {
@@ -176,7 +184,12 @@ func Execute(payload *string) *string {
 	if instruction.Type == "" || instruction.Version == "" ||
 		instruction.AssetIn == "" || instruction.AssetOut == "" ||
 		instruction.Recipient == "" {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "type, version, asset_in, asset_out, and recipient are required"))
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "type, version, asset_in, asset_out, and recipient are required"),
+		)
+	}
+	if sdk.VerifyAddress(instruction.Recipient) == "unknown" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "recipient address ["+instruction.Recipient+"] invalid"))
 	}
 
 	switch instruction.Type {
