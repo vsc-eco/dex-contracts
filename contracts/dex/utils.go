@@ -11,16 +11,16 @@ import (
 
 // Keys for state storage
 const (
-	keyAsset0       = "a1"
-	keyAsset1       = "a2"
-	keyReserve0     = "r0"
-	keyReserve1     = "r1"
-	keyFee          = "fee"
-	keyTotalLP      = "tlp"
-	keyLpPrefix     = "lp" + types.DirPathDelimiter // lp-{address}
-	keySystemFee0   = "f0"
-	keySystemFee1   = "f1"
-	keyFeeLastClaim = "flc"
+	keyAsset0         = "a1"
+	keyAsset1         = "a2"
+	keyReserve0       = "r0"
+	keyReserve1       = "r1"
+	keyFee            = "fee"
+	keyTotalLP        = "tlp"
+	keyLpPrefix       = "lp" + types.DirPathDelimiter // lp-{address}
+	keySystemFee0     = "f0"
+	keySystemFee1     = "f1"
+	keyFeeLastClaim   = "flc"
 	keyRouter         = "rtr" // authorized router contract ID
 	keyAsset0Name     = "a1n" // cached asset0 lowercase name (avoids JSON unmarshal)
 	keyAsset1Name     = "a2n" // cached asset1 lowercase name
@@ -149,19 +149,6 @@ func contractAssert(cond bool, msgs ...string) {
 		}
 		sdk.Abort(msg)
 	}
-}
-
-func isSystemSender() bool {
-	env := sdk.GetEnv()
-	if env.Sender.Address.Domain() == sdk.AddressDomainSystem {
-		return true
-	}
-	for _, auth := range env.Sender.RequiredAuths {
-		if auth.Domain() == sdk.AddressDomainSystem {
-			return true
-		}
-	}
-	return false
 }
 
 func logFee(magiFee, lpFee *big.Int) string {

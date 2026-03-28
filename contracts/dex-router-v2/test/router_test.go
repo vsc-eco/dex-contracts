@@ -20,14 +20,14 @@ func TestPoolRegistration(t *testing.T) {
 			name:            "normal order",
 			asset0:          "HBD",
 			asset1:          "HIVE",
-			dexContract:     "dex-hbd-hive-123",
+			dexContract:     "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj",
 			shouldNormalize: false,
 		},
 		{
 			name:            "reverse order should normalize",
 			asset0:          "HIVE",
 			asset1:          "HBD",
-			dexContract:     "dex-hbd-hive-123",
+			dexContract:     "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj",
 			shouldNormalize: true,
 		},
 	}
@@ -70,9 +70,9 @@ func TestFindPool(t *testing.T) {
 			assetA: "HBD",
 			assetB: "HIVE",
 			pools: map[string]string{
-				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-123",
+				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj",
 			},
-			expected:   "dex-hbd-hive-123",
+			expected:   "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj",
 			shouldFind: true,
 		},
 		{
@@ -80,9 +80,9 @@ func TestFindPool(t *testing.T) {
 			assetA: "HIVE",
 			assetB: "HBD",
 			pools: map[string]string{
-				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-123",
+				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj",
 			},
-			expected:   "dex-hbd-hive-123",
+			expected:   "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj",
 			shouldFind: true,
 		},
 		{
@@ -90,7 +90,7 @@ func TestFindPool(t *testing.T) {
 			assetA: "BTC",
 			assetB: "ETH",
 			pools: map[string]string{
-				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-123",
+				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj",
 			},
 			expected:   "",
 			shouldFind: false,
@@ -135,11 +135,11 @@ func TestTwoHopRouting(t *testing.T) {
 			assetIn:  "BTC",
 			assetOut: "HIVE",
 			pools: map[string]string{
-				"pool" + types.DirPathDelimiter + "BTC" + types.DirPathDelimiter + "HBD":  "dex-btc-hbd-123",
-				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-456",
+				"pool" + types.DirPathDelimiter + "BTC" + types.DirPathDelimiter + "HBD":  "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3",
+				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F",
 			},
-			expectedHop1: "dex-btc-hbd-123",
-			expectedHop2: "dex-hbd-hive-456",
+			expectedHop1: "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3",
+			expectedHop2: "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F",
 			shouldRoute:  true,
 		},
 		{
@@ -147,8 +147,8 @@ func TestTwoHopRouting(t *testing.T) {
 			assetIn:  "BTC",
 			assetOut: "ETH",
 			pools: map[string]string{
-				"pool" + types.DirPathDelimiter + "BTC" + types.DirPathDelimiter + "HBD":  "dex-btc-hbd-123",
-				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "dex-hbd-hive-456",
+				"pool" + types.DirPathDelimiter + "BTC" + types.DirPathDelimiter + "HBD":  "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3",
+				"pool" + types.DirPathDelimiter + "HBD" + types.DirPathDelimiter + "HIVE": "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F",
 			},
 			shouldRoute: false,
 		},
@@ -360,8 +360,8 @@ func TestMappedAssetIntentBuilding(t *testing.T) {
 	tokenRegistry := map[string]tokenInfo{
 		"hbd":  {MappingContract: "", Chain: "HIVE"},
 		"hive": {MappingContract: "", Chain: "HIVE"},
-		"btc":  {MappingContract: "btc_mapping_contract_123", Chain: "BTC"},
-		"eth":  {MappingContract: "eth_mapping_contract_456", Chain: "ETH"},
+		"btc":  {MappingContract: "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj", Chain: "BTC"},
+		"eth":  {MappingContract: "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3", Chain: "ETH"},
 	}
 
 	tests := []struct {
@@ -388,14 +388,14 @@ func TestMappedAssetIntentBuilding(t *testing.T) {
 			assetIn:        "btc",
 			amountIn:       "10000000",
 			expectIntent:   true,
-			expectContract: "btc_mapping_contract_123",
+			expectContract: "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj",
 		},
 		{
 			name:           "mapped ETH - intent with mapping contract",
 			assetIn:        "eth",
 			amountIn:       "2000000000000000000",
 			expectIntent:   true,
-			expectContract: "eth_mapping_contract_456",
+			expectContract: "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3",
 		},
 		{
 			name:         "unregistered asset - no intent (no mapping contract)",
@@ -459,7 +459,7 @@ func TestTwoHopIntentForwarding(t *testing.T) {
 
 	tokenRegistry := map[string]tokenInfo{
 		"hbd":  {MappingContract: "", Chain: "HIVE"},
-		"btc":  {MappingContract: "btc_mapping_contract", Chain: "BTC"},
+		"btc":  {MappingContract: "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F", Chain: "BTC"},
 		"hive": {MappingContract: "", Chain: "HIVE"},
 	}
 
@@ -518,7 +518,7 @@ func TestDepositMappedAssetIntents(t *testing.T) {
 		MappingContract string
 	}
 	tokenRegistry := map[string]tokenInfo{
-		"btc": {MappingContract: "btc_mapping"},
+		"btc": {MappingContract: "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"},
 		"hbd": {MappingContract: ""},
 	}
 

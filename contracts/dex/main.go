@@ -37,6 +37,13 @@ func Init(payload *string) *string {
 		sdk.Abort("assets must be different")
 	}
 
+	if params.Asset0MappingContract != "" && sdk.VerifyAddress(params.Asset0MappingContract) != "contract" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "asset0_mapping_contract must be a valid contract ID"))
+	}
+	if params.Asset1MappingContract != "" && sdk.VerifyAddress(params.Asset1MappingContract) != "contract" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "asset1_mapping_contract must be a valid contract ID"))
+	}
+
 	asset0, err := asset.NewAsset(params.Asset0, params.Asset0MappingContract)
 	if err != nil {
 		sdk.Abort(err.Error())
@@ -126,6 +133,11 @@ func Swap(payload *string) *string {
 	if params.AssetIn == "" || params.AssetOut == "" || params.To == "" {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInput, "asset_in, asset_out, and recipient are required"),
+		)
+	}
+	if sdk.VerifyAddress(params.To) == "unknown" {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "to address ["+params.To+"] invalid"),
 		)
 	}
 
@@ -250,10 +262,10 @@ func Swap(payload *string) *string {
 
 	maybeEnv := types.MaybeEnv{}
 
-	from := sdk.Address(params.From)
-	if !from.IsValid() {
+	if sdk.VerifyAddress(params.From) == "unknown" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "from address ["+params.From+"] invalid"))
 	}
+	from := sdk.Address(params.From)
 
 	// SECURITY: Only trust PreDeposited from the authorized Router contract.
 	// A direct call with PreDeposited=true would skip the deposit and drain the pool.
@@ -275,6 +287,11 @@ func Swap(payload *string) *string {
 	// Handle referral fees (calculate before state updates)
 	var refOut *big.Int
 	if params.Beneficiary != nil && params.RefBps != nil {
+		if sdk.VerifyAddress(*params.Beneficiary) == "unknown" {
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrInput, "beneficiary address ["+*params.Beneficiary+"] invalid"),
+			)
+		}
 		if *params.RefBps > 10000 {
 			ce.CustomAbort(
 				ce.NewContractError(ce.ErrInput, "ref bps ["+strconv.FormatUint(*params.RefBps, 10)+"] > 10000"),
@@ -413,6 +430,11 @@ func AddLiquidity(payload *string) *string {
 			ce.NewContractError(ce.ErrInput, "positive amount0, amount1, and recipient are required"),
 		)
 	}
+	if sdk.VerifyAddress(params.Recipient) == "unknown" {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "recipient address ["+params.Recipient+"] invalid"),
+		)
+	}
 
 	return executeAddLiquidity(amt0, amt1, params.Recipient, params)
 }
@@ -446,6 +468,11 @@ func RemoveLiquidity(payload *string) *string {
 	if lpAmt.Sign() == 0 || params.Recipient == "" {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInput, "positive lp_amount and recipient are required"),
+		)
+	}
+	if sdk.VerifyAddress(params.Recipient) == "unknown" {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "recipient address ["+params.Recipient+"] invalid"),
 		)
 	}
 
@@ -541,7 +568,7 @@ func executeRemoveLiquidity(lpAmount *big.Int, provider string) *string {
 	env := sdk.GetEnv()
 	routerId := getStr(keyRouter)
 	isRouter := routerId != "" && env.Caller.String() == "contract:"+routerId
-	if env.Caller.String() != providerAddr.String() && !isRouter && !isSystemSender() {
+	if env.Caller.String() != providerAddr.String() && !isRouter {
 		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "caller is not the LP owner"))
 	}
 
@@ -658,12 +685,6 @@ func GetPool(_ *string) *string {
 //
 //go:wasmexport claim_fees
 func ClaimFees(payload *string) *string {
-	if !isSystemSender() {
-		ce.CustomAbort(
-			ce.NewContractError(ce.ErrAuth, "system administrator only"),
-		)
-	}
-
 	// Fee destination: contract owner receives fees.
 	// HiveWithdraw requires a valid hive: address and only supports HBD.
 	// Mapped assets are transferred via the mapping contract.
