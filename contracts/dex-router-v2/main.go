@@ -428,7 +428,20 @@ func executeDeposit(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 must be a valid number"))
 	}
 
+	// Normalize: the pool's asset0 is always the alphabetically first asset.
+	// If AssetIn is NOT asset0, the user's amount0 corresponds to asset1 and
+	// amount1 corresponds to asset0. Swap them so the pool gets the right mapping.
+	assetInLower := strings.ToLower(instruction.AssetIn)
+	assetOutLower := strings.ToLower(instruction.AssetOut)
+	depositAmt0 := amt0
+	depositAmt1 := amt1
+	if assetInLower > assetOutLower {
+		// AssetIn is asset1 (not asset0), so swap the amounts
+		depositAmt0, depositAmt1 = depositAmt1, depositAmt0
+	}
+
 	// Pre-fund both assets into the pool (mapped via transferFrom, native via HiveDraw+HiveTransfer).
+	// Pre-fund using the ORIGINAL asset-to-amount mapping (not the swapped pool amounts).
 	env := sdk.GetEnv()
 	err := preFundAsset(instruction.AssetIn, amt0, poolId, &env)
 	if err != nil {
@@ -440,9 +453,10 @@ func executeDeposit(instruction types.DexInstruction) *string {
 	}
 
 	// All assets are pre-deposited — pool skips DrawAssetFrom for both.
+	// Use the NORMALIZED amounts that match the pool's asset0/asset1 ordering.
 	addLiqParams := types.AddLiquidityParams{
-		Amount0:       amt0,
-		Amount1:       amt1,
+		Amount0:       depositAmt0,
+		Amount1:       depositAmt1,
 		Recipient:     instruction.Recipient,
 		PreDeposited0: true,
 		PreDeposited1: true,
