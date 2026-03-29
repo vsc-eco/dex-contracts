@@ -202,7 +202,7 @@ func Swap(payload *string) *string {
 
 	// baseFee = amountIn * feeBps / 10000
 	amountIn, ok := new(big.Int).SetString(params.AmountIn, 10)
-	if !ok {
+	if !ok || amountIn.Sign() <= 0 {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInput, "invalid input amount"),
 		)
