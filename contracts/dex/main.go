@@ -37,10 +37,10 @@ func Init(payload *string) *string {
 		sdk.Abort("assets must be different")
 	}
 
-	if params.Asset0MappingContract != "" && sdk.VerifyAddress(params.Asset0MappingContract) != "contract" {
+	if params.Asset0MappingContract != "" && sdk.VerifyAddress("contract:"+params.Asset0MappingContract) != "contract" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "asset0_mapping_contract must be a valid contract ID"))
 	}
-	if params.Asset1MappingContract != "" && sdk.VerifyAddress(params.Asset1MappingContract) != "contract" {
+	if params.Asset1MappingContract != "" && sdk.VerifyAddress("contract:"+params.Asset1MappingContract) != "contract" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "asset1_mapping_contract must be a valid contract ID"))
 	}
 
@@ -91,7 +91,7 @@ func Init(payload *string) *string {
 	if params.RouterContract == "" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "router_contract is required"))
 	}
-	if sdk.VerifyAddress(params.RouterContract) != "contract" {
+	if sdk.VerifyAddress("contract:"+params.RouterContract) != "contract" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "router_contract must be a valid contract ID"))
 	}
 	setStr(keyRouter, params.RouterContract)

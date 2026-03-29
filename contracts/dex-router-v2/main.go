@@ -67,7 +67,7 @@ func RegisterToken(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "unsupported chain: "+params.Chain))
 	}
 
-	if params.MappingContract != "" && sdk.VerifyAddress(params.MappingContract) != "contract" {
+	if params.MappingContract != "" && sdk.VerifyAddress("contract:"+params.MappingContract) != "contract" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "mapping_contract must be a valid contract ID"))
 	}
 
@@ -134,7 +134,7 @@ func RegisterPool(payload *string) *string {
 		params.Asset0, params.Asset1 = params.Asset1, params.Asset0
 	}
 
-	if sdk.VerifyAddress(params.DexContractId) != "contract" {
+	if sdk.VerifyAddress("contract:"+params.DexContractId) != "contract" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "dex_contract_id must be a valid contract ID"))
 	}
 
