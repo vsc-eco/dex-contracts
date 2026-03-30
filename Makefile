@@ -10,6 +10,7 @@ TINYJSON_FLAGS	:= -snake_case -no_std_marshalers -pkg
 
 TINYGO_IMAGE := tinygo/tinygo:0.39.0
 WORKDIR      := /work
+MODULE       := github.com/vsc-eco/dex-contracts
 
 .PHONY: test build clean contracts services sdk tinyjson contracts-test
 
@@ -47,22 +48,48 @@ contracts:
 			name=$$(basename $$dir); \
 			wasm_file="$(BIN_DIR)/$$name.wasm"; \
 			\
-# 			# Check if wasm exists and find if any file in 'dir' is newer \
-# 			if [ -f "$$wasm_file" ] && [ -z "$$(find $$dir/.. -type f -not -name "*.wasm" -newer $$wasm_file)" ]; then \
-# 				echo "  ⏩ $$name is up to date, skipping"; \
-# 				continue; \
-# 			fi; \
+			# Check if rebuild needed by scanning local package imports (transitive) \
+			if [ -f "$$wasm_file" ]; then \
+				dep_dirs="$$dir"; \
+				queue="$$dir"; \
+				while [ -n "$$queue" ]; do \
+					next_queue=""; \
+					for d in $$queue; do \
+						for imp in $$(grep -roh '"$(MODULE)/[^"]*"' "$$d"/*.go 2>/dev/null | tr -d '"' | sed 's|$(MODULE)/||' | sort -u); do \
+							resolved="$(ROOT_DIR)/$$imp"; \
+							case " $$dep_dirs " in \
+								*" $$resolved "*) ;; \
+								*) [ -d "$$resolved" ] && dep_dirs="$$dep_dirs $$resolved" && next_queue="$$next_queue $$resolved" ;; \
+							esac; \
+						done; \
+					done; \
+					queue="$$next_queue"; \
+				done; \
+				needs_rebuild=0; \
+				for dep_dir in $$dep_dirs; do \
+					if find "$$dep_dir" -maxdepth 1 -type f -name '*.go' -newer "$$wasm_file" 2>/dev/null | grep -q .; then \
+						needs_rebuild=1; \
+						break; \
+					fi; \
+				done; \
+				if [ "$$needs_rebuild" -eq 0 ] && \
+				   [ ! "$(ROOT_DIR)/go.mod" -nt "$$wasm_file" ] && \
+				   [ ! "$(ROOT_DIR)/go.sum" -nt "$$wasm_file" ]; then \
+					echo "  ⏩ $$name is up to date, skipping"; \
+					continue; \
+				fi; \
+			fi; \
 			\
 			echo "Building contract $$name"; \
-			if [ "$(USE_DOCKER)" = "1" ]; then \
+			if [ "$(USE_DOCKER)" = "0" ]; then \
+				(cd $$dir && $(TINYGO_EXEC) build $(WASM_FLAGS) -o $$wasm_file .); \
+			else \
 				docker run --rm \
 					-u $$(id -u):$$(id -g) \
 					-v $(CURDIR):$(WORKDIR) \
 					-w $(WORKDIR)/$$dir \
 					$(TINYGO_IMAGE) \
 					tinygo build $(WASM_FLAGS) -o $(WORKDIR)/bin/$$name.wasm .; \
-			else \
-				(cd $$dir && $(TINYGO_EXEC) build $(WASM_FLAGS) -o $$wasm_file .); \
 			fi; \
 			\
 			if [ $$? -eq 0 ]; then \
