@@ -164,10 +164,10 @@ func TestAddLiquidityNativePool(t *testing.T) {
 	ct.Deposit(owner, 1000, "hive")
 
 	hivehbdDexContractId := "vsc1BmLNMQep1RaaUdYTPfEhqn1inESqNz4Ekt"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct.RegisterContract(hivehbdDexContractId, "milo.hpr", dexcontracts.DexWasm)
-
-	id := 0
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
 
 	hivehbdDex := &DexInfo{
 		ct: &ct,
@@ -175,13 +175,13 @@ func TestAddLiquidityNativePool(t *testing.T) {
 	}
 
 	r := hivehbdDex.initPool(t, owner, &types.InitParams{
-		Asset0: "HIVE",
-		Asset1: "HBD",
+		Asset0:         "HIVE",
+		Asset1:         "HBD",
+		RouterContract: routerId,
 	})
 	if !r.Success {
 		t.Fatalf("error initializing HIVE/HBD pool: %s", r.Ret)
 	}
-	id++
 
 	r = hivehbdDex.addLiquidity(t, owner, 900, 1000)
 
@@ -193,6 +193,7 @@ func TestAddLiquidityNativePool(t *testing.T) {
 }
 
 func TestAddLiquidityMappedPool(t *testing.T) {
+	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
@@ -201,9 +202,11 @@ func TestAddLiquidityMappedPool(t *testing.T) {
 
 	btchbdDexId := "vsc1BmLNMQep1RaaUdYTPfEhqn1inESqNz4Ekt"
 	btcMappingId := "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
 	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
 	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 1000000))
 	s := ct.StateGet(btcMappingId, constants.BalancePrefix+owner)
 	var buf [8]byte
@@ -220,6 +223,7 @@ func TestAddLiquidityMappedPool(t *testing.T) {
 		Asset1:                "hbd",
 		FeeBps:                100,
 		Asset0MappingContract: btcMappingId,
+		RouterContract:        routerId,
 	})
 	if !r.Success {
 		t.Fatalf("error initializing BTC/HBD pool: %s: %s", r.Err, r.ErrMsg)
@@ -339,6 +343,7 @@ func TestOneHopNative(t *testing.T) {
 }
 
 func TestOneHopMapped(t *testing.T) {
+	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
@@ -439,6 +444,7 @@ func TestOneHopMapped(t *testing.T) {
 }
 
 func TestTwoHop(t *testing.T) {
+	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
@@ -600,15 +606,18 @@ func setupNativeHiveHbdPool(t *testing.T, liq0, liq1 uint64) (test_utils.Contrac
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	dexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct.RegisterContract(dexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
 
 	dex := &DexInfo{ct: &ct, id: dexId}
 
 	r := dex.initPool(t, owner, &types.InitParams{
-		Asset0: "hive",
-		Asset1: "hbd",
-		FeeBps: 30,
+		Asset0:         "hive",
+		Asset1:         "hbd",
+		FeeBps:         30,
+		RouterContract: routerId,
 	})
 	if !r.Success {
 		t.Fatalf("error initializing HIVE/HBD pool: %s: %s", r.Err, r.ErrMsg)
@@ -859,15 +868,18 @@ func TestAddLiquidityZeroAmountFails(t *testing.T) {
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	dexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct.RegisterContract(dexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
 
 	dex := &DexInfo{ct: &ct, id: dexId}
 
 	r := dex.initPool(t, owner, &types.InitParams{
-		Asset0: "hive",
-		Asset1: "hbd",
-		FeeBps: 30,
+		Asset0:         "hive",
+		Asset1:         "hbd",
+		FeeBps:         30,
+		RouterContract: routerId,
 	})
 	if !r.Success {
 		t.Fatalf("error initializing pool: %s: %s", r.Err, r.ErrMsg)
@@ -1027,6 +1039,8 @@ func TestMultiChainDexIntegration(t *testing.T) {
 
 	for _, chain := range chains {
 		t.Run(chain.name, func(t *testing.T) {
+			requireWasm(t, chain.name, chain.wasm)
+
 			ct := test_utils.NewContractTest()
 			t.Cleanup(func() { ct.DataLayer.Stop() })
 			owner := "hive:milo-hpr"
@@ -1333,6 +1347,7 @@ func TestSecondLiquidityProvider(t *testing.T) {
 }
 
 func TestRemoveLiquidityMappedPool(t *testing.T) {
+	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
@@ -1341,9 +1356,11 @@ func TestRemoveLiquidityMappedPool(t *testing.T) {
 
 	btchbdDexId := "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3"
 	btcMappingId := "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
 	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
 	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 1000000))
 
 	btchbdDex := &DexInfo{ct: &ct, id: btchbdDexId}
@@ -1353,6 +1370,7 @@ func TestRemoveLiquidityMappedPool(t *testing.T) {
 		Asset1:                "hbd",
 		FeeBps:                100,
 		Asset0MappingContract: btcMappingId,
+		RouterContract:        routerId,
 	})
 	if !r.Success {
 		t.Fatalf("error initializing BTC/HBD pool: %s: %s", r.Err, r.ErrMsg)
@@ -1659,9 +1677,10 @@ func TestRouterGetPool(t *testing.T) {
 	// Init the DEX pool
 	hivehbdDex := &DexInfo{ct: &ct, id: hivehbdDexId}
 	r = hivehbdDex.initPool(t, owner, &types.InitParams{
-		Asset0: "hive",
-		Asset1: "hbd",
-		FeeBps: 30,
+		Asset0:         "hive",
+		Asset1:         "hbd",
+		FeeBps:         30,
+		RouterContract: routerContractId,
 	})
 	if !r.Success {
 		t.Fatalf("error initializing pool: %s: %s", r.Err, r.ErrMsg)
@@ -1698,15 +1717,18 @@ func TestRouterGetPool(t *testing.T) {
 }
 
 func TestSwapMappedToNative(t *testing.T) {
+	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
 	btchbdDexId := "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3"
 	btcMappingId := "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
 	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
 
 	btchbdDex := &DexInfo{ct: &ct, id: btchbdDexId}
 
@@ -1715,6 +1737,7 @@ func TestSwapMappedToNative(t *testing.T) {
 		Asset1:                "hbd",
 		FeeBps:                100,
 		Asset0MappingContract: btcMappingId,
+		RouterContract:        routerId,
 	})
 	if !r.Success {
 		t.Fatalf("error initializing BTC/HBD pool: %s: %s", r.Err, r.ErrMsg)

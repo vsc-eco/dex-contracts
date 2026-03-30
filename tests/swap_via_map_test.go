@@ -27,6 +27,150 @@ import (
 	"btc-mapping-contract/contract/mapping"
 )
 
+// TestSwapViaMapToHive exercises the cross-chain settlement path:
+// BTC is swapped for HBD, and the HBD is withdrawn to a Hive mainnet account
+// via HiveWithdraw instead of settling on Magi.
+//
+// The instruction includes destination_chain=HIVE, which tells the router
+// to bridge the swap output to Hive mainnet.
+func TestSwapViaMapToHive(t *testing.T) {
+	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
+	const blockHeight = uint32(100)
+	const swapAmount = int64(10_000_000) // 0.1 BTC in satoshis
+	const recipient = "hive:milo-vsc"   // Hive mainnet destination
+	const oracle = "did:vsc:oracle:btc"
+	const owner = "hive:milo-hpr"
+
+	instruction := "swap_to=" + recipient + "&swap_asset_out=hbd&destination_chain=HIVE"
+	rawTxHex, blockHeaderRaw := buildSwapMapFixture(t, instruction, swapAmount)
+
+	ct := test_utils.NewContractTest()
+	t.Cleanup(func() { ct.DataLayer.Stop() })
+
+	btcMappingId := "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj"
+	btchbdDexId := "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3"
+	routerContractId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
+
+	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
+	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(routerContractId, owner, dexcontracts.DexRouterV2Wasm)
+
+	router := &RouterInfo{ct: &ct, id: routerContractId}
+	btchbdDex := &DexInfo{ct: &ct, id: btchbdDexId}
+
+	// Register tokens in the router
+	r := router.registerToken(t, owner, types.RegisterTokenParams{
+		Name:      "BTC",
+		TokenInfo: types.TokenInfo{Chain: "BTC", MappingContract: btcMappingId},
+	})
+	if !r.Success {
+		t.Fatalf("register BTC token: %s", r.Ret)
+	}
+	r = router.registerToken(t, owner, types.RegisterTokenParams{
+		Name:      "HBD",
+		TokenInfo: types.TokenInfo{Chain: "HIVE"},
+	})
+	if !r.Success {
+		t.Fatalf("register HBD token: %s", r.Ret)
+	}
+
+	r = router.registerPool(t, owner, types.RegisterPoolParams{
+		Asset0:        "btc",
+		Asset1:        "hbd",
+		DexContractId: btchbdDexId,
+	})
+	if !r.Success {
+		t.Fatalf("register pool: %s", r.Ret)
+	}
+
+	r = btchbdDex.initPool(t, owner, &types.InitParams{
+		Asset0:                "btc",
+		Asset1:                "hbd",
+		FeeBps:                100,
+		Asset0MappingContract: btcMappingId,
+		RouterContract:        routerContractId,
+	})
+	if !r.Success {
+		t.Fatalf("init pool: %s: %s", r.Err, r.ErrMsg)
+	}
+
+	// Seed liquidity
+	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 2_00000000))
+	ct.StateSet(btcMappingId, constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId, formatUintAsBytes(t, 2_00000000))
+	r = btchbdDex.addLiquidity(t, owner, 1_49000000, 100000_000)
+	if !r.Success {
+		t.Fatalf("add liquidity: %s: %s", r.Err, r.ErrMsg)
+	}
+
+	// Seed BTC mapping contract state
+	ct.StateSet(btcMappingId, btcconstants.SupplyKey,
+		string(mapping.MarshalSupply(&mapping.SystemSupply{BaseFeeRate: 1})))
+	ct.StateSet(btcMappingId, constants.LastHeightKey, strconv.Itoa(int(blockHeight)))
+	ct.StateSet(btcMappingId, btcconstants.BlockPrefix+strconv.Itoa(int(blockHeight)), blockHeaderRaw)
+	ct.StateSet(btcMappingId, btcconstants.PrimaryPublicKeyStateKey,
+		swapTestDecodeHex(t, swapTestPrimaryPubKeyHex))
+	ct.StateSet(btcMappingId, btcconstants.BackupPublicKeyStateKey,
+		swapTestDecodeHex(t, swapTestBackupPubKeyHex))
+	ct.StateSet(btcMappingId, btcconstants.RouterContractIdKey, routerContractId)
+
+	params := mapping.MapParams{
+		TxData: &mapping.VerificationRequest{
+			BlockHeight:    blockHeight,
+			RawTxHex:       rawTxHex,
+			MerkleProofHex: "",
+			TxIndex:        0,
+		},
+		Instructions: []string{instruction},
+	}
+	payload, err := tinyjson.Marshal(params)
+	if err != nil {
+		t.Fatal("marshal params:", err)
+	}
+
+	mapResult := ct.Call(state_engine.TxVscCallContract{
+		Self: state_engine.TxSelf{
+			TxId:                 "oracle_map_tx_hive",
+			BlockId:              "block:map:hive",
+			BlockHeight:          1,
+			Index:                0,
+			OpIndex:              0,
+			Timestamp:            "2025-10-14T00:00:00",
+			RequiredAuths:        []string{owner},
+			RequiredPostingAuths: []string{},
+		},
+		ContractId: btcMappingId,
+		Action:     "map",
+		Payload:    payload,
+		RcLimit:    100000,
+		Intents: []contracts.Intent{
+			{
+				Type: "transfer.allow",
+				Args: map[string]string{
+					"token":       "btc",
+					"limit":       "10000000",
+					"contract_id": btcMappingId,
+				},
+			},
+		},
+		Caller: oracle,
+	})
+
+	dumpLogs(t, mapResult.Logs)
+	dumpStateDiff(t, mapResult.StateDiff)
+
+	assert.True(t, mapResult.Success, "map+swap+withdraw should succeed: "+mapResult.Err+": "+mapResult.ErrMsg)
+	t.Log("return:", mapResult.Ret)
+	t.Log("gas used:", mapResult.GasUsed)
+
+	// With destination_chain=HIVE, the HBD is withdrawn to Hive mainnet
+	// via HiveWithdraw — so the Magi ledger balance should be 0
+	// (the output went to the external chain, not Magi).
+	magiBalance := ct.LedgerSession.GetBalance(recipient, 1, "hbd")
+	t.Log("recipient magi hbd balance (should be 0):", magiBalance)
+	assert.Equal(t, int64(0), magiBalance,
+		"HBD should NOT land on Magi — it was withdrawn to Hive mainnet")
+}
+
 // Well-known secp256k1 test vectors (same keys used by btc-mapping-contract tests).
 const (
 	swapTestPrimaryPubKeyHex = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
@@ -117,6 +261,7 @@ func buildSwapMapFixture(t *testing.T, instruction string, amount int64) (rawTxH
 //  3. The mapping contract credits the oracle's BTC balance, then calls the DEX
 //     router, which swaps BTC for HBD and delivers HBD to the recipient.
 func TestSwapViaMap(t *testing.T) {
+	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	const blockHeight = uint32(100)
 	const swapAmount = int64(10_000_000) // 0.1 BTC in satoshis
 	const recipient = "hive:milo-vsc"
