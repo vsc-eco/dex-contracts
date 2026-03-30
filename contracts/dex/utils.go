@@ -10,39 +10,6 @@ import (
 	"github.com/vsc-eco/dex-contracts/sdk"
 )
 
-// Keys for state storage
-const (
-	keyAsset0         = "a1"
-	keyAsset1         = "a2"
-	keyReserve0       = "r0"
-	keyReserve1       = "r1"
-	keyFee            = "fee"
-	keyTotalLP        = "tlp"
-	keyLpPrefix       = "lp" + types.DirPathDelimiter // lp-{address}
-	keySystemFee0     = "f0"
-	keySystemFee1     = "f1"
-	keyFeeLastClaim   = "flc"
-	keyRouter         = "rtr" // authorized router contract ID
-	keyAsset0Name     = "a1n" // cached asset0 lowercase name (avoids JSON unmarshal)
-	keyAsset1Name     = "a2n" // cached asset1 lowercase name
-	keyMigrateVersion = "mv"  // migration version tracker
-)
-
-const (
-	JSON_ERROR = "json_error"
-)
-
-const (
-	defaultBaseFeeBps = 8 // 0.08%
-)
-
-// Logs
-const (
-	logDelimiter    = "|"
-	logKeyDelimiter = "="
-	// logArrayDelimiter = ","
-)
-
 // State helpers
 func getStr(key string) string {
 	v := sdk.StateGetObject(key)
@@ -73,73 +40,51 @@ func setBigInt(key string, val *big.Int) {
 
 // Pool state helpers
 func getAsset0() (asset.Asset, error) {
-	assetStr := getStr(keyAsset0)
-
-	asset0, err := asset.AssetFromJson(assetStr)
-	if err != nil {
-		return nil, err
-	}
-
-	return asset0, nil
+	return asset.NewAsset(getStr(types.KeyAsset0Name), getStr(types.KeyAsset0Mapping))
 }
 
 func getAsset1() (asset.Asset, error) {
-	assetStr := getStr(keyAsset1)
-
-	asset1, err := asset.AssetFromJson(assetStr)
-	if err != nil {
-		return nil, err
-	}
-
-	return asset1, nil
+	return asset.NewAsset(getStr(types.KeyAsset1Name), getStr(types.KeyAsset1Mapping))
 }
 
 func getReserve0() *big.Int {
-	return getBigInt(keyReserve0)
+	return getBigInt(types.KeyReserve0)
 }
 
 func getReserve1() *big.Int {
-	return getBigInt(keyReserve1)
+	return getBigInt(types.KeyReserve1)
 }
 
 func getFee() *big.Int {
-	return getBigInt(keyFee)
+	return getBigInt(types.KeyFee)
 }
 
 func getTotalLp() *big.Int {
-	return getBigInt(keyTotalLP)
+	return getBigInt(types.KeyTotalLP)
 }
 
 func getLp(address string) *big.Int {
-	return getBigInt(keyLpPrefix + address)
-}
-
-func setAsset0(asset string) {
-	setStr(keyAsset0, asset)
-}
-
-func setAsset1(asset string) {
-	setStr(keyAsset1, asset)
+	return getBigInt(types.KeyLpPrefix + address)
 }
 
 func setReserve0(reserve *big.Int) {
-	setBigInt(keyReserve0, reserve)
+	setBigInt(types.KeyReserve0, reserve)
 }
 
 func setReserve1(reserve *big.Int) {
-	setBigInt(keyReserve1, reserve)
+	setBigInt(types.KeyReserve1, reserve)
 }
 
 func setFee(fee *big.Int) {
-	setBigInt(keyFee, fee)
+	setBigInt(types.KeyFee, fee)
 }
 
 func setTotalLp(totalLp *big.Int) {
-	setBigInt(keyTotalLP, totalLp)
+	setBigInt(types.KeyTotalLP, totalLp)
 }
 
 func setLp(address string, amount *big.Int) {
-	setBigInt(keyLpPrefix+address, amount)
+	setBigInt(types.KeyLpPrefix+address, amount)
 }
 
 func contractAssert(cond bool, msgs ...string) {
@@ -159,20 +104,20 @@ func logFee(magiFee, lpFee *big.Int) string {
 
 	// 2. Header
 	b.WriteString("fee")
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("t")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(totalFee.String())
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("m")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(magiFee.String())
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("lp")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(lpFee.String())
 
 	return b.String()
@@ -183,30 +128,30 @@ func logSwap(assetIn, assetOut string, amountIn, amountOut *big.Int, to string) 
 	b.Grow(64)
 
 	b.WriteString("swap")
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("in")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(assetIn)
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("out")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(assetOut)
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("ai")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(amountIn.String())
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("ao")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(amountOut.String())
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("to")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(to)
 
 	return b.String()
@@ -217,25 +162,25 @@ func logAddLiquidity(provider string, amt0, amt1, minted *big.Int) string {
 	b.Grow(64)
 
 	b.WriteString("add_liq")
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("p")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(provider)
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("a0")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(amt0.String())
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("a1")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(amt1.String())
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("lp")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(minted.String())
 
 	return b.String()
@@ -246,25 +191,25 @@ func logRemoveLiquidity(provider string, amt0, amt1, lpAmount *big.Int) string {
 	b.Grow(64)
 
 	b.WriteString("rem_liq")
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("p")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(provider)
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("a0")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(amt0.String())
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("a1")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(amt1.String())
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("lp")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(lpAmount.String())
 
 	return b.String()
@@ -275,20 +220,20 @@ func logPoolInit(asset0, asset1 string, feeBps uint64) string {
 	b.Grow(64)
 
 	b.WriteString("pool_init")
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("a0")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(asset0)
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("a1")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(asset1)
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("fee")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(strconv.FormatUint(feeBps, 10))
 
 	return b.String()
@@ -299,20 +244,20 @@ func logMigrate(version, asset0, asset1 string) string {
 	b.Grow(64)
 
 	b.WriteString("migrate")
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("v")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(version)
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("a0")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(asset0)
-	b.WriteString(logDelimiter)
+	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("a1")
-	b.WriteString(logKeyDelimiter)
+	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(asset1)
 
 	return b.String()
