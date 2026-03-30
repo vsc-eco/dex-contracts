@@ -2,6 +2,7 @@ package main
 
 import (
 	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/vsc-eco/dex-contracts/contracts/asset"
@@ -177,22 +178,142 @@ func logFee(magiFee, lpFee *big.Int) string {
 	return b.String()
 }
 
-func logAmounts(in, out *big.Int) string {
+func logSwap(assetIn, assetOut string, amountIn, amountOut *big.Int, to string) string {
 	var b strings.Builder
 	b.Grow(64)
 
-	// 2. Header
-	b.WriteString("amt")
+	b.WriteString("swap")
 	b.WriteString(logDelimiter)
 
-	b.WriteString("i")
+	b.WriteString("in")
 	b.WriteString(logKeyDelimiter)
-	b.WriteString(in.String())
+	b.WriteString(assetIn)
 	b.WriteString(logDelimiter)
 
-	b.WriteString("o")
+	b.WriteString("out")
 	b.WriteString(logKeyDelimiter)
-	b.WriteString(out.String())
+	b.WriteString(assetOut)
+	b.WriteString(logDelimiter)
+
+	b.WriteString("ai")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(amountIn.String())
+	b.WriteString(logDelimiter)
+
+	b.WriteString("ao")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(amountOut.String())
+	b.WriteString(logDelimiter)
+
+	b.WriteString("to")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(to)
+
+	return b.String()
+}
+
+func logAddLiquidity(provider string, amt0, amt1, minted *big.Int) string {
+	var b strings.Builder
+	b.Grow(64)
+
+	b.WriteString("add_liq")
+	b.WriteString(logDelimiter)
+
+	b.WriteString("p")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(provider)
+	b.WriteString(logDelimiter)
+
+	b.WriteString("a0")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(amt0.String())
+	b.WriteString(logDelimiter)
+
+	b.WriteString("a1")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(amt1.String())
+	b.WriteString(logDelimiter)
+
+	b.WriteString("lp")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(minted.String())
+
+	return b.String()
+}
+
+func logRemoveLiquidity(provider string, amt0, amt1, lpAmount *big.Int) string {
+	var b strings.Builder
+	b.Grow(64)
+
+	b.WriteString("rem_liq")
+	b.WriteString(logDelimiter)
+
+	b.WriteString("p")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(provider)
+	b.WriteString(logDelimiter)
+
+	b.WriteString("a0")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(amt0.String())
+	b.WriteString(logDelimiter)
+
+	b.WriteString("a1")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(amt1.String())
+	b.WriteString(logDelimiter)
+
+	b.WriteString("lp")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(lpAmount.String())
+
+	return b.String()
+}
+
+func logPoolInit(asset0, asset1 string, feeBps uint64) string {
+	var b strings.Builder
+	b.Grow(64)
+
+	b.WriteString("pool_init")
+	b.WriteString(logDelimiter)
+
+	b.WriteString("a0")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(asset0)
+	b.WriteString(logDelimiter)
+
+	b.WriteString("a1")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(asset1)
+	b.WriteString(logDelimiter)
+
+	b.WriteString("fee")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(strconv.FormatUint(feeBps, 10))
+
+	return b.String()
+}
+
+func logMigrate(version, asset0, asset1 string) string {
+	var b strings.Builder
+	b.Grow(64)
+
+	b.WriteString("migrate")
+	b.WriteString(logDelimiter)
+
+	b.WriteString("v")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(version)
+	b.WriteString(logDelimiter)
+
+	b.WriteString("a0")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(asset0)
+	b.WriteString(logDelimiter)
+
+	b.WriteString("a1")
+	b.WriteString(logKeyDelimiter)
+	b.WriteString(asset1)
 
 	return b.String()
 }

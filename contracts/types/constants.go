@@ -9,8 +9,8 @@ const (
 )
 
 const (
-	KeyAsset0       = "a1"
-	KeyAsset1       = "a2"
+	KeyAsset0       = "a0"
+	KeyAsset1       = "a1"
 	KeyReserve0     = "r0"
 	KeyReserve1     = "r1"
 	KeyFee          = "fee"

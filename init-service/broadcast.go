@@ -37,7 +37,7 @@ func (b *Broadcaster) CallContract(contractID string, action string, payload jso
 		ContractId: contractID,
 		Action:     action,
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    10000,
 		Intents:    []any{},
 	}
 
