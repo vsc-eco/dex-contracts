@@ -15,7 +15,7 @@ var (
 	_ tinyjson.Marshaler
 )
 
-func tinyjsonEf77c78aDecodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonTmp(in *jlexer.Lexer, out *MappedAsset) {
+func tinyjsonEf77c78aDecodeGithubComVscEcoDexContractsContractsAssetTinyjsonTmp(in *jlexer.Lexer, out *MappedAsset) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -48,7 +48,7 @@ func tinyjsonEf77c78aDecodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonT
 		in.Consumed()
 	}
 }
-func tinyjsonEf77c78aEncodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonTmp(out *jwriter.Writer, in MappedAsset) {
+func tinyjsonEf77c78aEncodeGithubComVscEcoDexContractsContractsAssetTinyjsonTmp(out *jwriter.Writer, in MappedAsset) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -67,14 +67,14 @@ func tinyjsonEf77c78aEncodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonT
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v MappedAsset) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonEf77c78aEncodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonTmp(w, v)
+	tinyjsonEf77c78aEncodeGithubComVscEcoDexContractsContractsAssetTinyjsonTmp(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *MappedAsset) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonEf77c78aDecodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonTmp(l, v)
+	tinyjsonEf77c78aDecodeGithubComVscEcoDexContractsContractsAssetTinyjsonTmp(l, v)
 }
-func tinyjsonEf77c78aDecodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonTmp1(in *jlexer.Lexer, out *HiveAsset) {
+func tinyjsonEf77c78aDecodeGithubComVscEcoDexContractsContractsAssetTinyjsonTmp1(in *jlexer.Lexer, out *HiveAsset) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -105,7 +105,7 @@ func tinyjsonEf77c78aDecodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonT
 		in.Consumed()
 	}
 }
-func tinyjsonEf77c78aEncodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonTmp1(out *jwriter.Writer, in HiveAsset) {
+func tinyjsonEf77c78aEncodeGithubComVscEcoDexContractsContractsAssetTinyjsonTmp1(out *jwriter.Writer, in HiveAsset) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -119,10 +119,10 @@ func tinyjsonEf77c78aEncodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonT
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v HiveAsset) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonEf77c78aEncodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonTmp1(w, v)
+	tinyjsonEf77c78aEncodeGithubComVscEcoDexContractsContractsAssetTinyjsonTmp1(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *HiveAsset) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonEf77c78aDecodeGithubComVscEcoDexContractsContractsDexAssetTinyjsonTmp1(l, v)
+	tinyjsonEf77c78aDecodeGithubComVscEcoDexContractsContractsAssetTinyjsonTmp1(l, v)
 }

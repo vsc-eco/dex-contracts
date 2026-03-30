@@ -188,8 +188,18 @@ func Execute(payload *string) *string {
 			ce.NewContractError(ce.ErrInput, "type, version, asset_in, asset_out, and recipient are required"),
 		)
 	}
-	if sdk.VerifyAddress(instruction.Recipient) == "unknown" {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "recipient address ["+instruction.Recipient+"] invalid"))
+
+	// Normalize destination chain
+	instruction.DestinationChain = strings.ToUpper(instruction.DestinationChain)
+
+	// When settling on an external chain, Recipient is an address on that chain
+	// (e.g. a Hive username or BTC address) and cannot be validated as a Magi address.
+	// Only validate as Magi address when there is no cross-chain destination.
+	if instruction.DestinationChain == "" || instruction.DestinationChain == chainMAGI {
+		if sdk.VerifyAddress(instruction.Recipient) == "unknown" {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "recipient address ["+instruction.Recipient+"] invalid"))
+		}
+		instruction.DestinationChain = "" // normalize MAGI to empty (default)
 	}
 
 	switch instruction.Type {
@@ -246,6 +256,7 @@ func findPool(assetA, assetB string) string {
 func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *string {
 	env := sdk.GetEnv()
 	userAddr := env.Caller.String()
+	contractAccId := "contract:" + env.ContractId
 
 	// Pre-fund input asset into the pool (mapped via transferFrom, native via HiveDraw+HiveTransfer).
 	err := preFundAsset(instruction.AssetIn, instruction.AmountIn, dexContractId, &env)
@@ -253,12 +264,19 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 		ce.CustomAbort(ce.Prepend(err, "error pre-funding asset to dex"))
 	}
 
+	// When settling on an external chain, output goes to the router first
+	// so it can bridge the tokens out.
+	swapRecipient := instruction.Recipient
+	if instruction.DestinationChain != "" {
+		swapRecipient = contractAccId
+	}
+
 	swapParams := types.SwapParams{
 		AssetIn:      instruction.AssetIn,
 		AmountIn:     instruction.AmountIn,
 		AssetOut:     instruction.AssetOut,
 		MinAmountOut: instruction.MinAmountOut,
-		To:           instruction.Recipient,
+		To:           swapRecipient,
 		From:         userAddr,
 		Beneficiary:  instruction.Beneficiary,
 		RefBps:       instruction.RefBps,
@@ -277,6 +295,19 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrTransaction, "unknown swap failure"),
 		)
+	}
+
+	// Bridge output to external chain if requested
+	if instruction.DestinationChain != "" {
+		var swapResult types.SwapResult
+		if err := tinyjson.Unmarshal([]byte(*result), &swapResult); err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error unmarshalling swap result"))
+		}
+		amountOut, ok := new(big.Int).SetString(swapResult.AmountOut, 10)
+		if !ok || amountOut.Sign() <= 0 {
+			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "swap returned invalid amount out"))
+		}
+		settleToChain(instruction.AssetOut, amountOut, instruction.Recipient, instruction.DestinationChain)
 	}
 
 	return result
@@ -353,12 +384,19 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	// Router received intermediate HBD from first pool. Transfer it to pool2.
 	sdk.HiveTransfer(sdk.Address("contract:"+pool2Id), res1AmountOut, sdk.AssetHbd)
 
+	// When settling on an external chain, output goes to the router first
+	// so it can bridge the tokens out.
+	secondHopRecipient := instruction.Recipient
+	if instruction.DestinationChain != "" {
+		secondHopRecipient = contractAccId
+	}
+
 	secondSwapParams := types.SwapParams{
 		AssetIn:      sdk.AssetHbd.String(),
 		AmountIn:     res1AmountOut.String(),
 		AssetOut:     instruction.AssetOut,
 		From:         contractAccId,
-		To:           instruction.Recipient,
+		To:           secondHopRecipient,
 		MinAmountOut: instruction.MinAmountOut,
 		PreDeposited: true,
 	}
@@ -373,7 +411,57 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "second hop returned no result"))
 	}
 
+	// Bridge output to external chain if requested
+	if instruction.DestinationChain != "" {
+		var swapResult2 types.SwapResult
+		if err := tinyjson.Unmarshal([]byte(*secondResult), &swapResult2); err != nil {
+			ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "error unmarshalling second hop result"))
+		}
+		amountOut, ok := new(big.Int).SetString(swapResult2.AmountOut, 10)
+		if !ok || amountOut.Sign() <= 0 {
+			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "second hop returned invalid amount out"))
+		}
+		settleToChain(instruction.AssetOut, amountOut, instruction.Recipient, instruction.DestinationChain)
+	}
+
 	return secondResult
+}
+
+// settleToChain bridges swap output to an external chain.
+// For HIVE/HBD: uses sdk.HiveWithdraw to send to a Hive account.
+// For mapped assets (BTC, ETH, etc.): calls "unmap" on the mapping contract.
+func settleToChain(asset string, amount *big.Int, toAddress string, chain string) {
+	assetLower := strings.ToLower(asset)
+
+	if assetLower == "hive" || assetLower == "hbd" {
+		sdk.HiveWithdraw(sdk.Address(toAddress), amount, sdk.Asset(assetLower))
+		return
+	}
+
+	// Mapped asset: call "unmap" on the mapping contract to send to native chain.
+	// The router owns the tokens (swap output was directed here), so no "from" needed.
+	mappingContract := getMappingContract(assetLower)
+	if mappingContract == "" {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrTransaction, "no mapping contract found for asset: "+asset),
+		)
+	}
+
+	params := types.UnmapParams{
+		Amount:    amount.String(),
+		To:        toAddress,
+		DeductFee: true,
+	}
+	payload, err := tinyjson.Marshal(&params)
+	if err != nil {
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "failed to marshal unmap params"))
+	}
+	result := sdk.ContractCall(mappingContract, "unmap", string(payload), &sdk.ContractCallOptions{})
+	if result == nil {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrTransaction, "unmap failed for "+asset),
+		)
+	}
 }
 
 // preFundAsset pre-funds an asset into the target pool before calling the pool contract.
