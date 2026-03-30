@@ -20,6 +20,14 @@ import (
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 )
 
+// requireWasm skips the test if the wasm binary is nil (file not found at build time).
+func requireWasm(t *testing.T, name string, wasm []byte) {
+	t.Helper()
+	if len(wasm) == 0 {
+		t.Skipf("skipping: %s wasm not available", name)
+	}
+}
+
 // CallResult wraps the contract call result for test assertions
 type CallResult struct {
 	state_engine.TxResult
