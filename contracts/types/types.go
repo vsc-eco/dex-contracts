@@ -114,6 +114,10 @@ type DexInstruction struct {
 	ReturnAddress *ReturnAddress    `json:"return_address,omitempty"`
 	Metadata      map[string]string `json:"metadata,omitempty"`
 	AmountIn      string            `json:"amount_in"`
+	// DestinationChain specifies an external chain for settlement (e.g. "HIVE", "BTC").
+	// When set to a non-MAGI chain, the router bridges swap output to the Recipient
+	// address on that chain instead of settling on Magi.
+	DestinationChain string `json:"destination_chain,omitempty"`
 }
 
 //tinyjson:json
@@ -162,4 +166,16 @@ type MappingContractInput struct {
 	Amount string `json:"amount"`
 	To     string `json:"to"`
 	From   string `json:"from,omitempty"`
+}
+
+// UnmapParams is the input for the "unmap" action on mapping contracts,
+// which sends mapped assets out to their native chain (e.g. BTC to Bitcoin mainnet).
+//
+//tinyjson:json
+type UnmapParams struct {
+	Amount    string `json:"amount"`
+	To        string `json:"to"`
+	From      string `json:"from,omitempty"`
+	DeductFee bool   `json:"deduct_fee,omitempty"`
+	MaxFee    *int64 `json:"max_fee,omitempty"`
 }
