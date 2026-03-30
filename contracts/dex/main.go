@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
@@ -29,7 +28,7 @@ func Init(payload *string) *string {
 
 	var params types.InitParams
 	if err := tinyjson.Unmarshal([]byte(*payload), &params); err != nil {
-		sdk.Revert("invalid payload", JSON_ERROR)
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err))
 	}
 
 	// Validate assets are different
@@ -44,27 +43,16 @@ func Init(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "asset1_mapping_contract must be a valid contract ID"))
 	}
 
-	asset0, err := asset.NewAsset(params.Asset0, params.Asset0MappingContract)
-	if err != nil {
+	if _, err := asset.NewAsset(params.Asset0, params.Asset0MappingContract); err != nil {
 		sdk.Abort(err.Error())
 	}
-	asset1, err := asset.NewAsset(params.Asset1, params.Asset1MappingContract)
-	if err != nil {
+	if _, err := asset.NewAsset(params.Asset1, params.Asset1MappingContract); err != nil {
 		sdk.Abort(err.Error())
-	}
-
-	asset0json, err := tinyjson.Marshal(asset0)
-	if err != nil {
-		sdk.Revert(fmt.Sprintf("invalid asset, error: %s", err.Error()), JSON_ERROR)
-	}
-	asset1json, err := tinyjson.Marshal(asset1)
-	if err != nil {
-		sdk.Revert(fmt.Sprintf("invalid asset, error: %s", err.Error()), JSON_ERROR)
 	}
 
 	// Default fee if not specified
 	if params.FeeBps == 0 {
-		params.FeeBps = defaultBaseFeeBps
+		params.FeeBps = types.DefaultBaseFeeBps
 	}
 	if params.FeeBps > 10000 {
 		ce.CustomAbort(
@@ -76,25 +64,25 @@ func Init(payload *string) *string {
 	}
 
 	// Initialize pool state
-	setAsset0(string(asset0json))
-	setAsset1(string(asset1json))
-	// Cache asset names for fast lookup (avoids JSON unmarshal on every swap)
-	setStr(keyAsset0Name, strings.ToLower(params.Asset0))
-	setStr(keyAsset1Name, strings.ToLower(params.Asset1))
+	setStr(types.KeyAsset0Name, strings.ToLower(params.Asset0))
+	setStr(types.KeyAsset1Name, strings.ToLower(params.Asset1))
+	setStr(types.KeyAsset0Mapping, params.Asset0MappingContract)
+	setStr(types.KeyAsset1Mapping, params.Asset1MappingContract)
 	setReserve0(big.NewInt(0))
 	setReserve1(big.NewInt(0))
 	setFee(big.NewInt(int64(params.FeeBps)))
 	setTotalLp(big.NewInt(0))
-	setBigInt(keySystemFee0, big.NewInt(0))
-	setBigInt(keySystemFee1, big.NewInt(0))
-	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
+	setBigInt(types.KeySystemFee0, big.NewInt(0))
+	setBigInt(types.KeySystemFee1, big.NewInt(0))
+	setStr(types.KeyFeeLastClaim, sdk.GetEnv().Timestamp)
 	if params.RouterContract == "" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "router_contract is required"))
 	}
 	if sdk.VerifyAddress("contract:"+params.RouterContract) != "contract" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "router_contract must be a valid contract ID"))
 	}
-	setStr(keyRouter, params.RouterContract)
+	setStr(types.KeyRouter, params.RouterContract)
+	setStr(types.KeyMigrateVer, "2")
 
 	sdk.Log(logPoolInit(strings.ToLower(params.Asset0), strings.ToLower(params.Asset1), params.FeeBps))
 
@@ -136,8 +124,8 @@ func Swap(payload *string) *string {
 	params.AssetOut = strings.ToLower(params.AssetOut)
 
 	// Use cached asset names for direction check (avoids JSON unmarshal)
-	asset0Name := getStr(keyAsset0Name)
-	asset1Name := getStr(keyAsset1Name)
+	asset0Name := getStr(types.KeyAsset0Name)
+	asset1Name := getStr(types.KeyAsset1Name)
 
 	feeBps := getFee()
 
@@ -148,14 +136,14 @@ func Swap(payload *string) *string {
 
 	if asset0Name == params.AssetIn && asset1Name == params.AssetOut {
 		inputIsAsset0 = true
-		magiFeeKey = keySystemFee0
-		rInKey = keyReserve0
-		rOutKey = keyReserve1
+		magiFeeKey = types.KeySystemFee0
+		rInKey = types.KeyReserve0
+		rOutKey = types.KeyReserve1
 	} else if asset1Name == params.AssetIn && asset0Name == params.AssetOut {
 		inputIsAsset0 = false
-		magiFeeKey = keySystemFee1
-		rInKey = keyReserve1
-		rOutKey = keyReserve0
+		magiFeeKey = types.KeySystemFee1
+		rInKey = types.KeyReserve1
+		rOutKey = types.KeyReserve0
 	} else {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInitialization, "invalid asset pair for pool want "+asset0Name+"-"+asset1Name+" got "+params.AssetIn+"-"+params.AssetOut),
@@ -262,7 +250,7 @@ func Swap(payload *string) *string {
 	// A direct call with PreDeposited=true would skip the deposit and drain the pool.
 	if params.PreDeposited {
 		env := sdk.GetEnv()
-		routerId := getStr(keyRouter)
+		routerId := getStr(types.KeyRouter)
 		if routerId == "" || env.Caller.String() != "contract:"+routerId {
 			ce.CustomAbort(
 				ce.NewContractError(ce.ErrNoPermission, "PreDeposited only allowed from the authorized Router"),
@@ -483,7 +471,7 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string, params types.AddL
 	// SECURITY: Only trust PreDeposited flags from the authorized Router.
 	if params.PreDeposited0 || params.PreDeposited1 {
 		env := maybeEnv.UseEnv()
-		routerId := getStr(keyRouter)
+		routerId := getStr(types.KeyRouter)
 		if routerId == "" || env.Caller.String() != "contract:"+routerId {
 			ce.CustomAbort(
 				ce.NewContractError(ce.ErrNoPermission, "PreDeposited only allowed from the authorized Router"),
@@ -552,7 +540,7 @@ func executeRemoveLiquidity(lpAmount *big.Int, provider string) *string {
 
 	// Only the LP owner, the authorized router, or system can remove liquidity.
 	env := sdk.GetEnv()
-	routerId := getStr(keyRouter)
+	routerId := getStr(types.KeyRouter)
 	isRouter := routerId != "" && env.Caller.String() == "contract:"+routerId
 	if env.Caller.String() != providerAddr.String() && !isRouter {
 		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "caller is not the LP owner"))
@@ -625,8 +613,8 @@ func executeRemoveLiquidity(lpAmount *big.Int, provider string) *string {
 func GetPool(_ *string) *string {
 	// Use cached names — avoids JSON unmarshal of full asset objects
 	poolInfo := types.PoolInfo{
-		Asset0:   getStr(keyAsset0Name),
-		Asset1:   getStr(keyAsset1Name),
+		Asset0:   getStr(types.KeyAsset0Name),
+		Asset1:   getStr(types.KeyAsset1Name),
 		Reserve0: getReserve0().String(),
 		Reserve1: getReserve1().String(),
 		Fee:      getFee().Uint64(),
@@ -661,7 +649,7 @@ func GetPool(_ *string) *string {
 // 			ce.NewContractError(ce.ErrInput, "router contract ID required"),
 // 		)
 // 	}
-// 	setStr(keyRouter, *payload)
+// 	setStr(types.KeyRouter, *payload)
 // 	return nil
 // }
 
@@ -678,11 +666,11 @@ func ClaimFees(payload *string) *string {
 	}
 	owner := *ownerPtr
 
-	f0 := getBigInt(keySystemFee0)
-	f1 := getBigInt(keySystemFee1)
+	f0 := getBigInt(types.KeySystemFee0)
+	f1 := getBigInt(types.KeySystemFee1)
 
 	if f0.Sign() == 1 {
-		setBigInt(keySystemFee0, big.NewInt(0))
+		setBigInt(types.KeySystemFee0, big.NewInt(0))
 		asset0, err := getAsset0()
 		if err != nil {
 			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "claim_fees: cannot read asset0"))
@@ -696,7 +684,7 @@ func ClaimFees(payload *string) *string {
 		}
 	}
 	if f1.Sign() == 1 {
-		setBigInt(keySystemFee1, big.NewInt(0))
+		setBigInt(types.KeySystemFee1, big.NewInt(0))
 		asset1, err := getAsset1()
 		if err != nil {
 			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "claim_fees: cannot read asset1"))
@@ -710,7 +698,7 @@ func ClaimFees(payload *string) *string {
 		}
 	}
 
-	setStr(keyFeeLastClaim, sdk.GetEnv().Timestamp)
+	setStr(types.KeyFeeLastClaim, sdk.GetEnv().Timestamp)
 	return nil
 }
 
@@ -725,20 +713,21 @@ func Migrate(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrAuth, "owner only"))
 	}
 
-	version := getStr(keyMigrateVersion)
+	version := getStr(types.KeyMigrateVer)
 
 	// --- v1: populate cached asset name keys (a1n, a2n) and router (rtr) ---
 	if version < "1" {
-		asset0, err := getAsset0()
+		// Read from old JSON keys directly (getAsset0/getAsset1 use new keys that don't exist yet)
+		a0, err := asset.AssetFromJson(getStr("a1"))
 		if err != nil {
 			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "migrate v1: cannot read asset0"))
 		}
-		asset1, err := getAsset1()
+		a1, err := asset.AssetFromJson(getStr("a2"))
 		if err != nil {
 			ce.CustomAbort(ce.WrapContractError(ce.ErrStateAccess, err, "migrate v1: cannot read asset1"))
 		}
-		setStr(keyAsset0Name, asset0.Name())
-		setStr(keyAsset1Name, asset1.Name())
+		setStr("a1n", a0.Name())
+		setStr("a2n", a1.Name())
 
 		if payload != nil && *payload != "" {
 			// Simple extraction: {"router_contract": "vsc1..."}
@@ -752,19 +741,45 @@ func Migrate(payload *string) *string {
 					rest = rest[start+1:]
 					end := strings.IndexByte(rest, '"')
 					if end > 0 {
-						setStr(keyRouter, rest[:end])
+						setStr(types.KeyRouter, rest[:end])
 					}
 				}
 			}
 		}
 
-		setStr(keyMigrateVersion, "1")
-		sdk.Log(logMigrate("1", asset0.Name(), asset1.Name()))
+		setStr(types.KeyMigrateVer, "1")
+		sdk.Log(logMigrate("1", a0.Name(), a1.Name()))
+	}
+
+	// --- v2: decompose JSON asset blobs into individual keys, rename to 0-indexed ---
+	if version < "2" {
+		// Read old 1-indexed names (set by v1)
+		oldAsset0Name := getStr("a1n")
+		oldAsset1Name := getStr("a2n")
+
+		// Parse old JSON blobs to extract mapping contract IDs
+		var asset0Mapping, asset1Mapping string
+		if a0, err := asset.AssetFromJson(getStr("a1")); err == nil {
+			asset0Mapping = a0.MappingContract()
+		}
+		if a1, err := asset.AssetFromJson(getStr("a2")); err == nil {
+			asset1Mapping = a1.MappingContract()
+		}
+
+		// Write to new 0-indexed individual keys
+		setStr(types.KeyAsset0Name, oldAsset0Name)
+		setStr(types.KeyAsset1Name, oldAsset1Name)
+		setStr(types.KeyAsset0Mapping, asset0Mapping)
+		setStr(types.KeyAsset1Mapping, asset1Mapping)
+
+		setStr(types.KeyMigrateVer, "2")
+		version = "2"
 	}
 
 	// --- future migrations go here ---
-	// if version < "2" { ... setStr(keyMigrateVersion, "2") }
+	// Make sure to set the latest migration version in init as well
+	// if version < "3" { ... setStr(types.KeyMigrateVer, "3") }
 
-	resultStr := getStr(keyMigrateVersion)
+	resultStr := getStr(types.KeyMigrateVer)
 	return &resultStr
 }
