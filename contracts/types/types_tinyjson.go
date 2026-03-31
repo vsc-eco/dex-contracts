@@ -1332,8 +1332,8 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			out.AssetIn = string(in.String())
 		case "asset_out":
 			out.AssetOut = string(in.String())
-		case "recipient":
-			out.Recipient = string(in.String())
+		case "amount_in":
+			out.AmountIn = string(in.String())
 		case "min_amount_out":
 			if in.IsNull() {
 				in.Skip()
@@ -1364,6 +1364,18 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 				}
 				*out.RefBps = uint64(in.Uint64())
 			}
+		case "amount0":
+			out.Amount0 = string(in.String())
+		case "amount1":
+			out.Amount1 = string(in.String())
+		case "lp_amount":
+			out.LpAmount = string(in.String())
+		case "asset0":
+			out.Asset0 = string(in.String())
+		case "asset1":
+			out.Asset1 = string(in.String())
+		case "recipient":
+			out.Recipient = string(in.String())
 		case "return_address":
 			if in.IsNull() {
 				in.Skip()
@@ -1394,8 +1406,6 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 				}
 				in.Delim('}')
 			}
-		case "amount_in":
-			out.AmountIn = string(in.String())
 		case "destination_chain":
 			out.DestinationChain = string(in.String())
 		default:
@@ -1422,20 +1432,20 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		out.RawString(prefix)
 		out.String(string(in.Version))
 	}
-	{
+	if in.AssetIn != "" {
 		const prefix string = ",\"asset_in\":"
 		out.RawString(prefix)
 		out.String(string(in.AssetIn))
 	}
-	{
+	if in.AssetOut != "" {
 		const prefix string = ",\"asset_out\":"
 		out.RawString(prefix)
 		out.String(string(in.AssetOut))
 	}
-	{
-		const prefix string = ",\"recipient\":"
+	if in.AmountIn != "" {
+		const prefix string = ",\"amount_in\":"
 		out.RawString(prefix)
-		out.String(string(in.Recipient))
+		out.String(string(in.AmountIn))
 	}
 	if in.MinAmountOut != nil {
 		const prefix string = ",\"min_amount_out\":"
@@ -1451,6 +1461,36 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		const prefix string = ",\"ref_bps\":"
 		out.RawString(prefix)
 		out.Uint64(uint64(*in.RefBps))
+	}
+	if in.Amount0 != "" {
+		const prefix string = ",\"amount0\":"
+		out.RawString(prefix)
+		out.String(string(in.Amount0))
+	}
+	if in.Amount1 != "" {
+		const prefix string = ",\"amount1\":"
+		out.RawString(prefix)
+		out.String(string(in.Amount1))
+	}
+	if in.LpAmount != "" {
+		const prefix string = ",\"lp_amount\":"
+		out.RawString(prefix)
+		out.String(string(in.LpAmount))
+	}
+	if in.Asset0 != "" {
+		const prefix string = ",\"asset0\":"
+		out.RawString(prefix)
+		out.String(string(in.Asset0))
+	}
+	if in.Asset1 != "" {
+		const prefix string = ",\"asset1\":"
+		out.RawString(prefix)
+		out.String(string(in.Asset1))
+	}
+	{
+		const prefix string = ",\"recipient\":"
+		out.RawString(prefix)
+		out.String(string(in.Recipient))
 	}
 	if in.ReturnAddress != nil {
 		const prefix string = ",\"return_address\":"
@@ -1475,11 +1515,6 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			}
 			out.RawByte('}')
 		}
-	}
-	{
-		const prefix string = ",\"amount_in\":"
-		out.RawString(prefix)
-		out.String(string(in.AmountIn))
 	}
 	if in.DestinationChain != "" {
 		const prefix string = ",\"destination_chain\":"

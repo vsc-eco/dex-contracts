@@ -31,9 +31,19 @@ func Init(payload *string) *string {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err))
 	}
 
+	// Normalize to lowercase
+	params.Asset0 = strings.ToLower(params.Asset0)
+	params.Asset1 = strings.ToLower(params.Asset1)
+
 	// Validate assets are different
 	if params.Asset0 == params.Asset1 {
 		sdk.Abort("assets must be different")
+	}
+
+	// Enforce alphabetical ordering: asset0 < asset1
+	if params.Asset0 > params.Asset1 {
+		params.Asset0, params.Asset1 = params.Asset1, params.Asset0
+		params.Asset0MappingContract, params.Asset1MappingContract = params.Asset1MappingContract, params.Asset0MappingContract
 	}
 
 	if params.Asset0MappingContract != "" && sdk.VerifyAddress("contract:"+params.Asset0MappingContract) != "contract" {
@@ -63,9 +73,9 @@ func Init(payload *string) *string {
 		)
 	}
 
-	// Initialize pool state
-	setStr(types.KeyAsset0Name, strings.ToLower(params.Asset0))
-	setStr(types.KeyAsset1Name, strings.ToLower(params.Asset1))
+	// Initialize pool state (already lowercased and alphabetically ordered above)
+	setStr(types.KeyAsset0Name, params.Asset0)
+	setStr(types.KeyAsset1Name, params.Asset1)
 	setStr(types.KeyAsset0Mapping, params.Asset0MappingContract)
 	setStr(types.KeyAsset1Mapping, params.Asset1MappingContract)
 	setReserve0(big.NewInt(0))
@@ -74,7 +84,7 @@ func Init(payload *string) *string {
 	setTotalLp(big.NewInt(0))
 	setBigInt(types.KeySystemFee0, big.NewInt(0))
 	setBigInt(types.KeySystemFee1, big.NewInt(0))
-	setStr(types.KeyFeeLastClaim, sdk.GetEnv().Timestamp)
+	setTimestamp(types.KeyFeeLastClaim, sdk.GetEnv().Timestamp)
 	if params.RouterContract == "" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "router_contract is required"))
 	}
@@ -84,7 +94,7 @@ func Init(payload *string) *string {
 	setStr(types.KeyRouter, params.RouterContract)
 	setStr(types.KeyMigrateVer, "2")
 
-	sdk.Log(logPoolInit(strings.ToLower(params.Asset0), strings.ToLower(params.Asset1), params.FeeBps))
+	sdk.Log(logPoolInit(params.Asset0, params.Asset1, params.FeeBps))
 
 	return nil
 }
@@ -666,6 +676,11 @@ func ClaimFees(payload *string) *string {
 	}
 	owner := *ownerPtr
 
+	env := sdk.GetEnv()
+	if env.Caller.String() != owner {
+		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "only the contract owner can claim fees"))
+	}
+
 	f0 := getBigInt(types.KeySystemFee0)
 	f1 := getBigInt(types.KeySystemFee1)
 
@@ -698,7 +713,7 @@ func ClaimFees(payload *string) *string {
 		}
 	}
 
-	setStr(types.KeyFeeLastClaim, sdk.GetEnv().Timestamp)
+	setTimestamp(types.KeyFeeLastClaim, sdk.GetEnv().Timestamp)
 	return nil
 }
 
@@ -709,7 +724,8 @@ func ClaimFees(payload *string) *string {
 //go:wasmexport migrate
 func Migrate(payload *string) *string {
 	env := sdk.GetEnv()
-	if env.Caller.String() != *sdk.GetEnvKey("contract.owner") {
+	ownerPtr := sdk.GetEnvKey("contract.owner")
+	if ownerPtr == nil || env.Caller.String() != *ownerPtr {
 		ce.CustomAbort(ce.NewContractError(ce.ErrAuth, "owner only"))
 	}
 

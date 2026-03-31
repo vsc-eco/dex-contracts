@@ -562,8 +562,16 @@ func TestHiveMainnetToBtcMainnet(t *testing.T) {
 	const fakeTxId0 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	const fakeTxId1 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
-	ct.StateSet(btcMappingId, constants.ObservedPrefix+fakeTxId0+":0", "1")
-	ct.StateSet(btcMappingId, constants.ObservedPrefix+fakeTxId1+":0", "1")
+	// Pack observed txid:vout pairs into a single key per block height.
+	// Each entry is 34 bytes: 32-byte raw txid + 2-byte vout (big-endian).
+	txid0Bytes, _ := hex.DecodeString(fakeTxId0)
+	txid1Bytes, _ := hex.DecodeString(fakeTxId1)
+	var observedEntries []byte
+	observedEntries = append(observedEntries, txid0Bytes...)
+	observedEntries = append(observedEntries, 0, 0) // vout 0 BE
+	observedEntries = append(observedEntries, txid1Bytes...)
+	observedEntries = append(observedEntries, 0, 0) // vout 0 BE
+	ct.StateSet(btcMappingId, constants.ObservedBlockPrefix+"100", string(observedEntries))
 	// Two confirmed UTXOs (IDs 64, 65) totaling 1 BTC
 	ct.StateSet(btcMappingId, btcconstants.UtxoRegistryKey,
 		string(mapping.MarshalUtxoRegistry(mapping.UtxoRegistry{

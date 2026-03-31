@@ -110,20 +110,45 @@ type ReturnAddress struct {
 }
 
 // ROUTER TYPES
+//
+// DexInstruction is a union type dispatched on the Type field:
+//
+//   type "swap":       uses AssetIn, AssetOut, AmountIn (directional)
+//   type "deposit":    uses Asset0, Asset1, Amount0, Amount1 (alphabetical pool order)
+//   type "withdrawal": uses Asset0, Asset1, LpAmount (alphabetical pool order)
+//
+// Asset0/Asset1 always follow alphabetical ordering, matching the pool's
+// canonical storage order. The router normalizes user input automatically.
 
 //tinyjson:json
 type DexInstruction struct {
-	Type          string            `json:"type"`
-	Version       string            `json:"version"`
-	AssetIn       string            `json:"asset_in"`
-	AssetOut      string            `json:"asset_out"`
+	Type    string `json:"type"`
+	Version string `json:"version"`
+
+	// --- Swap fields (type "swap") ---
+	AssetIn      string  `json:"asset_in,omitempty"`
+	AssetOut     string  `json:"asset_out,omitempty"`
+	AmountIn     string  `json:"amount_in,omitempty"`
+	MinAmountOut *string `json:"min_amount_out,omitempty"`
+	Beneficiary  *string `json:"beneficiary,omitempty"`
+	RefBps       *uint64 `json:"ref_bps,omitempty"`
+
+	// --- Deposit/Withdrawal pool identifiers ---
+	Asset0 string `json:"asset0,omitempty"`
+	Asset1 string `json:"asset1,omitempty"`
+
+	// --- Deposit fields (type "deposit") ---
+	// Asset0/Asset1 are in alphabetical order, matching pool state.
+	Amount0 string `json:"amount0,omitempty"`
+	Amount1 string `json:"amount1,omitempty"`
+
+	// --- Withdrawal fields (type "withdrawal") ---
+	LpAmount string `json:"lp_amount,omitempty"`
+
+	// --- Common fields ---
 	Recipient     string            `json:"recipient"`
-	MinAmountOut  *string           `json:"min_amount_out,omitempty"`
-	Beneficiary   *string           `json:"beneficiary,omitempty"`
-	RefBps        *uint64           `json:"ref_bps,omitempty"`
 	ReturnAddress *ReturnAddress    `json:"return_address,omitempty"`
 	Metadata      map[string]string `json:"metadata,omitempty"`
-	AmountIn      string            `json:"amount_in"`
 	// DestinationChain specifies an external chain for settlement (e.g. "HIVE", "BTC").
 	// When set to a non-MAGI chain, the router bridges swap output to the Recipient
 	// address on that chain instead of settling on Magi.

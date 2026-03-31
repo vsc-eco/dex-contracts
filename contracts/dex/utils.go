@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/binary"
 	"math/big"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/vsc-eco/dex-contracts/contracts/asset"
 	"github.com/vsc-eco/dex-contracts/contracts/types"
@@ -36,6 +38,48 @@ func getBigInt(key string) *big.Int {
 
 func setBigInt(key string, val *big.Int) {
 	sdk.StateSetObject(key, string(val.Bytes()))
+}
+
+// Timestamp helpers — store as Unix epoch in big-endian int64 bytes (8 bytes).
+func setTimestamp(key string, timestamp string) {
+	// Strip Go's monotonic clock suffix (e.g. " m=+1.854221781")
+	if idx := strings.Index(timestamp, " m="); idx >= 0 {
+		timestamp = timestamp[:idx]
+	}
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05.999999999 -0700 MST",
+	}
+	var t time.Time
+	var err error
+	for _, layout := range layouts {
+		t, err = time.Parse(layout, timestamp)
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		sdk.Abort("invalid timestamp: " + timestamp)
+	}
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], uint64(t.Unix()))
+	sdk.StateSetObject(key, string(buf[:]))
+}
+
+func getTimestamp(key string) int64 {
+	v := sdk.StateGetObject(key)
+	if v == nil || *v == "" {
+		return 0
+	}
+	b := []byte(*v)
+	if len(b) < 8 {
+		// Pad left with zeros for values stored with fewer bytes
+		var buf [8]byte
+		copy(buf[8-len(b):], b)
+		return int64(binary.BigEndian.Uint64(buf[:]))
+	}
+	return int64(binary.BigEndian.Uint64(b[:8]))
 }
 
 // Pool state helpers
