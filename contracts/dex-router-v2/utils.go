@@ -16,6 +16,7 @@ const (
 	keyStatePrefix = "state" + types.DirPathDelimiter // state-{pool_id}
 	keyAssetPrefix = "asset" + types.DirPathDelimiter // asset-{symbol} -> AssetInfo
 	keyChainsList  = "chains"                         // comma-separated list of supported chains
+	keyTokensList  = "tokens"                         // comma-separated list of registered token names
 )
 
 // Supported chains for native tokens (HIVE for HIVE/HBD, MAGI for future MAGI native tokens)
@@ -93,6 +94,19 @@ func updateChainsList(chain string) {
 		}
 	} else {
 		setStr(keyChainsList, chain)
+	}
+}
+
+// updateTokensList adds a token name to the registered tokens list if not already present
+func updateTokensList(name string) {
+	tokensStr := getStr(keyTokensList)
+	if len(tokensStr) > 0 {
+		tokens := strings.Split(tokensStr, ",")
+		if !slices.Contains(tokens, name) {
+			setStr(keyTokensList, tokensStr+","+name)
+		}
+	} else {
+		setStr(keyTokensList, name)
 	}
 }
 

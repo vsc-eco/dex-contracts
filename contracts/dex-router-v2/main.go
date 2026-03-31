@@ -2,6 +2,7 @@ package main
 
 import (
 	"math/big"
+	"strconv"
 	"strings"
 
 	tinyjson "github.com/CosmWasm/tinyjson"
@@ -75,12 +76,44 @@ func RegisterToken(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "asset already registered"))
 	}
 
+	// Resolve decimals: query mapping contract for mapped assets, use payload value for native
+	if params.MappingContract != "" {
+		infoResult := sdk.ContractCall(params.MappingContract, "getInfo", "", nil)
+		if infoResult == nil {
+			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "failed to query getInfo on mapping contract"))
+		}
+		var contractInfo types.MappingContractInfoReturn
+		if err := tinyjson.Unmarshal([]byte(*infoResult), &contractInfo); err != nil {
+			ce.CustomAbort(
+				ce.WrapContractError(ce.ErrJson, err, "failed to parse getInfo response from mapping contract"),
+			)
+		}
+		if strings.ToLower(contractInfo.Symbol) != name {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput,
+				"asset name '"+params.Name+"' does not match mapping contract symbol '"+contractInfo.Symbol+"'"))
+		}
+		if contractInfo.Decimals == "" {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "mapping contract getInfo did not return decimals"))
+		}
+		decimals, parseErr := strconv.Atoi(contractInfo.Decimals)
+		if parseErr != nil {
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrInput, "invalid decimals from mapping contract: "+contractInfo.Decimals),
+			)
+		}
+		params.Decimals = decimals
+	} else {
+		// Native assets (HIVE, HBD) always have 3 decimals
+		params.Decimals = 3
+	}
+
 	info, err := tinyjson.Marshal(params.TokenInfo)
 	if err != nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "error marshaling token info"))
 	}
 	setStr(assetKey(name), string(info))
 	updateChainsList(params.Chain)
+	updateTokensList(name)
 	return nil
 }
 
@@ -629,29 +662,62 @@ func GetPool(payload *string) *string {
 	return result
 }
 
-// Query schema information - returns supported assets and chains
-// Payload: empty or {"type": "schema"}
+// Query token information from the registry
+// Payload: token name string (e.g. "BTC", "HBD")
+//
+//go:wasmexport get_token
+func GetToken(payload *string) *string {
+	if payload == nil {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "token name required"))
+	}
+	name := strings.ToLower(strings.Trim(*payload, "\" "))
+	if name == "" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "token name required"))
+	}
+	infoStr := getStr(assetKey(name))
+	if infoStr == "" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "token not registered: "+name))
+	}
+	return &infoStr
+}
+
+// Query schema information - returns supported chains and all registered tokens
+// Payload: empty
 //
 //go:wasmexport get_schema
 func GetSchema(payload *string) *string {
-	// Get all registered assets and their chains
-	// For now, return a simplified schema
-	// In production, this would query all registered assets
-
 	chainsStr := getStr(keyChainsList)
-	chains := []string{"BTC", "ETH", "SOL", chainHIVE, chainMAGI} // Default chains (HIVE, MAGI for native tokens)
+	var chains []string
 	if chainsStr != "" {
-		parts := splitChains(chainsStr)
-		if len(parts) > 0 {
-			chains = parts
+		chains = splitChains(chainsStr)
+	}
+
+	// Load all registered tokens
+	var tokens []types.RegisterTokenParams
+	tokensStr := getStr(keyTokensList)
+	if tokensStr != "" {
+		for name := range strings.SplitSeq(tokensStr, ",") {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			infoStr := getStr(assetKey(name))
+			if infoStr == "" {
+				continue
+			}
+			var info types.TokenInfo
+			if err := tinyjson.Unmarshal([]byte(infoStr), &info); err != nil {
+				continue
+			}
+			tokens = append(tokens, types.RegisterTokenParams{Name: name, TokenInfo: info})
 		}
 	}
 
-	// Build schema response
 	schema := types.SchemaReturn{
 		SupportedChains:     chains,
 		ReturnAddressChains: chains,
-		Note:                "Schema is dynamically generated from registered pools. Use indexer API for complete schema.",
+		Tokens:              tokens,
+		Note:                "Schema dynamically generated from registered tokens and pools.",
 	}
 
 	schemaBytes, err := tinyjson.Marshal(&schema)
