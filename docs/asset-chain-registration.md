@@ -30,13 +30,10 @@ VSC native assets are determined by checking the **token registry**:
 1. **Token Registry**: Stores all assets with `ContractId` field
    - `ContractId == nil` → native VSC token (chain = "HIVE")
    - `ContractId != nil` → cross-chain or contract-based token
-2. **Router Service** (has token registry access):
+2. **Router Contract** (has token registry access):
    - When pool is registered, router checks token registry
    - If `IsNativeAsset(asset)` returns true → chain = "HIVE"
-   - Router can include chain info in pool registration event
-3. **Contract/Indexer**:
-   - Can receive chain info from pool registration payload
-   - Or query token registry if accessible
+   - Chain info stored on-chain with token registration
    - **Future-proof**: New native tokens automatically recognized via token registry
 
 ### 3. Token Registration (Required First)
@@ -75,22 +72,14 @@ Pool registration will **reject** if either asset is not registered. Chain info 
 - Rejects pool registration if either asset is not in the token registry
 - Chain info comes from token registry (set by `register_token`)
 
-### Indexer
+### Schema Query
 
-**File**: `services/indexer/readmodels.go`
+**Action**: `get_schema` on the router contract
 
-- Tracks assets and chains from pool registrations
-- Generates dynamic schema with current chains
-- Only includes chains that have registered pools
-
-### Schema API
-
-**Endpoint**: `GET /api/v1/schema`
-
-Returns current schema with:
-- Dynamic `return_address.chain` enum (only registered chains)
-- List of registered assets
-- List of supported chains
+Returns:
+- Supported chains (from registered tokens)
+- Return address chains
+- Dynamically generated from on-chain token registry
 
 ## Future-Proof Design
 
@@ -133,7 +122,7 @@ To add new VSC native tokens (HIVE chain or MAGI chain):
 
 1. **Always provide chain info** in pool registration if available
 2. **Register mapping contracts first** before creating pools with cross-chain assets
-3. **Query schema API** to get current supported chains
+3. **Query `get_schema`** on the router contract to get current supported chains
 4. **Use return_address.chain** to ensure correct cross-chain returns
 
 ## Return Address Safety

@@ -1,1 +1,1 @@
-type=swap&version=1.0.0&asset_in=BTC&asset_out=HBD&recipient=alice
+type=swap&version=1.0.0&asset_in=BTC&amount_in=50000&asset_out=HBD&recipient=alice&destination_chain=HIVE

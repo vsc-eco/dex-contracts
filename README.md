@@ -96,7 +96,7 @@ curl -X POST http://localhost:8080/api/v1/swap \
 {
   "contract_id": "dex-router",
   "action": "execute",
-  "payload": "{\"type\":\"swap\",\"asset_in\":\"HBD\",\"amount_in\":1000000,\"asset_out\":\"HIVE\",\"min_amount_out\":500000,\"recipient\":\"user123\"}",
+  "payload": "{\"type\":\"swap\",\"asset_in\":\"HBD\",\"amount_in\":\"1000000\",\"asset_out\":\"HIVE\",\"min_amount_out\":\"500000\",\"recipient\":\"user123\",\"destination_chain\":\"HIVE\"}",
   "intents": [
     {
       "type": "transfer.allow",
@@ -120,10 +120,11 @@ curl -X POST http://localhost:8080/api/v1/contract/dex-router/execute \
       "type": "swap",
       "version": "1.0.0",
       "asset_in": "HBD",
+      "amount_in": "1000000",
       "asset_out": "HIVE",
       "recipient": "user123",
-      "min_amount_out": 500000,
-      "slippage_bps": 50
+      "min_amount_out": "500000",
+      "destination_chain": "HIVE"
     },
     "intents": [
       {
@@ -242,42 +243,40 @@ VSC DEX Mapping uses a standardized JSON schema for all DEX operations. This ens
     "type": {"type": "string", "enum": ["swap", "deposit", "withdrawal"]},
     "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
     "asset_in": {"type": "string"},
+    "amount_in": {"type": "string"},
     "asset_out": {"type": "string"},
     "recipient": {"type": "string"},
-    "slippage_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
-    "min_amount_out": {"type": "integer", "minimum": 0},
-    "beneficiary": {"type": "string"},
-    "ref_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
+    "min_amount_out": {"type": ["string", "null"]},
+    "beneficiary": {"type": ["string", "null"]},
+    "ref_bps": {"type": ["integer", "null"]},
     "return_address": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
-        "chain": {
-          "type": "string",
-          "description": "Blockchain chain identifier. Enum is dynamically generated from registered pools. Query GET /api/v1/schema for current values."
-        },
+        "chain": {"type": "string"},
         "address": {"type": "string"}
       },
-      "required": ["chain", "address"],
-      "description": "Return address for refunds in case of swap failure. Chain must match the source asset's chain or be a supported return chain."
+      "required": ["chain", "address"]
     },
-    "metadata": {"type": "object"}
+    "destination_chain": {"type": "string"},
+    "metadata": {"type": "object", "additionalProperties": {"type": "string"}}
   }
 }
 ```
 
 ### Field Descriptions
 
-- **`type`** *(required)*: Operation type - `"swap"`, `"deposit"`, or `"withdrawal"`
-- **`version`** *(required)*: Schema version in semantic format (e.g., `"1.0.0"`)
-- **`asset_in`** *(required)*: Input asset identifier (e.g., `"HBD"`, `"HIVE"`)
-- **`asset_out`** *(required)*: Output asset identifier
-- **`recipient`** *(required)*: VSC address to receive output assets
-- **`slippage_bps`**: Maximum allowed slippage in basis points (0-10000, where 10000 = 100%)
-- **`min_amount_out`**: Minimum acceptable output amount (prevents front-running)
-- **`beneficiary`**: Optional referral beneficiary address
-- **`ref_bps`**: Referral fee in basis points (0-10000)
-- **`return_address`**: Cross-chain return address for failed operations (object with `chain` and `address` fields). Chain enum is dynamically generated from registered pools.
-- **`metadata`**: Additional operation metadata
+- **`type`** *(required)*: Operation type — `"swap"`, `"deposit"`, or `"withdrawal"`
+- **`version`** *(required)*: Schema version in semver format (e.g., `"1.0.0"`)
+- **`asset_in`** *(required)*: Input asset symbol (e.g., `"BTC"`, `"HBD"`)
+- **`amount_in`** *(required for swap)*: Amount of `asset_in` in smallest unit
+- **`asset_out`** *(required)*: Output asset symbol
+- **`recipient`** *(required)*: Account address to receive output assets
+- **`min_amount_out`**: Minimum acceptable output amount (slippage protection)
+- **`beneficiary`**: Referral beneficiary account
+- **`ref_bps`**: Referral fee in basis points
+- **`return_address`**: Cross-chain return address for failed two-hop swaps (object with `chain` and `address`)
+- **`destination_chain`**: External chain for settlement (e.g., `"HIVE"`, `"BTC"`). Omit to settle on Magi.
+- **`metadata`**: Additional string key-value pairs
 
 ### Usage Examples
 
@@ -287,11 +286,12 @@ VSC DEX Mapping uses a standardized JSON schema for all DEX operations. This ens
   "type": "swap",
   "version": "1.0.0",
   "asset_in": "HBD",
+  "amount_in": "1000000",
   "asset_out": "HIVE",
-  "recipient": "hive:user123",
-  "slippage_bps": 50,
-  "min_amount_out": 900000,
-  "beneficiary": "hive:referrer",
+  "recipient": "user123",
+  "min_amount_out": "900000",
+  "destination_chain": "HIVE",
+  "beneficiary": "referrer",
   "ref_bps": 25
 }
 ```
@@ -951,10 +951,11 @@ curl -X POST http://localhost:8080/api/v1/contract/dex-router/execute \
       "type": "swap",
       "version": "1.0.0",
       "asset_in": "BTC",
+      "amount_in": "100000",
       "asset_out": "HIVE",
       "recipient": "user",
-      "min_amount_out": 95000,
-      "slippage_bps": 50
+      "min_amount_out": "95000",
+      "destination_chain": "HIVE"
     },
     "intents": [
       {

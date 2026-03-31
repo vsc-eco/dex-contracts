@@ -17,8 +17,8 @@ Schema for individual DEX pool operations (init, swap, add_liquidity, remove_liq
 ### [Asset and Chain Registration](./asset-chain-registration.md)
 How assets and chains are registered dynamically, following the utxo-mapping contract pattern. **Future-proof design** - no hardcoded chains.
 
-### [V2 System Summary](./V2-SYSTEM-SUMMARY.md)
-Complete summary of the V2 system with all features and implementation status.
+### [V3 System Summary](./V3-SYSTEM-SUMMARY.md)
+Complete summary of the V3 contracts-only system (one router contract, many DEX pool contracts) with all features and implementation status.
 
 ## Key Features
 
@@ -27,6 +27,10 @@ Complete summary of the V2 system with all features and implementation status.
 - Chains determined from mapping contracts (utxo-mapping pattern)
 - No hardcoded chain assumptions
 - Future-proof for any new chain (SUI, etc.)
+
+### Cross-Chain Settlement
+- `destination_chain` field on swap instructions specifies external settlement chain
+- Omit to settle on Magi; set to `"HIVE"`, `"BTC"`, etc. to bridge output
 
 ### Return Address Safety
 - Always includes chain identifier
@@ -52,14 +56,16 @@ Complete summary of the V2 system with all features and implementation status.
 }
 ```
 
-### Swap with Return Address
+### Swap with Return Address and Destination Chain
 ```json
 {
   "type": "swap",
   "version": "1.0.0",
   "asset_in": "BTC",
   "asset_out": "HIVE",
+  "amount_in": "50000",
   "recipient": "user123",
+  "destination_chain": "HIVE",
   "return_address": {
     "chain": "BTC",
     "address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"

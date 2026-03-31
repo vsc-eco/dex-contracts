@@ -2,8 +2,9 @@
   "type": "swap",
   "version": "1.0.0",
   "asset_in": "BTC",
+  "amount_in": "50000",
   "asset_out": "HBD_SAVINGS",
   "recipient": "alice",
-  "slippage_bps": 200,
-  "min_amount_out": 50000
+  "min_amount_out": "48000",
+  "destination_chain": "HIVE"
 }
