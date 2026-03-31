@@ -92,7 +92,7 @@ func Init(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "router_contract must be a valid contract ID"))
 	}
 	setStr(types.KeyRouter, params.RouterContract)
-	setStr(types.KeyMigrateVer, "2")
+	setStr(types.KeyMigrateVer, "4")
 
 	sdk.Log(logPoolInit(params.Asset0, params.Asset1, params.FeeBps))
 
@@ -792,9 +792,50 @@ func Migrate(payload *string) *string {
 		version = "2"
 	}
 
+	// --- v3: convert fee-last-claim timestamp from ISO string to 8-byte Unix epoch ---
+	if version < "3" {
+		oldTs := getStr(types.KeyFeeLastClaim)
+		if oldTs != "" {
+			// Old format is an ISO string; setTimestamp parses and re-stores as binary.
+			setTimestamp(types.KeyFeeLastClaim, oldTs)
+		}
+		setStr(types.KeyMigrateVer, "3")
+		version = "3"
+	}
+
+	// --- v4: enforce lexicographic asset ordering (asset0 < asset1) ---
+	if version < "4" {
+		a0n := getStr(types.KeyAsset0Name)
+		a1n := getStr(types.KeyAsset1Name)
+		if a0n > a1n {
+			// Swap asset names
+			setStr(types.KeyAsset0Name, a1n)
+			setStr(types.KeyAsset1Name, a0n)
+
+			// Swap mapping contracts
+			m0 := getStr(types.KeyAsset0Mapping)
+			m1 := getStr(types.KeyAsset1Mapping)
+			setStr(types.KeyAsset0Mapping, m1)
+			setStr(types.KeyAsset1Mapping, m0)
+
+			// Swap reserves
+			r0 := getReserve0()
+			r1 := getReserve1()
+			setReserve0(r1)
+			setReserve1(r0)
+
+			// Swap accumulated system fees
+			f0 := getBigInt(types.KeySystemFee0)
+			f1 := getBigInt(types.KeySystemFee1)
+			setBigInt(types.KeySystemFee0, f1)
+			setBigInt(types.KeySystemFee1, f0)
+		}
+		setStr(types.KeyMigrateVer, "4")
+		version = "4"
+	}
+
 	// --- future migrations go here ---
-	// Make sure to set the latest migration version in init as well
-	// if version < "3" { ... setStr(types.KeyMigrateVer, "3") }
+	// Make sure to set the latest migration version in init as well.
 
 	resultStr := getStr(types.KeyMigrateVer)
 	return &resultStr
