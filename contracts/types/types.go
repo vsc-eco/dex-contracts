@@ -79,6 +79,16 @@ type TokenInfo struct {
 	MappingContract string `json:"mapping_contract,omitempty"`
 	Chain           string `json:"chain"` // HIVE, MAGI, BTC, ETH, etc.
 	Description     string `json:"description,omitempty"`
+	Decimals        int    `json:"decimals"`
+}
+
+// MappingContractInfoReturn is the response from calling getInfo on a mapping contract.
+//
+//tinyjson:json
+type MappingContractInfoReturn struct {
+	Name     string `json:"name"`
+	Symbol   string `json:"symbol"`
+	Decimals string `json:"decimals"`
 }
 
 //tinyjson:json
@@ -122,9 +132,10 @@ type DexInstruction struct {
 
 //tinyjson:json
 type SchemaReturn struct {
-	SupportedChains     []string
-	ReturnAddressChains []string
-	Note                string
+	SupportedChains     []string              `json:"supported_chains"`
+	ReturnAddressChains []string              `json:"return_address_chains"`
+	Tokens              []RegisterTokenParams `json:"tokens"`
+	Note                string                `json:"note"`
 }
 
 //tinyjson:json
