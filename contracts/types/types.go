@@ -121,27 +121,6 @@ type DexInstruction struct {
 }
 
 //tinyjson:json
-type FailureLog struct {
-	Reason             string         `json:"reason"`
-	FailedAtHop        int            `json:"failed_at_hop"` // 1 = first hop, 2 = second hop
-	OriginalAsset      string         `json:"original_asset"`
-	OriginalAmount     string         `json:"original_amount"`
-	IntermediateAsset  string         `json:"intermediate_asset,omitempty"`
-	IntermediateAmount string         `json:"intermediate_amount,omitempty"`
-	ReturnAddress      *ReturnAddress `json:"return_address,omitempty"`
-	Timestamp          string         `json:"timestamp"`
-}
-
-//tinyjson:json
-type ReturnRequest struct {
-	Chain   string
-	Address string
-	Asset   string
-	Amount  string
-	Log     FailureLog
-}
-
-//tinyjson:json
 type SchemaReturn struct {
 	SupportedChains     []string
 	ReturnAddressChains []string

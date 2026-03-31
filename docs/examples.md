@@ -22,7 +22,8 @@ Native tokens (HIVE, HBD, HBD_SAVINGS) do not require pre-approval. The router u
   "asset_out": "HIVE",
   "amount_in": "10000",
   "recipient": "alice",
-  "min_amount_out": "9500"
+  "min_amount_out": "9500",
+  "destination_chain": "HIVE"
 }
 ```
 
@@ -63,7 +64,8 @@ Set `amount` to the total you want the router to be able to spend. You can set a
   "asset_out": "HBD",
   "amount_in": "50000",
   "recipient": "alice",
-  "min_amount_out": "48000"
+  "min_amount_out": "48000",
+  "destination_chain": "HIVE"
 }
 ```
 
@@ -102,7 +104,8 @@ Same as above — approve the router to spend your BTC.
   "asset_out": "HIVE",
   "amount_in": "50000",
   "recipient": "alice",
-  "min_amount_out": "900000"
+  "min_amount_out": "900000",
+  "destination_chain": "HIVE"
 }
 ```
 
@@ -123,6 +126,7 @@ The `min_amount_out` applies to the final output. You can also set `metadata.min
   "amount_in": "50000",
   "recipient": "alice",
   "min_amount_out": "900000",
+  "destination_chain": "HIVE",
   "metadata": {
     "min_intermediate": "48000"
   }
@@ -142,6 +146,7 @@ If the second hop fails (e.g. slippage exceeded), the router needs to know where
   "amount_in": "50000",
   "recipient": "alice",
   "min_amount_out": "900000",
+  "destination_chain": "HIVE",
   "return_address": {
     "chain": "BTC",
     "address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
@@ -240,6 +245,7 @@ The pool burns the LP tokens and transfers your proportional share of both reser
 | Field | Applies to | Description |
 |---|---|---|
 | `min_amount_out` | swap | Minimum output before revert (slippage protection) |
+| `destination_chain` | swap | External chain for settlement (e.g., `"HIVE"`, `"BTC"`). Omit to settle on Magi |
 | `return_address` | swap | Where to return funds if a two-hop swap fails |
 | `metadata.min_intermediate` | two-hop swap | Minimum HBD between hops |
 | `beneficiary` + `ref_bps` | swap | Referral fee recipient and basis points |

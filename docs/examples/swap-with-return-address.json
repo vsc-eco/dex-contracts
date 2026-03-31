@@ -2,13 +2,12 @@
   "type": "swap",
   "version": "1.0.0",
   "asset_in": "ETH",
+  "amount_in": "100000",
   "asset_out": "HBD",
   "recipient": "alice",
+  "destination_chain": "HIVE",
   "return_address": {
     "chain": "ETH",
     "address": "0x742d35Cc6B7f4C5b6c8D9e2aF1c3E5d8B9a7C2E1"
-  },
-  "metadata": {
-    "notes": "Test transaction with refund protection"
   }
 }
