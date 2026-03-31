@@ -191,7 +191,7 @@ Exchanges an input asset for an output asset. The router finds the appropriate p
 
 ### 5. `execute` (deposit) — Add Liquidity
 
-Deposits both assets into a pool in exchange for LP tokens. The `asset_in` and `asset_out` fields identify which pool to deposit into.
+Deposits both assets into a pool in exchange for LP tokens. The `asset0` and `asset1` fields identify the pool using its canonical alphabetical ordering.
 
 ```json
 {
@@ -200,21 +200,15 @@ Deposits both assets into a pool in exchange for LP tokens. The `asset_in` and `
   "$defs": {
     "DepositInstruction": {
       "type": "object",
-      "required": ["type", "version", "asset_in", "asset_out", "recipient"],
+      "required": ["type", "version", "asset0", "asset1", "amount0", "amount1", "recipient"],
       "properties": {
         "type": { "type": "string", "const": "deposit" },
         "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
-        "asset_in": { "type": "string" },
-        "asset_out": { "type": "string" },
-        "recipient": { "type": "string" },
-        "metadata": {
-          "type": "object",
-          "required": ["amount0", "amount1"],
-          "properties": {
-            "amount0": { "type": "string" },
-            "amount1": { "type": "string" }
-          }
-        }
+        "asset0": { "type": "string" },
+        "asset1": { "type": "string" },
+        "amount0": { "type": "string" },
+        "amount1": { "type": "string" },
+        "recipient": { "type": "string" }
       }
     }
   }
@@ -227,17 +221,17 @@ Deposits both assets into a pool in exchange for LP tokens. The `asset_in` and `
 
 - **`type`** (string): Must be `"deposit"`.
 - **`version`** (string): Schema version in semver format (e.g., `"1.0.0"`).
-- **`asset_in`** (string): First asset symbol of the pool.
-- **`asset_out`** (string): Second asset symbol of the pool.
+- **`asset0`** (string): First asset symbol of the pool. The router normalizes to lowercase and enforces lexicographic ordering (`asset0 < asset1`), swapping `asset0`/`asset1` and `amount0`/`amount1` if needed. Callers may pass assets in any order.
+- **`asset1`** (string): Second asset symbol of the pool.
+- **`amount0`** (string): Amount of `asset0` to deposit, in its smallest unit.
+- **`amount1`** (string): Amount of `asset1` to deposit, in its smallest unit.
 - **`recipient`** (string): Account address that will receive the minted LP tokens.
-- **`metadata.amount0`** (string): Amount of the pool's `asset0` (alphabetically first) to deposit, in its smallest unit.
-- **`metadata.amount1`** (string): Amount of the pool's `asset1` (alphabetically second) to deposit, in its smallest unit.
 
 ---
 
 ### 6. `execute` (withdrawal) — Remove Liquidity
 
-Burns LP tokens to withdraw a proportional share of both assets from a pool.
+Burns LP tokens to withdraw a proportional share of both assets from a pool. The caller must be the LP owner (i.e., `recipient` must match the caller's address).
 
 ```json
 {
@@ -246,20 +240,14 @@ Burns LP tokens to withdraw a proportional share of both assets from a pool.
   "$defs": {
     "WithdrawalInstruction": {
       "type": "object",
-      "required": ["type", "version", "asset_in", "asset_out", "recipient"],
+      "required": ["type", "version", "asset0", "asset1", "lp_amount", "recipient"],
       "properties": {
         "type": { "type": "string", "const": "withdrawal" },
         "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
-        "asset_in": { "type": "string" },
-        "asset_out": { "type": "string" },
-        "recipient": { "type": "string" },
-        "metadata": {
-          "type": "object",
-          "required": ["lp_amount"],
-          "properties": {
-            "lp_amount": { "type": "string" }
-          }
-        }
+        "asset0": { "type": "string" },
+        "asset1": { "type": "string" },
+        "lp_amount": { "type": "string" },
+        "recipient": { "type": "string" }
       }
     }
   }
@@ -272,10 +260,10 @@ Burns LP tokens to withdraw a proportional share of both assets from a pool.
 
 - **`type`** (string): Must be `"withdrawal"`.
 - **`version`** (string): Schema version in semver format (e.g., `"1.0.0"`).
-- **`asset_in`** (string): First asset symbol of the pool.
-- **`asset_out`** (string): Second asset symbol of the pool.
-- **`recipient`** (string): Account address that will receive the withdrawn assets.
-- **`metadata.lp_amount`** (string): Number of LP tokens to burn. The pool returns a proportional share of both assets based on this amount relative to the total LP supply.
+- **`asset0`** (string): First asset symbol of the pool. The router normalizes to lowercase and enforces lexicographic ordering (`asset0 < asset1`). Callers may pass assets in any order.
+- **`asset1`** (string): Second asset symbol of the pool.
+- **`lp_amount`** (string): Number of LP tokens to burn. The pool returns a proportional share of both assets based on this amount relative to the total LP supply.
+- **`recipient`** (string): Account address that will receive the withdrawn assets. Must match the caller's address (only the LP owner can withdraw).
 
 ---
 
@@ -394,6 +382,11 @@ Returns all supported chains and every registered token with its chain, decimals
 - All string amounts are in the **smallest unit** of their respective asset (no decimal representation).
 - Fields typed as `["string", "null"]` or `["integer", "null"]` correspond to Go pointer types. A JSON `null` value is equivalent to the field being omitted.
 - `omitempty` fields in Go are excluded from `required` — they will not be present in serialized output when zero or nil.
-- Asset order within a pool is normalized alphabetically — `"BTC"/"HBD"` and `"HBD"/"BTC"` resolve to the same pool.
+- **Lexicographic asset ordering:** Both pools and the router enforce `asset0 < asset1` (lowercase, lexicographic). The pool normalizes at `init`; the router normalizes deposit/withdrawal inputs automatically. Swap instructions use directional `asset_in`/`asset_out` and are unaffected by ordering — the pool resolves direction internally.
+- **Instruction field naming by type:**
+  - `swap` — uses `asset_in`, `asset_out`, `amount_in` (directional).
+  - `deposit` — uses `asset0`, `asset1`, `amount0`, `amount1` (pool-ordered).
+  - `withdrawal` — uses `asset0`, `asset1`, `lp_amount` (pool-ordered).
 - Two-hop swaps (e.g., BTC → HIVE) route through HBD automatically when no direct pool exists. Both a BTC/HBD pool and an HBD/HIVE pool must be registered.
 - When `destination_chain` is set, the router bridges swap output to the recipient address on that external chain instead of settling on Magi.
+- `claim_fees` is owner-only — only the contract owner can trigger fee claims.

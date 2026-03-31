@@ -1161,7 +1161,7 @@ func TestClaimFees(t *testing.T) {
 	ct.Deposit(owner, 100000, ledger_db.Asset("hive"))
 
 	// Do several swaps to accumulate fees
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		swapPayload, _ := tinyjson.Marshal(types.SwapParams{
 			AssetIn:  "hive",
 			AmountIn: "1000",
@@ -1191,19 +1191,17 @@ func TestClaimFees(t *testing.T) {
 		}
 	}
 
-	// Call claim_fees as system sender
-	systemCaller := "system:claim_fees"
-	selfSystem := basicSelf(t, systemCaller)
+	// Call claim_fees as contract owner
 	r := ct.Call(state_engine.TxVscCallContract{
-		Self:       *selfSystem,
+		Self:       *basicSelf(t, owner),
 		ContractId: dexId,
 		Action:     "claim_fees",
 		Payload:    []byte("{}"),
 		RcLimit:    1000,
 		Intents:    []contracts.Intent{},
-		Caller:     systemCaller,
+		Caller:     owner,
 	})
-	assert.True(t, r.Success, "claim_fees should succeed for system sender, got: %s", r.ErrMsg)
+	assert.True(t, r.Success, "claim_fees should succeed for contract owner, got: %s", r.ErrMsg)
 	dumpLogs(t, r.Logs)
 	dumpStateDiff(t, r.StateDiff)
 }
@@ -1856,14 +1854,11 @@ func TestRouterExecuteDeposit(t *testing.T) {
 	r = router.execute(t, owner, &types.DexInstruction{
 		Type:      "deposit",
 		Version:   "1.0.0",
-		AssetIn:   "hive",
-		AssetOut:  "hbd",
-		AmountIn:  "5000",
+		Asset0:    "hbd",
+		Asset1:    "hive",
+		Amount0:   "5000",
+		Amount1:   "5000",
 		Recipient: owner,
-		Metadata: map[string]string{
-			"amount0": "5000",
-			"amount1": "5000",
-		},
 	}, []contracts.Intent{
 		{
 			Type: "transfer.allow",
@@ -1990,13 +1985,10 @@ func TestRouterExecuteWithdrawal(t *testing.T) {
 	r = router.execute(t, owner, &types.DexInstruction{
 		Type:      "withdrawal",
 		Version:   "1.0.0",
-		AssetIn:   "hive",
-		AssetOut:  "hbd",
-		AmountIn:  halfLp,
+		Asset0:    "hbd",
+		Asset1:    "hive",
+		LpAmount:  halfLp,
 		Recipient: owner,
-		Metadata: map[string]string{
-			"lp_amount": halfLp,
-		},
 	}, []contracts.Intent{})
 	assert.True(t, r.Success, "router execute withdrawal should succeed, got: %s", r.ErrMsg)
 	dumpLogs(t, r.Logs)

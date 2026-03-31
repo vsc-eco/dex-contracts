@@ -34,7 +34,8 @@ func Init(payload *string) *string {
 //go:wasmexport register_token
 func RegisterToken(payload *string) *string {
 	env := sdk.GetEnv()
-	if env.Caller.String() != *sdk.GetEnvKey("contract.owner") {
+	ownerPtr := sdk.GetEnvKey("contract.owner")
+	if ownerPtr == nil || env.Caller.String() != *ownerPtr {
 		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "action must be performed by the contract owner"))
 	}
 	if payload == nil {
@@ -123,7 +124,8 @@ func RegisterToken(payload *string) *string {
 //go:wasmexport register_pool
 func RegisterPool(payload *string) *string {
 	env := sdk.GetEnv()
-	if env.Caller.String() != *sdk.GetEnvKey("contract.owner") {
+	ownerPtr := sdk.GetEnvKey("contract.owner")
+	if ownerPtr == nil || env.Caller.String() != *ownerPtr {
 		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "action must be performed by the contract owner"))
 	}
 	if payload == nil {
@@ -213,13 +215,9 @@ func Execute(payload *string) *string {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "invalid payload"))
 	}
 
-	// Validate required fields
-	if instruction.Type == "" || instruction.Version == "" ||
-		instruction.AssetIn == "" || instruction.AssetOut == "" ||
-		instruction.Recipient == "" {
-		ce.CustomAbort(
-			ce.NewContractError(ce.ErrInput, "type, version, asset_in, asset_out, and recipient are required"),
-		)
+	// Common validation
+	if instruction.Type == "" || instruction.Version == "" || instruction.Recipient == "" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "type, version, and recipient are required"))
 	}
 
 	// Normalize destination chain
@@ -237,11 +235,44 @@ func Execute(payload *string) *string {
 
 	switch instruction.Type {
 	case "swap":
+		// Swap uses directional asset_in/asset_out
+		if instruction.AssetIn == "" || instruction.AssetOut == "" {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "swap requires asset_in and asset_out"))
+		}
 		return executeSwap(instruction)
+
 	case "deposit":
+		// Deposit uses pool-ordered asset0/asset1
+		if instruction.Asset0 == "" || instruction.Asset1 == "" {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "deposit requires asset0 and asset1"))
+		}
+		if instruction.Amount0 == "" || instruction.Amount1 == "" {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "deposit requires amount0 and amount1"))
+		}
+		// Normalize to lowercase and enforce alphabetical ordering
+		instruction.Asset0 = strings.ToLower(instruction.Asset0)
+		instruction.Asset1 = strings.ToLower(instruction.Asset1)
+		if instruction.Asset0 > instruction.Asset1 {
+			instruction.Asset0, instruction.Asset1 = instruction.Asset1, instruction.Asset0
+			instruction.Amount0, instruction.Amount1 = instruction.Amount1, instruction.Amount0
+		}
 		return executeDeposit(instruction)
+
 	case "withdrawal":
+		// Withdrawal uses pool-ordered asset0/asset1
+		if instruction.Asset0 == "" || instruction.Asset1 == "" {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "withdrawal requires asset0 and asset1"))
+		}
+		if instruction.LpAmount == "" {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "withdrawal requires lp_amount"))
+		}
+		instruction.Asset0 = strings.ToLower(instruction.Asset0)
+		instruction.Asset1 = strings.ToLower(instruction.Asset1)
+		if instruction.Asset0 > instruction.Asset1 {
+			instruction.Asset0, instruction.Asset1 = instruction.Asset1, instruction.Asset0
+		}
 		return executeWithdrawal(instruction)
+
 	default:
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "unknown instruction type: "+instruction.Type))
 		return nil
@@ -534,49 +565,35 @@ func preFundAsset(asset string, amount string, toPool string, env *sdk.Env) erro
 }
 
 // Execute deposit (add liquidity)
+// Asset0/Asset1 are already normalized to alphabetical order by Execute().
 func executeDeposit(instruction types.DexInstruction) *string {
-	// Find the pool
-	poolId := findPool(instruction.AssetIn, instruction.AssetOut)
+	poolId := findPool(instruction.Asset0, instruction.Asset1)
 	if poolId == "" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pool not found"))
 	}
 
-	// For deposit, we need amounts from metadata
-	if instruction.Metadata == nil {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "deposit amounts required in metadata"))
-	}
-
-	amt0, ok := instruction.Metadata["amount0"]
-	if !ok {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount0 required in metadata"))
-	}
-	amt1, ok := instruction.Metadata["amount1"]
-	if !ok {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 required in metadata"))
-	}
-
-	if _, ok2 := new(big.Int).SetString(amt0, 10); !ok2 {
+	if _, ok := new(big.Int).SetString(instruction.Amount0, 10); !ok {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount0 must be a valid number"))
 	}
-	if _, ok2 := new(big.Int).SetString(amt1, 10); !ok2 {
+	if _, ok := new(big.Int).SetString(instruction.Amount1, 10); !ok {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 must be a valid number"))
 	}
 
-	// Pre-fund both assets into the pool (mapped via transferFrom, native via HiveDraw+HiveTransfer).
+	// Pre-fund both assets into the pool.
+	// Asset0/Asset1 match pool ordering, so Amount0 funds pool.asset0 and Amount1 funds pool.asset1.
 	env := sdk.GetEnv()
-	err := preFundAsset(instruction.AssetIn, amt0, poolId, &env)
+	err := preFundAsset(instruction.Asset0, instruction.Amount0, poolId, &env)
 	if err != nil {
-		ce.CustomAbort(ce.Prepend(err, "error pre-funding asset to dex"))
+		ce.CustomAbort(ce.Prepend(err, "error pre-funding asset0 to dex"))
 	}
-	err = preFundAsset(instruction.AssetOut, amt1, poolId, &env)
+	err = preFundAsset(instruction.Asset1, instruction.Amount1, poolId, &env)
 	if err != nil {
-		ce.CustomAbort(ce.Prepend(err, "error pre-funding asset to dex"))
+		ce.CustomAbort(ce.Prepend(err, "error pre-funding asset1 to dex"))
 	}
 
-	// All assets are pre-deposited — pool skips DrawAssetFrom for both.
 	addLiqParams := types.AddLiquidityParams{
-		Amount0:       amt0,
-		Amount1:       amt1,
+		Amount0:       instruction.Amount0,
+		Amount1:       instruction.Amount1,
 		Recipient:     instruction.Recipient,
 		PreDeposited0: true,
 		PreDeposited1: true,
@@ -586,7 +603,6 @@ func executeDeposit(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrJson, "failed to marshal add liquidity params"))
 	}
 
-	// Call DEX contract's add_liquidity method
 	result := sdk.ContractCall(poolId, "add_liquidity", string(addLiqPayload), &sdk.ContractCallOptions{})
 	if result == nil {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "add liquidity returned no result"))
@@ -597,25 +613,20 @@ func executeDeposit(instruction types.DexInstruction) *string {
 
 // Execute withdrawal (remove liquidity)
 func executeWithdrawal(instruction types.DexInstruction) *string {
-	// Find the pool
-	poolId := findPool(instruction.AssetIn, instruction.AssetOut)
+	// Only the LP owner can withdraw their own liquidity via the router.
+	env := sdk.GetEnv()
+	if instruction.Recipient != env.Caller.String() {
+		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "can only withdraw your own liquidity"))
+	}
+
+	// Asset0/Asset1 already normalized to alphabetical order by Execute().
+	poolId := findPool(instruction.Asset0, instruction.Asset1)
 	if poolId == "" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "pool not found"))
 	}
 
-	// For withdrawal, we need LP amount from metadata
-	if instruction.Metadata == nil {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "lp_amount required in metadata"))
-	}
-
-	lpAmount, ok := instruction.Metadata["lp_amount"]
-	if !ok {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "lp_amount required in metadata"))
-	}
-
-	// Prepare remove liquidity parameters
 	removeLiqParams := types.RemoveLiquidityParams{
-		LpAmount:  lpAmount,
+		LpAmount:  instruction.LpAmount,
 		Recipient: instruction.Recipient,
 	}
 

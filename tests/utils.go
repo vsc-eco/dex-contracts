@@ -228,10 +228,20 @@ func (d *DexInfo) initPool(
 ) *test_utils.ContractTestCallResult {
 	t.Helper()
 	payload, _ := tinyjson.Marshal(instruction)
-	d.asset0 = instruction.Asset0
-	d.asset1 = instruction.Asset1
-	d.asset0ContractId = instruction.Asset0MappingContract
-	d.asset1ContractId = instruction.Asset1MappingContract
+	// Mirror the pool's alphabetical normalization so test helpers
+	// (addLiquidity, etc.) use the correct asset ordering.
+	a0 := strings.ToLower(instruction.Asset0)
+	a1 := strings.ToLower(instruction.Asset1)
+	m0 := instruction.Asset0MappingContract
+	m1 := instruction.Asset1MappingContract
+	if a0 > a1 {
+		a0, a1 = a1, a0
+		m0, m1 = m1, m0
+	}
+	d.asset0 = a0
+	d.asset1 = a1
+	d.asset0ContractId = m0
+	d.asset1ContractId = m1
 	r := d.ct.Call(state_engine.TxVscCallContract{
 		Self:       *basicSelf(t, caller),
 		ContractId: d.id,

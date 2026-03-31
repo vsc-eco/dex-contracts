@@ -2,7 +2,6 @@ package tests
 
 import (
 	"btc-mapping-contract/contract/constants"
-	"strconv"
 	"strings"
 	"testing"
 	"vsc-node/lib/test_utils"
@@ -233,16 +232,15 @@ func TestAuditH03_ClaimFees_NativePool(t *testing.T) {
 		}
 	}
 
-	// Claim fees as system sender
-	systemCaller := "system:claim_fees"
+	// Claim fees as contract owner
 	r := ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(t, systemCaller),
+		Self:       *basicSelf(t, owner),
 		ContractId: dexId,
 		Action:     "claim_fees",
 		Payload:    []byte("{}"),
 		RcLimit:    1000,
 		Intents:    []contracts.Intent{},
-		Caller:     systemCaller,
+		Caller:     owner,
 	})
 	assert.True(t, r.Success, "claim_fees on native pool should succeed, got: %s", r.ErrMsg)
 	dumpLogs(t, r.Logs)
@@ -321,16 +319,15 @@ func TestAuditH03_ClaimFees_MappedPool(t *testing.T) {
 		}
 	}
 
-	// Claim fees as system sender on mapped pool
-	systemCaller := "system:claim_fees"
+	// Claim fees as contract owner on mapped pool
 	claimResult := ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(t, systemCaller),
+		Self:       *basicSelf(t, owner),
 		ContractId: btchbdDexId,
 		Action:     "claim_fees",
 		Payload:    []byte("{}"),
 		RcLimit:    1000,
 		Intents:    []contracts.Intent{},
-		Caller:     systemCaller,
+		Caller:     owner,
 	})
 	assert.True(t, claimResult.Success, "claim_fees on mapped pool should succeed, got: %s", claimResult.ErrMsg)
 	dumpLogs(t, claimResult.Logs)
@@ -700,10 +697,10 @@ func TestAuditL03_EmptyMappingContract_Rejected(t *testing.T) {
 }
 
 // ============================================================================
-// L-04 — isSystemSender checks all RequiredAuths, not just [0]
+// L-04 — Owner can claim fees
 // ============================================================================
 
-func TestAuditL04_SystemSenderInSecondAuth(t *testing.T) {
+func TestAuditL04_OwnerCanClaimFees(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
 	owner := "hive:milo-hpr"
 
@@ -739,38 +736,25 @@ func TestAuditL04_SystemSenderInSecondAuth(t *testing.T) {
 		}
 	}
 
-	// Call claim_fees with system auth at position [1] (not [0])
-	self := state_engine.TxSelf{
-		TxId:                 strconv.FormatInt(txId, 10),
-		BlockId:              strconv.FormatInt(txId, 10),
-		Index:                0,
-		OpIndex:              0,
-		Timestamp:            "2025-10-14T00:00:00",
-		RequiredAuths:        []string{"hive:some-user", "system:claim_fees"},
-		RequiredPostingAuths: []string{},
-	}
-	txId++
-
+	// Call claim_fees as the contract owner
 	r := ct.Call(state_engine.TxVscCallContract{
-		Self:       self,
+		Self:       *basicSelf(t, owner),
 		ContractId: dexId,
 		Action:     "claim_fees",
 		Payload:    []byte("{}"),
 		RcLimit:    1000,
 		Intents:    []contracts.Intent{},
-		Caller:     "system:claim_fees",
+		Caller:     owner,
 	})
-	assert.True(t, r.Success, "claim_fees should succeed with system auth in position [1], got: %s", r.ErrMsg)
-	t.Log("L-04 system auth in position [1] result:", r.Ret)
+	assert.True(t, r.Success, "claim_fees should succeed for contract owner, got: %s", r.ErrMsg)
+	t.Log("L-04 owner claim_fees result:", r.Ret)
 }
 
-func TestAuditL04_NonSystemSenderRejected(t *testing.T) {
+func TestAuditL04_NonOwnerSenderRejected(t *testing.T) {
 	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
 
-	// claim_fees has no caller authorization — fees always go to the
-	// contract owner regardless of who triggers the claim.  Verify that
-	// a non-system user CAN call it (it's harmless) and fees still go
-	// to the owner, not the caller.
+	// claim_fees now requires the contract owner as the caller.
+	// Verify that a non-owner caller is rejected.
 	attacker := "hive:attacker"
 	r := ct.Call(state_engine.TxVscCallContract{
 		Self:       *basicSelf(t, attacker),
@@ -781,8 +765,8 @@ func TestAuditL04_NonSystemSenderRejected(t *testing.T) {
 		Intents:    []contracts.Intent{},
 		Caller:     attacker,
 	})
-	assert.True(t, r.Success, "claim_fees is callable by anyone (fees go to owner): %s", r.ErrMsg)
-	t.Log("L-04 non-system claim result:", r.Ret)
+	assert.False(t, r.Success, "claim_fees should be rejected for non-owner caller")
+	t.Log("L-04 non-owner claim result:", r.ErrMsg)
 }
 
 // ============================================================================

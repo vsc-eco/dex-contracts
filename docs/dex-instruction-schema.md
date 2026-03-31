@@ -37,11 +37,13 @@ Creates a new AMM pool with two assets and a fee configuration. Optionally, mapp
 - **`asset0`** (string): Symbol for the first asset in the pool.
 - **`asset1`** (string): Symbol for the second asset in the pool.
 
+> **Lexicographic normalization:** The pool automatically orders assets alphabetically at initialization. If `asset0 > asset1` lexicographically (after lowercasing), the pool swaps them — along with their mapping contracts — so that `asset0 < asset1` always holds in storage. For example, `init(asset0: "HIVE", asset1: "HBD")` stores `asset0 = "hbd"`, `asset1 = "hive"`. Callers may pass assets in any order.
+
 **Optional Fields**
 
 - **`fee_bps`** (integer): Swap fee in basis points (e.g., `8` = 0.08%). Must be > 0. Defaults to `8` if not provided.
-- **`asset0_mapping_contract`** (string): Address of a price feed or oracle mapping contract for `asset0`. Omitted if not applicable.
-- **`asset1_mapping_contract`** (string): Address of a price feed or oracle mapping contract for `asset1`. Omitted if not applicable.
+- **`asset0_mapping_contract`** (string): Contract ID of the mapping contract for `asset0`. Required for non-native assets (not HIVE or HBD). Follows the same normalization as `asset0`/`asset1`.
+- **`asset1_mapping_contract`** (string): Contract ID of the mapping contract for `asset1`. Same as above.
 
 ---
 
