@@ -30,6 +30,8 @@ Initializes the router contract and sets its version. The deploying account beco
 
 Registers a new token in the router's token registry. Both assets in a pool must be registered before the pool can be created. Owner-only operation.
 
+When a `mapping_contract` is provided, the router calls `getInfo` on it and validates that the returned `symbol` matches the provided `name`. The `decimals` value is read from the `getInfo` response and stored — if the mapping contract does not return a `decimals` field, registration fails. For native assets (no mapping contract), `decimals` comes from the payload.
+
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -42,9 +44,21 @@ Registers a new token in the router's token registry. Both assets in a pool must
         "name": { "type": "string" },
         "chain": {
           "type": "string",
-          "enum": ["HIVE", "MAGI", "BTC", "ETH", "SOL", "SUI", "LTC", "DASH", "DOGE", "BCH"]
+          "enum": [
+            "HIVE",
+            "MAGI",
+            "BTC",
+            "ETH",
+            "SOL",
+            "SUI",
+            "LTC",
+            "DASH",
+            "DOGE",
+            "BCH"
+          ]
         },
         "mapping_contract": { "type": "string" },
+        "decimals": { "type": "integer", "minimum": 0 },
         "description": { "type": "string" }
       }
     }
@@ -56,12 +70,13 @@ Registers a new token in the router's token registry. Both assets in a pool must
 
 **Required Fields**
 
-- **`name`** (string): Asset symbol (e.g., `"BTC"`, `"HBD"`). Case-insensitive; stored normalized. Must be unique across the registry.
+- **`name`** (string): Asset symbol (e.g., `"BTC"`, `"HBD"`). Case-insensitive; stored normalized. Must be unique across the registry. For mapped assets, must match the `symbol` returned by the mapping contract's `getInfo`.
 - **`chain`** (string): Source chain for this asset. One of: `HIVE`, `MAGI`, `BTC`, `ETH`, `SOL`, `SUI`, `LTC`, `DASH`, `DOGE`, `BCH`.
 
 **Optional Fields**
 
-- **`mapping_contract`** (string): Contract ID of the mapping contract for cross-chain assets. Required for non-native assets (e.g., BTC, ETH). Must be a valid contract ID.
+- **`mapping_contract`** (string): Contract ID of the mapping contract for cross-chain assets. Required for non-native assets (e.g., BTC, ETH). Must be a valid contract ID. The router calls `getInfo` on this contract to validate the symbol and read decimals.
+- **`decimals`** (integer): Number of decimal places for the asset's smallest unit. For mapped assets this is read from the mapping contract's `getInfo` response (the payload value is ignored). For native assets (no mapping contract), this value is used directly.
 - **`description`** (string): Human-readable description of the token.
 
 ---
@@ -113,7 +128,14 @@ Exchanges an input asset for an output asset. The router finds the appropriate p
   "$defs": {
     "SwapInstruction": {
       "type": "object",
-      "required": ["type", "version", "asset_in", "amount_in", "asset_out", "recipient"],
+      "required": [
+        "type",
+        "version",
+        "asset_in",
+        "amount_in",
+        "asset_out",
+        "recipient"
+      ],
       "properties": {
         "type": { "type": "string", "const": "swap" },
         "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
@@ -133,7 +155,10 @@ Exchanges an input asset for an output asset. The router finds the appropriate p
           "required": ["chain", "address"]
         },
         "destination_chain": { "type": "string" },
-        "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        "metadata": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
       }
     }
   }
@@ -299,19 +324,68 @@ Queries pool information for an asset pair. Returns reserves, fee configuration,
 
 ---
 
-### 8. `get_schema` — Get Supported Chains
+### 8. `get_token` — Get Token Info
 
-Returns the list of supported chains and return-address chains based on registered tokens. No payload required.
+Queries a single registered token by name. Returns its chain, decimals, and mapping contract (if any).
+
+#### Payload
+
+Token name as a plain string (e.g., `"BTC"`, `"HBD"`). Case-insensitive.
 
 #### Response
 
 ```json
 {
-  "SupportedChains": ["BTC", "ETH", "SOL", "HIVE", "MAGI"],
-  "ReturnAddressChains": ["BTC", "ETH", "SOL", "HIVE", "MAGI"],
-  "Note": "Schema dynamically generated from registered pools"
+  "chain": "BTC",
+  "mapping_contract": "vsc1BkWohDf5fPcwn7V9B9ar6TyiWc3A2ZGJ4t",
+  "decimals": 8
 }
 ```
+
+For a native token:
+
+```json
+{
+  "chain": "HIVE",
+  "decimals": 3
+}
+```
+
+---
+
+### 9. `get_schema` — Get Schema
+
+Returns all supported chains and every registered token with its chain, decimals, and mapping contract. No payload required.
+
+#### Response
+
+```json
+{
+  "supported_chains": ["BTC", "HIVE"],
+  "return_address_chains": ["BTC", "HIVE"],
+  "tokens": [
+    {
+      "name": "btc",
+      "chain": "BTC",
+      "mapping_contract": "vsc1BkWohDf5fPcwn7V9B9ar6TyiWc3A2ZGJ4t",
+      "decimals": 8
+    },
+    { "name": "hbd", "chain": "HIVE", "decimals": 3 },
+    { "name": "hive", "chain": "HIVE", "decimals": 3 }
+  ],
+  "note": "Schema dynamically generated from registered tokens and pools."
+}
+```
+
+#### Field Descriptions
+
+- **`supported_chains`** (string[]): All chains that have at least one registered token.
+- **`return_address_chains`** (string[]): Valid values for `return_address.chain` in swap instructions.
+- **`tokens`** (object[]): Every registered token, each containing:
+  - **`name`** (string): Asset symbol (lowercase).
+  - **`chain`** (string): Source chain.
+  - **`decimals`** (integer): Number of decimal places for the asset's smallest unit.
+  - **`mapping_contract`** (string, optional): Contract ID of the mapping contract for cross-chain assets.
 
 ---
 
