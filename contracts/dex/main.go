@@ -191,7 +191,7 @@ func Swap(payload *string) *string {
 
 	// baseFee = amountIn * feeBps / 10000
 	amountIn, ok := new(big.Int).SetString(params.AmountIn, 10)
-	if !ok {
+	if !ok || amountIn.Sign() <= 0 {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInput, "invalid input amount"),
 		)
@@ -451,7 +451,7 @@ func RemoveLiquidity(payload *string) *string {
 		)
 	}
 
-	if lpAmt.Sign() == 0 || params.Recipient == "" {
+	if lpAmt.Sign() <= 0 || params.Recipient == "" {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInput, "positive lp_amount and recipient are required"),
 		)
