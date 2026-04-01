@@ -572,11 +572,13 @@ func executeDeposit(instruction types.DexInstruction) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pool not found"))
 	}
 
-	if _, ok := new(big.Int).SetString(instruction.Amount0, 10); !ok {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount0 must be a valid number"))
+	amt0, ok := new(big.Int).SetString(instruction.Amount0, 10)
+	if !ok || amt0.Sign() <= 0 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount0 must be a positive number"))
 	}
-	if _, ok := new(big.Int).SetString(instruction.Amount1, 10); !ok {
-		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 must be a valid number"))
+	amt1, ok := new(big.Int).SetString(instruction.Amount1, 10)
+	if !ok || amt1.Sign() <= 0 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amount1 must be a positive number"))
 	}
 
 	// Pre-fund both assets into the pool.
