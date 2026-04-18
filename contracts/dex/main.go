@@ -345,7 +345,7 @@ func Swap(payload *string) *string {
 	}
 
 	// log fee and amount swapped
-	sdk.Log(logFee(magiFee, lpFee))
+	sdk.Log(logFee(params.AssetOut, magiFee, lpFee))
 	sdk.Log(logSwap(params.AssetIn, params.AssetOut, amountIn, amountOut, params.To))
 
 	// Return swap result — use cached names and local reserve values

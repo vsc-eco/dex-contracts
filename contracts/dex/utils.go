@@ -141,13 +141,18 @@ func contractAssert(cond bool, msgs ...string) {
 	}
 }
 
-func logFee(magiFee, lpFee *big.Int) string {
+func logFee(asset string, magiFee, lpFee *big.Int) string {
 	totalFee := new(big.Int).Add(magiFee, lpFee)
 	var b strings.Builder
 	b.Grow(64)
 
 	// 2. Header
 	b.WriteString("fee")
+	b.WriteString(types.LogDelimiter)
+
+	b.WriteString("a")
+	b.WriteString(types.LogKeyDelimiter)
+	b.WriteString(asset)
 	b.WriteString(types.LogDelimiter)
 
 	b.WriteString("t")
