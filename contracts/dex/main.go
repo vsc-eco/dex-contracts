@@ -244,7 +244,7 @@ func Swap(payload *string) *string {
 	amountOut.Sub(amountOut, clpFee)
 	if amountOut.Sign() <= 0 {
 		ce.CustomAbort(
-			ce.NewContractError(ce.ErrInitialization, "insufficient amount to cover fees"),
+			ce.NewContractError(ce.ErrTransaction, "insufficient amount to cover fees"),
 		)
 	}
 
