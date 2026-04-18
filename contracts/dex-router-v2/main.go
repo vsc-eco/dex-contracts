@@ -462,6 +462,8 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		From:         contractAccId,
 		To:           secondHopRecipient,
 		MinAmountOut: instruction.MinAmountOut,
+		Beneficiary:  instruction.Beneficiary,
+		RefBps:       instruction.RefBps,
 		PreDeposited: true,
 	}
 
