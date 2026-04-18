@@ -628,3 +628,163 @@ func TestHiveMainnetToBtcMainnet(t *testing.T) {
 	t.Log("return:", r.Ret)
 	t.Log("gas used:", r.GasUsed)
 }
+
+// TestTwoHopSwapForwardsReferralFee covers a regression where the router's
+// executeTwoHopSwap did not forward Beneficiary/RefBps to the pool, so any
+// swap that routed via HBD (i.e. AssetIn and AssetOut both non-HBD)
+// silently dropped the referral fee. Production users noticed because
+// hive:altera.app showed a zero balance despite the UI attaching ref_bps=25
+// to every outbound BTC swap.
+//
+// The test performs HIVE → HBD → BTC with ref_bps set and asserts the
+// beneficiary ends up with a BTC mapping-contract balance of
+// amountOutGross * RefBps / 10000 (the router fees on the AssetOut, so the
+// fee must land in BTC, not HBD).
+func TestTwoHopSwapForwardsReferralFee(t *testing.T) {
+	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
+
+	const owner = "hive:milo-hpr"
+	beneficiary := "hive:altera.app"
+	btcMappingId := "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj"
+	btchbdDexId := "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3"
+	hivehbdDexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
+
+	ct := test_utils.NewContractTest()
+	t.Cleanup(func() { ct.DataLayer.Stop() })
+
+	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
+	ct.RegisterContract(btchbdDexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(hivehbdDexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
+
+	router := &RouterInfo{ct: &ct, id: routerId}
+	btchbdDex := &DexInfo{ct: &ct, id: btchbdDexId}
+	hivehbdDex := &DexInfo{ct: &ct, id: hivehbdDexId}
+
+	r := router.registerToken(t, owner, types.RegisterTokenParams{
+		Name:      "BTC",
+		TokenInfo: types.TokenInfo{Chain: "BTC", MappingContract: btcMappingId},
+	})
+	if !r.Success {
+		t.Fatalf("register BTC: %s", r.Ret)
+	}
+	r = router.registerToken(t, owner, types.RegisterTokenParams{
+		Name: "HBD", TokenInfo: types.TokenInfo{Chain: "HIVE"},
+	})
+	if !r.Success {
+		t.Fatalf("register HBD: %s", r.Ret)
+	}
+	r = router.registerToken(t, owner, types.RegisterTokenParams{
+		Name: "HIVE", TokenInfo: types.TokenInfo{Chain: "HIVE"},
+	})
+	if !r.Success {
+		t.Fatalf("register HIVE: %s", r.Ret)
+	}
+
+	r = router.registerPool(t, owner, types.RegisterPoolParams{
+		Asset0: "btc", Asset1: "hbd", DexContractId: btchbdDexId,
+	})
+	if !r.Success {
+		t.Fatalf("register btc/hbd pool: %s", r.Ret)
+	}
+	r = router.registerPool(t, owner, types.RegisterPoolParams{
+		Asset0: "hive", Asset1: "hbd", DexContractId: hivehbdDexId,
+	})
+	if !r.Success {
+		t.Fatalf("register hive/hbd pool: %s", r.Ret)
+	}
+
+	// --- Initialize and seed pools ---
+	r = btchbdDex.initPool(t, owner, &types.InitParams{
+		Asset0:                "btc",
+		Asset1:                "hbd",
+		FeeBps:                100,
+		Asset0MappingContract: btcMappingId,
+		RouterContract:        routerId,
+	})
+	if !r.Success {
+		t.Fatalf("init btc/hbd pool: %s: %s", r.Err, r.ErrMsg)
+	}
+	ct.StateSet(btcMappingId, constants.BalancePrefix+owner, formatUintAsBytes(t, 2_00000000))
+	ct.StateSet(btcMappingId,
+		constants.AllowancePrefix+owner+constants.DirPathDelimiter+"contract:"+btchbdDexId,
+		formatUintAsBytes(t, 2_00000000))
+	r = btchbdDex.addLiquidity(t, owner, 1_00000000, 100000_000)
+	if !r.Success {
+		t.Fatalf("add btc/hbd liquidity: %s: %s", r.Err, r.ErrMsg)
+	}
+
+	r = hivehbdDex.initPool(t, owner, &types.InitParams{
+		Asset0:         "hbd",
+		Asset1:         "hive",
+		FeeBps:         100,
+		RouterContract: routerId,
+	})
+	if !r.Success {
+		t.Fatalf("init hive/hbd pool: %s: %s", r.Err, r.ErrMsg)
+	}
+	r = hivehbdDex.addLiquidity(t, owner, 100000_000, 100000_000)
+	if !r.Success {
+		t.Fatalf("add hive/hbd liquidity: %s: %s", r.Err, r.ErrMsg)
+	}
+
+	// --- Execute two-hop swap with referral ---
+	swapAmount := "5000000"
+	refBps := uint64(25)
+	ct.Deposit(owner, 10000000, "hive")
+
+	r = router.execute(t, owner, &types.DexInstruction{
+		Type:        "swap",
+		Version:     "1.0.0",
+		AssetIn:     "hive",
+		AssetOut:    "btc",
+		AmountIn:    swapAmount,
+		Recipient:   owner,
+		Beneficiary: &beneficiary,
+		RefBps:      &refBps,
+	}, []contracts.Intent{
+		{
+			Type: "transfer.allow",
+			Args: map[string]string{"token": "hive", "limit": swapAmount},
+		},
+	})
+
+	dumpLogs(t, r.Logs)
+	dumpStateDiff(t, r.StateDiff)
+
+	assert.True(t, r.Success,
+		"two-hop swap with referral should succeed: "+r.Err+": "+r.ErrMsg)
+
+	// Router returns the user-facing amount_out, which is AFTER the
+	// referral deduction. The fee landed in the beneficiary's BTC balance.
+	var swapResult types.SwapResult
+	if err := tinyjson.Unmarshal([]byte(r.Ret), &swapResult); err != nil {
+		t.Fatalf("decode swap result: %v", err)
+	}
+	userOut, err := strconv.ParseUint(swapResult.AmountOut, 10, 64)
+	if err != nil {
+		t.Fatalf("parse amountOut %q: %v", swapResult.AmountOut, err)
+	}
+
+	// refOut / (userOut + refOut) == refBps / 10000
+	// so refOut = userOut * refBps / (10000 - refBps).
+	expectedRef := userOut * refBps / (10000 - refBps)
+
+	balBytes := ct.StateGet(btcMappingId, constants.BalancePrefix+beneficiary)
+	if len(balBytes) == 0 {
+		t.Fatalf("beneficiary %s has no BTC mapping balance — referral fee was not forwarded", beneficiary)
+	}
+	var buf [8]byte
+	copy(buf[8-len(balBytes):], balBytes)
+	gotRef := uint64(0)
+	for _, b := range buf {
+		gotRef = (gotRef << 8) | uint64(b)
+	}
+	t.Logf("user amount_out=%d, referrer balance=%d, expected≈%d", userOut, gotRef, expectedRef)
+
+	// Allow ±1 sat for integer-division rounding in the pool's refOut math.
+	if gotRef+1 < expectedRef || gotRef > expectedRef+1 {
+		t.Errorf("referrer BTC balance=%d, expected %d (±1)", gotRef, expectedRef)
+	}
+}
