@@ -146,12 +146,12 @@ func Swap(payload *string) *string {
 
 	if asset0Name == params.AssetIn && asset1Name == params.AssetOut {
 		inputIsAsset0 = true
-		magiFeeKey = types.KeySystemFee0
+		magiFeeKey = types.KeySystemFee1
 		rInKey = types.KeyReserve0
 		rOutKey = types.KeyReserve1
 	} else if asset1Name == params.AssetIn && asset0Name == params.AssetOut {
 		inputIsAsset0 = false
-		magiFeeKey = types.KeySystemFee1
+		magiFeeKey = types.KeySystemFee0
 		rInKey = types.KeyReserve1
 		rOutKey = types.KeyReserve0
 	} else {
@@ -202,16 +202,29 @@ func Swap(payload *string) *string {
 		)
 	}
 
-	baseFee := new(big.Int).Mul(amountIn, feeBps)
+	// Fees are denominated in the OUTPUT asset: the full amountIn enters the
+	// pool, the invariant produces a gross output, and fees are carved off it.
+
+	// k = rIn * rOut  (big.Int to prevent overflow)
+	k := new(big.Int).Mul(rIn, rOut)
+
+	// newRIn = rIn + amountIn (entire input enters the pool)
+	newRIn := new(big.Int).Add(rIn, amountIn)
+
+	// grossOut = rOut - k / newRIn (pre-fee output from the invariant)
+	grossOut := new(big.Int).Div(k, newRIn)
+	grossOut.Sub(rOut, grossOut)
+
+	// baseFee = grossOut * feeBps / 10000  (output units)
+	baseFee := new(big.Int).Mul(grossOut, feeBps)
 	baseFee.Div(baseFee, big.NewInt(10000))
 	if baseFee.Sign() == 0 {
 		baseFee.SetUint64(1)
 	}
 
-	// numerator = (amountIn ^ 2) * reserveOut
+	// clpFee = (amountIn^2 * rOut) / (amountIn + rIn)^2  (output units)
 	numerator := new(big.Int).Mul(amountIn, amountIn)
 	numerator.Mul(numerator, rOut)
-	// denominator = (amountIn + reserveIn)^2
 	denominator := new(big.Int).Add(amountIn, rIn)
 	denominator.Mul(denominator, denominator)
 	clpFee := new(big.Int).Div(numerator, denominator)
@@ -226,28 +239,17 @@ func Swap(payload *string) *string {
 	}
 	lpFee.Sub(lpFee, magiFee)
 
-	// dIn = amountIn - baseFee - clpFee  (using big.Int to avoid underflow)
-	dIn := new(big.Int).Set(amountIn)
-	dIn.Sub(dIn, baseFee)
-	dIn.Sub(dIn, clpFee)
-	if dIn.Sign() <= 0 {
+	// amountOut = grossOut - baseFee - clpFee
+	amountOut := new(big.Int).Sub(grossOut, baseFee)
+	amountOut.Sub(amountOut, clpFee)
+	if amountOut.Sign() <= 0 {
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrInitialization, "insufficient amount to cover fees"),
 		)
 	}
 
-	// k = rIn * rOut  (big.Int to prevent overflow)
-	k := new(big.Int).Mul(rIn, rOut)
-
-	// newRIn = rIn + dIn
-	newRIn := new(big.Int).Add(rIn, dIn)
-
-	// amountOut = rOut - k / newRIn
-	amountOut := new(big.Int).Div(k, newRIn) // (k / newRIn)
-	amountOut.Sub(rOut, amountOut)
-
-	// newROut = rOut - amountOut
-	newROut := new(big.Int).Sub(rOut, amountOut)
+	// newROut = rOut - grossOut; lpFee is added back below so it stays in the pool
+	newROut := new(big.Int).Sub(rOut, grossOut)
 
 	maybeEnv := types.MaybeEnv{}
 
@@ -322,7 +324,7 @@ func Swap(payload *string) *string {
 		setBigInt(magiFeeKey, currentFee)
 	}
 	if lpFee.Sign() == 1 {
-		newRIn.Add(newRIn, lpFee)
+		newROut.Add(newROut, lpFee)
 	}
 	setBigInt(rInKey, newRIn)
 	setBigInt(rOutKey, newROut)
