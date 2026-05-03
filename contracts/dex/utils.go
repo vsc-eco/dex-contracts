@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	ce "github.com/vsc-eco/dex-contracts/contracterrors"
 	"github.com/vsc-eco/dex-contracts/contracts/asset"
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 	"github.com/vsc-eco/dex-contracts/sdk"
@@ -60,7 +61,7 @@ func setTimestamp(key string, timestamp string) {
 		}
 	}
 	if err != nil {
-		sdk.Abort("invalid timestamp: " + timestamp)
+		ce.CustomAbort(ce.NewContractError(ce.ErrStateAccess, "invalid timestamp: "+timestamp))
 	}
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], uint64(t.Unix()))
@@ -137,7 +138,7 @@ func contractAssert(cond bool, msgs ...string) {
 		if len(msgs) > 0 {
 			msg = msgs[0]
 		}
-		sdk.Abort(msg)
+		ce.CustomAbort(ce.NewContractError(ce.ErrArithmetic, msg))
 	}
 }
 

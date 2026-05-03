@@ -40,7 +40,7 @@ func Init(payload *string) *string {
 	}
 
 	if payload == nil {
-		sdk.Abort("payload required")
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "payload required"))
 	}
 
 	var params types.InitParams
@@ -54,7 +54,7 @@ func Init(payload *string) *string {
 
 	// Validate assets are different
 	if params.Asset0 == params.Asset1 {
-		sdk.Abort("assets must be different")
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "assets must be different"))
 	}
 
 	// Enforce alphabetical ordering: asset0 < asset1
@@ -71,10 +71,10 @@ func Init(payload *string) *string {
 	}
 
 	if _, err := asset.NewAsset(params.Asset0, params.Asset0MappingContract); err != nil {
-		sdk.Abort(err.Error())
+		ce.CustomAbort(ce.WrapContractError(ce.ErrInput, err, "invalid asset0"))
 	}
 	if _, err := asset.NewAsset(params.Asset1, params.Asset1MappingContract); err != nil {
-		sdk.Abort(err.Error())
+		ce.CustomAbort(ce.WrapContractError(ce.ErrInput, err, "invalid asset1"))
 	}
 
 	// Default fee if not specified
@@ -488,11 +488,11 @@ func RemoveLiquidity(payload *string) *string {
 func executeAddLiquidity(amt0, amt1 *big.Int, provider string, params types.AddLiquidityParams) *string {
 	asset0, err := getAsset0()
 	if err != nil {
-		sdk.Abort("pool not initialized")
+		ce.CustomAbort(ce.WrapContractError(ce.ErrInitialization, err, "pool not initialized"))
 	}
 	asset1, err := getAsset1()
 	if err != nil {
-		sdk.Abort("pool not initialized")
+		ce.CustomAbort(ce.WrapContractError(ce.ErrInitialization, err, "pool not initialized"))
 	}
 
 	maybeEnv := types.MaybeEnv{}
