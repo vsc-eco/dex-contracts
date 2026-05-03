@@ -19,6 +19,20 @@ func main() {}
 //
 //go:wasmexport init
 func Init(payload *string) *string {
+	// Owner-only: prevents anyone but the deployer from invoking init as a
+	// regular transaction. The runtime exposes `init` like any other export.
+	env := sdk.GetEnv()
+	ownerPtr := sdk.GetEnvKey("contract.owner")
+	if ownerPtr == nil || env.Caller.String() != *ownerPtr {
+		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "owner only"))
+	}
+
+	// Idempotency guard: keyVersion is always set on successful init, so a
+	// non-empty value means the router is already initialized.
+	if getStr(keyVersion) != "" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "router already initialized"))
+	}
+
 	if payload == nil || *payload == "" {
 		setStr(keyVersion, "1.0.0")
 	} else {

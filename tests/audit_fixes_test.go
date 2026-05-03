@@ -944,3 +944,145 @@ func TestAuditC04_SecondProvider_CannotStealFirstProviderLP(t *testing.T) {
 	assert.False(t, r.Success, "alice should not be able to remove more LP than she owns")
 	t.Log("C-04 LP theft prevention error:", r.ErrMsg)
 }
+
+// ============================================================================
+// CRITICAL — Pool init is owner-gated and idempotent
+// Anyone could previously call `init` as a regular tx and zero the pool's
+// reserves and total LP supply, trapping ledger funds. The fix gates init on
+// contract.owner and refuses to re-run after the pool has been initialized.
+// ============================================================================
+
+func TestAuditInit_Pool_NonOwnerRejected(t *testing.T) {
+	ct := test_utils.NewContractTest()
+	t.Cleanup(func() { ct.DataLayer.Stop() })
+
+	owner := "hive:milo-hpr"
+	attacker := "hive:randomattacker999"
+	dexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
+
+	ct.RegisterContract(dexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
+
+	dex := &DexInfo{ct: &ct, id: dexId}
+
+	// Attacker calls init before the owner does. Even on a fresh pool, this
+	// must be rejected so the attacker can't squat and seed bogus parameters.
+	r := dex.initPool(t, attacker, &types.InitParams{
+		Asset0:         "hive",
+		Asset1:         "hbd",
+		FeeBps:         30,
+		RouterContract: routerId,
+	})
+	assert.False(t, r.Success, "init should be rejected for non-owner caller")
+	t.Log("init non-owner error:", r.ErrMsg)
+}
+
+func TestAuditInit_Pool_ReinitRejected_ReservesPreserved(t *testing.T) {
+	ct, dex, dexId := setupNativeHiveHbdPool(t, 78526, 2469817)
+	owner := "hive:milo-hpr"
+	attacker := "hive:randomattacker999"
+
+	// Capture state before the attack: reserves and total LP must be non-zero.
+	r := ct.Call(state_engine.TxVscCallContract{
+		Self:       *basicSelf(t, owner),
+		ContractId: dexId,
+		Action:     "get_pool",
+		Payload:    []byte("{}"),
+		RcLimit:    1000,
+		Intents:    []contracts.Intent{},
+		Caller:     owner,
+	})
+	if !r.Success {
+		t.Fatalf("get_pool failed: %s: %s", r.Err, r.ErrMsg)
+	}
+	beforeRet := r.Ret
+	t.Log("pool state before attempted re-init:", beforeRet)
+	if !strings.Contains(beforeRet, "\"reserve0\":\"78526\"") || !strings.Contains(beforeRet, "\"reserve1\":\"2469817\"") {
+		t.Fatalf("expected non-zero reserves before re-init, got: %s", beforeRet)
+	}
+
+	// Attacker re-invokes init. Owner check should reject this first.
+	r2 := dex.initPool(t, attacker, &types.InitParams{
+		Asset0:         "hive",
+		Asset1:         "hbd",
+		FeeBps:         30,
+		RouterContract: dex.id,
+	})
+	assert.False(t, r2.Success, "attacker re-init must fail (owner check)")
+	t.Log("attacker re-init error:", r2.ErrMsg)
+
+	// Even the legitimate owner must be blocked by the idempotency guard,
+	// otherwise a fat-fingered redeploy could nuke live state.
+	r3 := dex.initPool(t, owner, &types.InitParams{
+		Asset0:         "hive",
+		Asset1:         "hbd",
+		FeeBps:         30,
+		RouterContract: dex.id,
+	})
+	assert.False(t, r3.Success, "owner re-init must fail (already-initialized guard)")
+	assert.Contains(t, r3.ErrMsg, "already initialized", "error should mention already-initialized")
+	t.Log("owner re-init error:", r3.ErrMsg)
+
+	// Reserves and LP supply must be unchanged after both attempts.
+	r4 := ct.Call(state_engine.TxVscCallContract{
+		Self:       *basicSelf(t, owner),
+		ContractId: dexId,
+		Action:     "get_pool",
+		Payload:    []byte("{}"),
+		RcLimit:    1000,
+		Intents:    []contracts.Intent{},
+		Caller:     owner,
+	})
+	if !r4.Success {
+		t.Fatalf("get_pool after re-init failed: %s: %s", r4.Err, r4.ErrMsg)
+	}
+	t.Log("pool state after attempted re-init:", r4.Ret)
+	assert.Equal(t, beforeRet, r4.Ret, "pool state must be unchanged after blocked re-init")
+}
+
+// ============================================================================
+// HIGH — Router init is owner-gated and idempotent
+// The router stored a `version` key that anyone could overwrite. The fix
+// matches the pool: owner-only and refuses to re-run.
+// ============================================================================
+
+func TestAuditInit_Router_NonOwnerRejected(t *testing.T) {
+	ct := test_utils.NewContractTest()
+	t.Cleanup(func() { ct.DataLayer.Stop() })
+
+	owner := "hive:milo-hpr"
+	attacker := "hive:randomattacker999"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
+
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
+
+	router := RouterInfo{ct: &ct, id: routerId}
+
+	r := router.initRouterV2(t, attacker)
+	assert.False(t, r.Success, "router init should be rejected for non-owner caller")
+	t.Log("router init non-owner error:", r.ErrMsg)
+}
+
+func TestAuditInit_Router_ReinitRejected(t *testing.T) {
+	ct := test_utils.NewContractTest()
+	t.Cleanup(func() { ct.DataLayer.Stop() })
+
+	owner := "hive:milo-hpr"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
+
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
+
+	router := RouterInfo{ct: &ct, id: routerId}
+
+	r := router.initRouterV2(t, owner)
+	if !r.Success {
+		t.Fatalf("first init should succeed for owner: %s", r.ErrMsg)
+	}
+
+	// Owner calling init a second time must be blocked by the idempotency guard.
+	r2 := router.initRouterV2(t, owner)
+	assert.False(t, r2.Success, "router re-init by owner must be blocked")
+	assert.Contains(t, r2.ErrMsg, "already initialized", "error should mention already-initialized")
+	t.Log("router re-init error:", r2.ErrMsg)
+}

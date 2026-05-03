@@ -22,6 +22,23 @@ func main() {}
 //
 //go:wasmexport init
 func Init(payload *string) *string {
+	// Owner-only: prevents anyone but the deployer from invoking init as a
+	// regular transaction. The runtime exposes `init` like any other export,
+	// so without this check a fresh transaction can re-enter Init and zero
+	// reserves.
+	env := sdk.GetEnv()
+	ownerPtr := sdk.GetEnvKey("contract.owner")
+	if ownerPtr == nil || env.Caller.String() != *ownerPtr {
+		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "owner only"))
+	}
+
+	// Idempotency guard: KeyMigrateVer is set at the end of a successful Init
+	// (and by Migrate). A non-empty value means the pool is already
+	// initialized, so re-running would clobber live reserves and LP supply.
+	if getStr(types.KeyMigrateVer) != "" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInitialization, "pool already initialized"))
+	}
+
 	if payload == nil {
 		sdk.Abort("payload required")
 	}

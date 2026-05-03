@@ -166,7 +166,7 @@ func TestAddLiquidityNativePool(t *testing.T) {
 	hivehbdDexContractId := "vsc1BmLNMQep1RaaUdYTPfEhqn1inESqNz4Ekt"
 	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
-	ct.RegisterContract(hivehbdDexContractId, "milo.hpr", dexcontracts.DexWasm)
+	ct.RegisterContract(hivehbdDexContractId, owner, dexcontracts.DexWasm)
 	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
 
 	hivehbdDex := &DexInfo{
@@ -340,6 +340,133 @@ func TestOneHopNative(t *testing.T) {
 	dumpStateDiff(t, r.StateDiff)
 	assert.True(t, r.Success)
 	t.Log("return:", r.Ret)
+}
+
+// Reproduces a frontend-reported swap to check whether logged fees match
+// contract math. Pool seeded with 2250 HBD / 36500 HIVE; swaps HBD -> HIVE.
+// The full 2000 HBD swap exceeds the pool's maxSwap = rIn/2 = 1125 cap, so
+// the contract aborts before fee math runs. The 1100 HBD variant fits under
+// the cap and produces real fee logs to inspect.
+func TestSwap2000HbdInto2250Hbd36500Hive(t *testing.T) {
+	ct := test_utils.NewContractTest()
+	t.Cleanup(func() { ct.DataLayer.Stop() })
+
+	owner := "hive:milo-hpr"
+
+	hivehbdDexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
+
+	ct.RegisterContract(hivehbdDexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
+
+	router := &RouterInfo{ct: &ct, id: routerId}
+	hivehbdDex := &DexInfo{ct: &ct, id: hivehbdDexId}
+
+	r := router.initRouterV2(t, owner)
+	if !r.Success {
+		t.Fatalf("error initializing router: %s", r.Ret)
+	}
+
+	r = router.registerToken(t, owner, types.RegisterTokenParams{
+		Name:      "HIVE",
+		TokenInfo: types.TokenInfo{Chain: "HIVE"},
+	})
+	if !r.Success {
+		t.Fatalf("error registering HIVE: %s", r.Ret)
+	}
+	r = router.registerToken(t, owner, types.RegisterTokenParams{
+		Name:      "HBD",
+		TokenInfo: types.TokenInfo{Chain: "HIVE"},
+	})
+	if !r.Success {
+		t.Fatalf("error registering HBD: %s", r.Ret)
+	}
+
+	poolParams := types.RegisterPoolParams{
+		Asset0:        "hbd",
+		Asset1:        "hive",
+		DexContractId: hivehbdDexId,
+	}
+	r = router.registerPool(t, owner, poolParams)
+	if !r.Success {
+		t.Fatalf("error registering pool: %s", r.Ret)
+	}
+
+	r = hivehbdDex.initPool(t, owner, &types.InitParams{
+		Asset0:         poolParams.Asset0,
+		Asset1:         poolParams.Asset1,
+		RouterContract: routerId,
+	})
+	if !r.Success {
+		t.Fatalf("error initializing HIVE/HBD pool: %s", r.Ret)
+	}
+
+	// Pool reserves: 2250 HBD, 36500 HIVE.
+	r = hivehbdDex.addLiquidity(t, owner, 2250, 36500)
+	if !r.Success {
+		t.Fatalf("error adding liquidity: %s: %s", r.Err, r.ErrMsg)
+	}
+
+	// Fund the swapper with HBD for both attempts.
+	ct.Deposit(owner, int64(5000), ledger_db.AssetHbd)
+
+	// --- Attempt 1: requested 2000 HBD swap. Expected to abort on
+	// `amount exceeds input asset liquidity / 2` (rIn/2 = 1125).
+	t.Log("=== attempt 1: swap 2000 HBD -> HIVE (expected to exceed maxSwap) ===")
+	r = router.execute(t, owner, &types.DexInstruction{
+		Type:      "swap",
+		Version:   "1.0.0",
+		AssetIn:   "hbd",
+		AssetOut:  "hive",
+		AmountIn:  "2000",
+		Recipient: "hive:milo-vsc",
+		ReturnAddress: &types.ReturnAddress{
+			Chain:   "VSC",
+			Address: "hive:milo-hpr",
+		},
+	}, []contracts.Intent{
+		{
+			Type: "transfer.allow",
+			Args: map[string]string{
+				"token": "hbd",
+				"limit": "2000",
+			},
+		},
+	})
+	t.Log("attempt 1 success:", r.Success)
+	t.Log("attempt 1 return:", r.Ret)
+	t.Log("attempt 1 errMsg:", r.ErrMsg)
+	dumpLogs(t, r.Logs)
+
+	// --- Attempt 2: 1100 HBD swap (just under maxSwap). This should
+	// succeed and emit `fee` + `swap` logs we can inspect.
+	t.Log("=== attempt 2: swap 1100 HBD -> HIVE (under maxSwap) ===")
+	r = router.execute(t, owner, &types.DexInstruction{
+		Type:      "swap",
+		Version:   "1.0.0",
+		AssetIn:   "hbd",
+		AssetOut:  "hive",
+		AmountIn:  "1100",
+		Recipient: "hive:milo-vsc",
+		ReturnAddress: &types.ReturnAddress{
+			Chain:   "VSC",
+			Address: "hive:milo-hpr",
+		},
+	}, []contracts.Intent{
+		{
+			Type: "transfer.allow",
+			Args: map[string]string{
+				"token": "hbd",
+				"limit": "1100",
+			},
+		},
+	})
+	if !r.Success {
+		t.Errorf("attempt 2 failed: %s: %s", r.Err, r.ErrMsg)
+	}
+	t.Log("attempt 2 return:", r.Ret)
+	dumpLogs(t, r.Logs)
+	dumpStateDiff(t, r.StateDiff)
 }
 
 func TestOneHopMapped(t *testing.T) {
