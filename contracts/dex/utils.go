@@ -142,12 +142,10 @@ func contractAssert(cond bool, msgs ...string) {
 	}
 }
 
-func logFee(asset string, magiFee, lpFee *big.Int) string {
-	totalFee := new(big.Int).Add(magiFee, lpFee)
+func logPendulumSwap(asset string, networkCredit *big.Int, out *types.PendulumSwapFeeOutput) string {
 	var b strings.Builder
-	b.Grow(64)
+	b.Grow(128)
 
-	// 2. Header
 	b.WriteString("fee")
 	b.WriteString(types.LogDelimiter)
 
@@ -156,19 +154,28 @@ func logFee(asset string, magiFee, lpFee *big.Int) string {
 	b.WriteString(asset)
 	b.WriteString(types.LogDelimiter)
 
-	b.WriteString("t")
+	// Network-share credit on the output side, in output-asset base units.
+	b.WriteString("nc")
 	b.WriteString(types.LogKeyDelimiter)
-	b.WriteString(totalFee.String())
+	b.WriteString(networkCredit.String())
 	b.WriteString(types.LogDelimiter)
 
-	b.WriteString("m")
+	// HBD already accrued by the SDK to pendulum:nodes (informational).
+	b.WriteString("nb")
 	b.WriteString(types.LogKeyDelimiter)
-	b.WriteString(magiFee.String())
+	b.WriteString(out.NodeBucketCreditedHbd)
 	b.WriteString(types.LogDelimiter)
 
-	b.WriteString("lp")
+	// Stabilizer multiplier m(s, r) in SQ64.
+	b.WriteString("mq8")
 	b.WriteString(types.LogKeyDelimiter)
-	b.WriteString(lpFee.String())
+	b.WriteString(out.MultiplierQ8)
+	b.WriteString(types.LogDelimiter)
+
+	// Geometry ratio s = V/E from the snapshot the SDK consumed.
+	b.WriteString("sq8")
+	b.WriteString(types.LogKeyDelimiter)
+	b.WriteString(out.SAfterQ8)
 
 	return b.String()
 }

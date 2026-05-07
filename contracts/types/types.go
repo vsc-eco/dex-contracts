@@ -58,6 +58,34 @@ type SwapResult struct {
 	PoolState PoolInfo `json:"pool_state"` // Current pool state after swap
 }
 
+// PendulumSwapFeeInput is the JSON payload for system.pendulum_apply_swap_fees.
+// All numeric amounts are decimal strings; one side must be "hbd".
+//
+//tinyjson:json
+type PendulumSwapFeeInput struct {
+	AssetIn  string `json:"asset_in"`
+	AssetOut string `json:"asset_out"`
+	X        string `json:"x"`
+	XReserve string `json:"x_reserve"`
+	YReserve string `json:"y_reserve"`
+}
+
+// PendulumSwapFeeOutput is the JSON response from system.pendulum_apply_swap_fees.
+// `user_output`, `new_x_reserve`, `new_y_reserve`, `node_bucket_credited_hbd`
+// and `network_credit_output` are decimal-string base-unit amounts;
+// `multiplier_q8` and `s_after_q8` are SQ64 (1e8-scaled) values.
+//
+//tinyjson:json
+type PendulumSwapFeeOutput struct {
+	UserOutput            string `json:"user_output"`
+	NewXReserve           string `json:"new_x_reserve"`
+	NewYReserve           string `json:"new_y_reserve"`
+	NodeBucketCreditedHbd string `json:"node_bucket_credited_hbd"`
+	MultiplierQ8          string `json:"multiplier_q8"`
+	SAfterQ8              string `json:"s_after_q8"`
+	NetworkCreditOutput   string `json:"network_credit_output"`
+}
+
 // ROUTER OPERATIONS
 
 //tinyjson:json

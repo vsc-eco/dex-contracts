@@ -108,6 +108,9 @@ contracts:
 	done
 
 # Regenerate tinyjson code for contracts
+# Pass FORCE=1 to skip the up-to-date checks and force regeneration, e.g.:
+#   make tinyjson FORCE=1
+FORCE ?=
 tinyjson:
 	@set +e; \
 	echo "Searching for //tinyjson:json directives..."; \
@@ -138,8 +141,13 @@ tinyjson:
 		\
 		rebuild=0; \
 		\
+		# Force regeneration when FORCE is set, bypassing the up-to-date checks \
+		if [ -n "$(FORCE)" ]; then \
+			echo "  FORCE set — regenerating"; \
+			rebuild=1; \
+		\
 		# Rebuild if output missing \
-		if [ -z "$$out" ] || [ ! -f "$$out" ]; then \
+		elif [ -z "$$out" ] || [ ! -f "$$out" ]; then \
 			echo "  Output file missing or not found"; \
 			rebuild=1; \
 		\

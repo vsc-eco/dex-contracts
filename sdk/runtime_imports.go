@@ -40,6 +40,9 @@ func getEnvKey(arg *string) *string
 //go:wasmimport sdk system.verify_address
 func verifyAddress(arg *string) *string
 
+//go:wasmimport sdk system.pendulum_apply_swap_fees
+func pendulumApplySwapFees(arg *string) *string
+
 //go:wasmimport sdk hive.get_balance
 func getBalance(arg1 *string, arg2 *string) *string
 
