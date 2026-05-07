@@ -137,6 +137,14 @@ func VerifyAddress(addr string) string {
 	return *verifyAddress(&addr)
 }
 
+// PendulumApplySwapFees invokes the Magi pendulum SDK method for an HBD-paired
+// pool swap. The input/output are JSON-encoded per the W8 contract integration
+// spec (PendulumSwapFeeInput / PendulumSwapFeeOutput). On any SDK error the
+// runtime aborts the contract; this function only returns on success.
+func PendulumApplySwapFees(input string) string {
+	return *pendulumApplySwapFees(&input)
+}
+
 // Get balance of an account
 func GetBalance(address Address, asset Asset) int64 {
 	addr := address.String()

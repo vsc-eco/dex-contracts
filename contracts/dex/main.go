@@ -156,19 +156,21 @@ func Swap(payload *string) *string {
 
 	feeBps := getFee()
 
-	// Determine swap direction using cached names
-	var magiFeeKey string
+	// Determine swap direction using cached names. The network-share bucket
+	// always sits on the OUTPUT side (the pendulum SDK denominates fees in
+	// the output asset), so the fee key follows the output reserve.
+	var networkShareKey string
 	var rInKey, rOutKey string
 	var inputIsAsset0 bool
 
 	if asset0Name == params.AssetIn && asset1Name == params.AssetOut {
 		inputIsAsset0 = true
-		magiFeeKey = types.KeySystemFee1
+		networkShareKey = types.KeySystemFee1
 		rInKey = types.KeyReserve0
 		rOutKey = types.KeyReserve1
 	} else if asset1Name == params.AssetIn && asset0Name == params.AssetOut {
 		inputIsAsset0 = false
-		magiFeeKey = types.KeySystemFee0
+		networkShareKey = types.KeySystemFee0
 		rInKey = types.KeyReserve1
 		rOutKey = types.KeyReserve0
 	} else {
@@ -206,7 +208,6 @@ func Swap(payload *string) *string {
 	}
 	maxSwap := new(big.Int).Div(rIn, big.NewInt(2))
 
-	// baseFee = amountIn * feeBps / 10000
 	amountIn, ok := new(big.Int).SetString(params.AmountIn, 10)
 	if !ok || amountIn.Sign() <= 0 {
 		ce.CustomAbort(
@@ -219,54 +220,48 @@ func Swap(payload *string) *string {
 		)
 	}
 
-	// Fees are denominated in the OUTPUT asset: the full amountIn enters the
-	// pool, the invariant produces a gross output, and fees are carved off it.
+	// Delegate fee math to the pendulum SDK. The contract no longer pre-computes
+	// the gross output, base fee, CLP fee, or stabilizer surplus — pass raw
+	// reserves and amount in, and the SDK returns the final user output, the
+	// post-swap reserves (including the secondary-hop adjustment for non-HBD
+	// outputs), and the network-share credit on the output side.
+	//
+	// `exacerbates` is a hint for the stabilizer push direction; we pass the
+	// conservative `true` here. The SDK-side check is still authoritative.
+	pendulumIn := types.PendulumSwapFeeInput{
+		AssetIn:  params.AssetIn,
+		AssetOut: params.AssetOut,
+		X:        amountIn.String(),
+		XReserve: rIn.String(),
+		YReserve: rOut.String(),
+	}
+	pendulumInJSON, err := tinyjson.Marshal(&pendulumIn)
+	if err != nil {
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "failed to encode pendulum input"))
+	}
+	pendulumOutJSON := sdk.PendulumApplySwapFees(string(pendulumInJSON))
 
-	// k = rIn * rOut  (big.Int to prevent overflow)
-	k := new(big.Int).Mul(rIn, rOut)
-
-	// newRIn = rIn + amountIn (entire input enters the pool)
-	newRIn := new(big.Int).Add(rIn, amountIn)
-
-	// grossOut = rOut - k / newRIn (pre-fee output from the invariant)
-	grossOut := new(big.Int).Div(k, newRIn)
-	grossOut.Sub(rOut, grossOut)
-
-	// baseFee = grossOut * feeBps / 10000  (output units)
-	baseFee := new(big.Int).Mul(grossOut, feeBps)
-	baseFee.Div(baseFee, big.NewInt(10000))
-	if baseFee.Sign() == 0 {
-		baseFee.SetUint64(1)
+	var pendulumOut types.PendulumSwapFeeOutput
+	if err := tinyjson.Unmarshal([]byte(pendulumOutJSON), &pendulumOut); err != nil {
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "failed to decode pendulum output"))
 	}
 
-	// clpFee = (amountIn^2 * rOut) / (amountIn + rIn)^2  (output units)
-	numerator := new(big.Int).Mul(amountIn, amountIn)
-	numerator.Mul(numerator, rOut)
-	denominator := new(big.Int).Add(amountIn, rIn)
-	denominator.Mul(denominator, denominator)
-	clpFee := new(big.Int).Div(numerator, denominator)
-	if clpFee.Sign() == 0 {
-		clpFee.SetUint64(1)
+	amountOut, ok := new(big.Int).SetString(pendulumOut.UserOutput, 10)
+	if !ok || amountOut.Sign() <= 0 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pendulum returned invalid user_output"))
 	}
-	magiFee := new(big.Int).Add(baseFee, clpFee)
-	lpFee := new(big.Int).Set(magiFee)
-	magiFee.Div(magiFee, big.NewInt(4))
-	if magiFee.Sign() == 0 {
-		magiFee.SetUint64(1)
+	newRIn, ok := new(big.Int).SetString(pendulumOut.NewXReserve, 10)
+	if !ok {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pendulum returned invalid new_x_reserve"))
 	}
-	lpFee.Sub(lpFee, magiFee)
-
-	// amountOut = grossOut - baseFee - clpFee
-	amountOut := new(big.Int).Sub(grossOut, baseFee)
-	amountOut.Sub(amountOut, clpFee)
-	if amountOut.Sign() <= 0 {
-		ce.CustomAbort(
-			ce.NewContractError(ce.ErrTransaction, "insufficient amount to cover fees"),
-		)
+	newROut, ok := new(big.Int).SetString(pendulumOut.NewYReserve, 10)
+	if !ok {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pendulum returned invalid new_y_reserve"))
 	}
-
-	// newROut = rOut - grossOut; lpFee is added back below so it stays in the pool
-	newROut := new(big.Int).Sub(rOut, grossOut)
+	networkCredit, ok := new(big.Int).SetString(pendulumOut.NetworkCreditOutput, 10)
+	if !ok {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pendulum returned invalid network_credit_output"))
+	}
 
 	maybeEnv := types.MaybeEnv{}
 
@@ -335,13 +330,12 @@ func Swap(payload *string) *string {
 	}
 
 	// --- EFFECTS: update reserves BEFORE external transfers (reentrancy protection) ---
-	if magiFee.Sign() == 1 {
-		currentFee := getBigInt(magiFeeKey)
-		currentFee.Add(currentFee, magiFee)
-		setBigInt(magiFeeKey, currentFee)
-	}
-	if lpFee.Sign() == 1 {
-		newROut.Add(newROut, lpFee)
+	// Reserves come straight from the pendulum SDK (it already folded the
+	// LP-retained portion of the fees into them); apply byte-for-byte.
+	if networkCredit.Sign() == 1 {
+		currentShare := getBigInt(networkShareKey)
+		currentShare.Add(currentShare, networkCredit)
+		setBigInt(networkShareKey, currentShare)
 	}
 	setBigInt(rInKey, newRIn)
 	setBigInt(rOutKey, newROut)
@@ -361,8 +355,9 @@ func Swap(payload *string) *string {
 		)
 	}
 
-	// log fee and amount swapped
-	sdk.Log(logFee(params.AssetOut, magiFee, lpFee))
+	// Receipt event for indexers — surfaces stabilizer multiplier, geometry
+	// snapshot, node bucket credit and the network-share credit applied here.
+	sdk.Log(logPendulumSwap(params.AssetOut, networkCredit, &pendulumOut))
 	sdk.Log(logSwap(params.AssetIn, params.AssetOut, amountIn, amountOut, params.To))
 
 	// Return swap result — use cached names and local reserve values

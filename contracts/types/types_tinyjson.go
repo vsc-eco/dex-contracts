@@ -893,7 +893,181 @@ func (v PoolInfo) MarshalTinyJSON(w *jwriter.Writer) {
 func (v *PoolInfo) UnmarshalTinyJSON(l *jlexer.Lexer) {
 	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp9(l, v)
 }
-func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp10(in *jlexer.Lexer, out *MappingContractInput) {
+func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp10(in *jlexer.Lexer, out *PendulumSwapFeeOutput) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "user_output":
+			out.UserOutput = string(in.String())
+		case "new_x_reserve":
+			out.NewXReserve = string(in.String())
+		case "new_y_reserve":
+			out.NewYReserve = string(in.String())
+		case "node_bucket_credited_hbd":
+			out.NodeBucketCreditedHbd = string(in.String())
+		case "multiplier_q8":
+			out.MultiplierQ8 = string(in.String())
+		case "s_after_q8":
+			out.SAfterQ8 = string(in.String())
+		case "network_credit_output":
+			out.NetworkCreditOutput = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp10(out *jwriter.Writer, in PendulumSwapFeeOutput) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"user_output\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.UserOutput))
+	}
+	{
+		const prefix string = ",\"new_x_reserve\":"
+		out.RawString(prefix)
+		out.String(string(in.NewXReserve))
+	}
+	{
+		const prefix string = ",\"new_y_reserve\":"
+		out.RawString(prefix)
+		out.String(string(in.NewYReserve))
+	}
+	{
+		const prefix string = ",\"node_bucket_credited_hbd\":"
+		out.RawString(prefix)
+		out.String(string(in.NodeBucketCreditedHbd))
+	}
+	{
+		const prefix string = ",\"multiplier_q8\":"
+		out.RawString(prefix)
+		out.String(string(in.MultiplierQ8))
+	}
+	{
+		const prefix string = ",\"s_after_q8\":"
+		out.RawString(prefix)
+		out.String(string(in.SAfterQ8))
+	}
+	{
+		const prefix string = ",\"network_credit_output\":"
+		out.RawString(prefix)
+		out.String(string(in.NetworkCreditOutput))
+	}
+	out.RawByte('}')
+}
+
+// MarshalTinyJSON supports tinyjson.Marshaler interface
+func (v PendulumSwapFeeOutput) MarshalTinyJSON(w *jwriter.Writer) {
+	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp10(w, v)
+}
+
+// UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
+func (v *PendulumSwapFeeOutput) UnmarshalTinyJSON(l *jlexer.Lexer) {
+	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp10(l, v)
+}
+func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp11(in *jlexer.Lexer, out *PendulumSwapFeeInput) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "asset_in":
+			out.AssetIn = string(in.String())
+		case "asset_out":
+			out.AssetOut = string(in.String())
+		case "x":
+			out.X = string(in.String())
+		case "x_reserve":
+			out.XReserve = string(in.String())
+		case "y_reserve":
+			out.YReserve = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp11(out *jwriter.Writer, in PendulumSwapFeeInput) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"asset_in\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.AssetIn))
+	}
+	{
+		const prefix string = ",\"asset_out\":"
+		out.RawString(prefix)
+		out.String(string(in.AssetOut))
+	}
+	{
+		const prefix string = ",\"x\":"
+		out.RawString(prefix)
+		out.String(string(in.X))
+	}
+	{
+		const prefix string = ",\"x_reserve\":"
+		out.RawString(prefix)
+		out.String(string(in.XReserve))
+	}
+	{
+		const prefix string = ",\"y_reserve\":"
+		out.RawString(prefix)
+		out.String(string(in.YReserve))
+	}
+	out.RawByte('}')
+}
+
+// MarshalTinyJSON supports tinyjson.Marshaler interface
+func (v PendulumSwapFeeInput) MarshalTinyJSON(w *jwriter.Writer) {
+	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp11(w, v)
+}
+
+// UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
+func (v *PendulumSwapFeeInput) UnmarshalTinyJSON(l *jlexer.Lexer) {
+	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp11(l, v)
+}
+func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp12(in *jlexer.Lexer, out *MappingContractInput) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -928,7 +1102,7 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp10(out *jwriter.Writer, in MappingContractInput) {
+func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp12(out *jwriter.Writer, in MappingContractInput) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -952,14 +1126,14 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v MappingContractInput) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp10(w, v)
+	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp12(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *MappingContractInput) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp10(l, v)
+	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp12(l, v)
 }
-func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp11(in *jlexer.Lexer, out *MappingContractInfoReturn) {
+func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp13(in *jlexer.Lexer, out *MappingContractInfoReturn) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -994,7 +1168,7 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp11(out *jwriter.Writer, in MappingContractInfoReturn) {
+func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp13(out *jwriter.Writer, in MappingContractInfoReturn) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1018,14 +1192,14 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v MappingContractInfoReturn) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp11(w, v)
+	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp13(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *MappingContractInfoReturn) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp11(l, v)
+	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp13(l, v)
 }
-func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp12(in *jlexer.Lexer, out *KeyMap) {
+func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp14(in *jlexer.Lexer, out *KeyMap) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		in.Skip()
@@ -1046,7 +1220,7 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp12(out *jwriter.Writer, in KeyMap) {
+func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp14(out *jwriter.Writer, in KeyMap) {
 	if in == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
 		out.RawString(`null`)
 	} else {
@@ -1068,14 +1242,14 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v KeyMap) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp12(w, v)
+	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp14(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *KeyMap) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp12(l, v)
+	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp14(l, v)
 }
-func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp13(in *jlexer.Lexer, out *KeyList) {
+func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp15(in *jlexer.Lexer, out *KeyList) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1127,7 +1301,7 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp13(out *jwriter.Writer, in KeyList) {
+func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp15(out *jwriter.Writer, in KeyList) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1152,14 +1326,14 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v KeyList) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp13(w, v)
+	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp15(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *KeyList) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp13(l, v)
+	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp15(l, v)
 }
-func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp14(in *jlexer.Lexer, out *InitParams) {
+func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp16(in *jlexer.Lexer, out *InitParams) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1200,7 +1374,7 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp14(out *jwriter.Writer, in InitParams) {
+func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp16(out *jwriter.Writer, in InitParams) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1239,14 +1413,14 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v InitParams) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp14(w, v)
+	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp16(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *InitParams) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp14(l, v)
+	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp16(l, v)
 }
-func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp15(in *jlexer.Lexer, out *GetPoolParams) {
+func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp17(in *jlexer.Lexer, out *GetPoolParams) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1279,7 +1453,7 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp15(out *jwriter.Writer, in GetPoolParams) {
+func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp17(out *jwriter.Writer, in GetPoolParams) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1298,14 +1472,14 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v GetPoolParams) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp15(w, v)
+	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp17(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *GetPoolParams) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp15(l, v)
+	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp17(l, v)
 }
-func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp16(in *jlexer.Lexer, out *DexInstruction) {
+func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp18(in *jlexer.Lexer, out *DexInstruction) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1430,7 +1604,7 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp16(out *jwriter.Writer, in DexInstruction) {
+func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp18(out *jwriter.Writer, in DexInstruction) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1548,14 +1722,14 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v DexInstruction) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp16(w, v)
+	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp18(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *DexInstruction) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp16(l, v)
+	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp18(l, v)
 }
-func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp17(in *jlexer.Lexer, out *AddLiquidityParams) {
+func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp19(in *jlexer.Lexer, out *AddLiquidityParams) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1596,7 +1770,7 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		in.Consumed()
 	}
 }
-func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp17(out *jwriter.Writer, in AddLiquidityParams) {
+func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp19(out *jwriter.Writer, in AddLiquidityParams) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1635,10 +1809,10 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 
 // MarshalTinyJSON supports tinyjson.Marshaler interface
 func (v AddLiquidityParams) MarshalTinyJSON(w *jwriter.Writer) {
-	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp17(w, v)
+	tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp19(w, v)
 }
 
 // UnmarshalTinyJSON supports tinyjson.Unmarshaler interface
 func (v *AddLiquidityParams) UnmarshalTinyJSON(l *jlexer.Lexer) {
-	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp17(l, v)
+	tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp19(l, v)
 }
