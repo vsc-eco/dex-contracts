@@ -158,7 +158,7 @@ If the second hop fails (e.g. slippage exceeded), the router needs to know where
 
 ## Adding Liquidity
 
-Liquidity deposits also go through the router's `execute` method using `type: "deposit"`. The `asset_in` and `asset_out` identify which pool. Amounts go in `metadata`.
+Liquidity deposits also go through the router's `execute` method using `type: "deposit"`. The `asset0` and `asset1` fields identify which pool, and `amount0` / `amount1` carry the deposit amounts — all top-level fields.
 
 ### Native Token Pool (e.g. HBD/HIVE)
 
@@ -168,17 +168,15 @@ Liquidity deposits also go through the router's `execute` method using `type: "d
 {
   "type": "deposit",
   "version": "1.0.0",
-  "asset_in": "HBD",
-  "asset_out": "HIVE",
-  "recipient": "alice",
-  "metadata": {
-    "amount0": "1000000",
-    "amount1": "500000"
-  }
+  "asset0": "HBD",
+  "asset1": "HIVE",
+  "amount0": "1000000",
+  "amount1": "500000",
+  "recipient": "alice"
 }
 ```
 
-`amount0` and `amount1` correspond to the pool's asset0 and asset1 in alphabetical order (HBD is asset0, HIVE is asset1 in this case). The router draws both assets from your account via protocol intents.
+`asset0` / `amount0` and `asset1` / `amount1` correspond to the pool's assets in alphabetical order (HBD is asset0, HIVE is asset1 in this case). The router normalizes case and enforces the ordering, so you may pass the pair in any order. The router draws both assets from your account via protocol intents.
 
 On the first deposit (empty pool), LP tokens are minted as `sqrt(amount0 * amount1)`. Subsequent deposits mint proportionally to the existing reserves.
 
@@ -203,13 +201,11 @@ Then deposit:
 {
   "type": "deposit",
   "version": "1.0.0",
-  "asset_in": "BTC",
-  "asset_out": "HBD",
-  "recipient": "alice",
-  "metadata": {
-    "amount0": "50000",
-    "amount1": "2000000"
-  }
+  "asset0": "BTC",
+  "asset1": "HBD",
+  "amount0": "50000",
+  "amount1": "2000000",
+  "recipient": "alice"
 }
 ```
 
@@ -219,7 +215,7 @@ The router transfers BTC from your account via the mapping contract's `transferF
 
 ## Removing Liquidity
 
-Pass `type: "withdrawal"` with your LP token amount in `metadata.lp_amount`.
+Pass `type: "withdrawal"` with your LP token amount in the top-level `lp_amount` field. The caller must be the LP owner, so `recipient` must match the caller's address.
 
 ```json
 // contract: dex-router-v2-abc123
@@ -227,12 +223,10 @@ Pass `type: "withdrawal"` with your LP token amount in `metadata.lp_amount`.
 {
   "type": "withdrawal",
   "version": "1.0.0",
-  "asset_in": "HBD",
-  "asset_out": "HIVE",
-  "recipient": "alice",
-  "metadata": {
-    "lp_amount": "250000"
-  }
+  "asset0": "HBD",
+  "asset1": "HIVE",
+  "lp_amount": "250000",
+  "recipient": "alice"
 }
 ```
 
@@ -249,5 +243,5 @@ The pool burns the LP tokens and transfers your proportional share of both reser
 | `return_address` | swap | Where to return funds if a two-hop swap fails |
 | `metadata.min_intermediate` | two-hop swap | Minimum HBD between hops |
 | `beneficiary` + `ref_bps` | swap | Referral fee recipient and basis points |
-| `metadata.amount0/amount1` | deposit | Token amounts for liquidity deposit |
-| `metadata.lp_amount` | withdrawal | LP tokens to burn |
+| `amount0` / `amount1` | deposit | Token amounts for liquidity deposit (required) |
+| `lp_amount` | withdrawal | LP tokens to burn (required) |

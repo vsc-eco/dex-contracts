@@ -18,6 +18,18 @@ func main() {
 
 	configDir := filepath.Join(*dataDir, "config")
 
+	created, err := EnsureConfigTemplates(configDir)
+	if err != nil {
+		log.Fatalf("preparing config dir: %v", err)
+	}
+	if len(created) > 0 {
+		log.Printf("created template config files in %s:", configDir)
+		for _, p := range created {
+			log.Printf("  - %s", p)
+		}
+		log.Fatal("fill in the generated config files, then re-run")
+	}
+
 	identity, err := loadIdentityConfig(filepath.Join(configDir, "identityConfig.json"))
 	if err != nil {
 		log.Fatalf("identity config: %v", err)

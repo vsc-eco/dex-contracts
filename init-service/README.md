@@ -29,7 +29,9 @@ go build -o init-service .
 
 ## Configuration
 
-All config files live under `<data-dir>/config/`:
+All config files live under `<data-dir>/config/`. On startup, any missing config
+files are created as empty templates (one pool with all fields blank) and the
+service exits so you can fill them in before re-running.
 
 | File | Purpose |
 |------|---------|
