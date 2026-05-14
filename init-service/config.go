@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // IdentityConfig matches go-vsc-node's identityConfig.json format.
 type IdentityConfig struct {
-	BlsPrivKeySeed string `json:"BlsPrivKeySeed"`
-	HiveActiveKey  string `json:"HiveActiveKey"`
-	HiveUsername   string `json:"HiveUsername"`
-	Libp2pPrivKey  string `json:"Libp2pPrivKey"`
+	HiveActiveKey string `json:"HiveActiveKey"`
+	HiveUsername  string `json:"HiveUsername"`
 }
 
 // HiveConfig matches go-vsc-node's hiveConfig.json format.
@@ -31,14 +30,14 @@ type ServiceConfig struct {
 
 // PoolConfig describes a single pool to initialize.
 type PoolConfig struct {
-	ContractID           string `json:"contract_id"`
-	Asset0               string `json:"asset0"`
-	Asset1               string `json:"asset1"`
-	FeeBps               uint64 `json:"fee_bps"`
+	ContractID            string `json:"contract_id"`
+	Asset0                string `json:"asset0"`
+	Asset1                string `json:"asset1"`
+	FeeBps                uint64 `json:"fee_bps"`
 	Asset0MappingContract string `json:"asset0_mapping_contract,omitempty"`
 	Asset1MappingContract string `json:"asset1_mapping_contract,omitempty"`
-	Asset0Chain          string `json:"asset0_chain"`
-	Asset1Chain          string `json:"asset1_chain"`
+	Asset0Chain           string `json:"asset0_chain"`
+	Asset1Chain           string `json:"asset1_chain"`
 }
 
 // PoolsConfig is the top-level input specifying the router and all pools.
@@ -69,6 +68,69 @@ type RegisterPoolPayload struct {
 	Asset0        string `json:"asset0"`
 	Asset1        string `json:"asset1"`
 	DexContractId string `json:"dex_contract_id"`
+}
+
+// configTemplates maps each config file name to its empty-template contents.
+// Optional fields (json `omitempty`) are included so users see every field
+// they can set; remove or fill them in as needed.
+var configTemplates = map[string]string{
+	"identityConfig.json": `{
+  "HiveActiveKey": "",
+  "HiveUsername": "",
+}
+`,
+	"hiveConfig.json": `{
+  "HiveURIs": [""]
+}
+`,
+	"serviceConfig.json": `{
+  "graphql_url": "",
+  "vsc_net_id": "",
+  "hive_chain_id": "",
+  "poll_interval_seconds": 0,
+  "poll_timeout_seconds": 0
+}
+`,
+	"poolsConfig.json": `{
+  "router_contract_id": "",
+  "pools": [
+    {
+      "contract_id": "",
+      "asset0": "",
+      "asset1": "",
+      "fee_bps": 0,
+      "asset0_mapping_contract": "",
+      "asset1_mapping_contract": "",
+      "asset0_chain": "",
+      "asset1_chain": ""
+    }
+  ]
+}
+`,
+}
+
+// EnsureConfigTemplates creates any missing config files in configDir with
+// empty-template contents. Returns paths of files that were newly created.
+func EnsureConfigTemplates(configDir string) ([]string, error) {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		return nil, fmt.Errorf("creating %s: %w", configDir, err)
+	}
+
+	var created []string
+	for name, body := range configTemplates {
+		path := filepath.Join(configDir, name)
+		if _, err := os.Stat(path); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("stat %s: %w", path, err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			return nil, fmt.Errorf("writing %s: %w", path, err)
+		}
+		created = append(created, path)
+	}
+
+	return created, nil
 }
 
 func loadJSON(path string, v any) error {
