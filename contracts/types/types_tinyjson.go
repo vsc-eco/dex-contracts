@@ -1408,6 +1408,16 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			}
 		case "destination_chain":
 			out.DestinationChain = string(in.String())
+		case "max_fee":
+			if in.IsNull() {
+				in.Skip()
+				out.MaxFee = nil
+			} else {
+				if out.MaxFee == nil {
+					out.MaxFee = new(int64)
+				}
+				*out.MaxFee = int64(in.Int64())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -1521,6 +1531,11 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		out.RawString(prefix)
 		out.String(string(in.DestinationChain))
 	}
+	if in.MaxFee != nil {
+		const prefix string = ",\"max_fee\":"
+		out.RawString(prefix)
+		out.Int64(int64(*in.MaxFee))
+	}
 	out.RawByte('}')
 }
 
@@ -1562,6 +1577,8 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			out.PreDeposited0 = bool(in.Bool())
 		case "pre_deposited_1":
 			out.PreDeposited1 = bool(in.Bool())
+		case "min_lp_out":
+			out.MinLpOut = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1600,6 +1617,11 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		const prefix string = ",\"pre_deposited_1\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.PreDeposited1))
+	}
+	if in.MinLpOut != "" {
+		const prefix string = ",\"min_lp_out\":"
+		out.RawString(prefix)
+		out.String(string(in.MinLpOut))
 	}
 	out.RawByte('}')
 }

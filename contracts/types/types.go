@@ -37,6 +37,9 @@ type AddLiquidityParams struct {
 	Amount0   string `json:"amount0"`
 	Amount1   string `json:"amount1"`
 	Recipient string `json:"recipient"`
+	// MinLpOut is the minimum acceptable LP token amount to mint (slippage
+	// protection). When empty/absent, no minimum is enforced (backward compat).
+	MinLpOut string `json:"min_lp_out,omitempty"`
 	// Per-asset pre-deposit flags. When true, the corresponding asset was
 	// already transferred into the pool by the router via ERC-20 allowances.
 	PreDeposited0 bool `json:"pre_deposited_0,omitempty"`
@@ -153,6 +156,9 @@ type DexInstruction struct {
 	// When set to a non-MAGI chain, the router bridges swap output to the Recipient
 	// address on that chain instead of settling on Magi.
 	DestinationChain string `json:"destination_chain,omitempty"`
+	// MaxFee caps the bridge/unmap fee charged when settling to an external
+	// chain. Threaded into UnmapParams.MaxFee. nil = unchanged behavior.
+	MaxFee *int64 `json:"max_fee,omitempty"`
 }
 
 //tinyjson:json

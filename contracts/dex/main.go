@@ -544,6 +544,22 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string, params types.AddL
 	}
 	contractAssert(minted.Sign() == 1)
 
+	// Slippage protection: reject if the LP minted is below the caller's
+	// minimum. Empty/absent MinLpOut keeps the legacy (no-check) behavior.
+	if params.MinLpOut != "" {
+		minLpOut, ok := new(big.Int).SetString(params.MinLpOut, 10)
+		if !ok {
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrInitialization, "invalid min_lp_out"),
+			)
+		}
+		if minted.Cmp(minLpOut) < 0 {
+			ce.CustomAbort(
+				ce.NewContractError(ce.ErrInitialization, "insufficient LP minted: slippage"),
+			)
+		}
+	}
+
 	// Reuse big.Int objects to avoid extra allocations
 	r0.Add(r0, amt0)
 	r1.Add(r1, amt1)
