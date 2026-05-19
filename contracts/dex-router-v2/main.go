@@ -299,6 +299,15 @@ func executeSwap(instruction types.DexInstruction) *string {
 	instruction.AssetIn = strings.ToLower(instruction.AssetIn)
 	instruction.AssetOut = strings.ToLower(instruction.AssetOut)
 
+	// Reject same-asset swaps: without this guard they fall through to the
+	// two-hop path and get charged double fees for a no-op swap.
+	if instruction.AssetIn == instruction.AssetOut {
+		ce.CustomAbort(
+			ce.NewContractError(ce.ErrInput, "asset_in and asset_out must differ"),
+		)
+		return nil
+	}
+
 	// Try direct pool first
 	directPoolId := findPool(instruction.AssetIn, instruction.AssetOut)
 	if directPoolId != "" {
@@ -385,7 +394,7 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 		if !ok || amountOut.Sign() <= 0 {
 			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "swap returned invalid amount out"))
 		}
-		settleToChain(instruction.AssetOut, amountOut, instruction.Recipient, instruction.DestinationChain)
+		settleToChain(instruction.AssetOut, amountOut, instruction.Recipient, instruction.DestinationChain, instruction.MaxFee)
 	}
 
 	return result
@@ -501,7 +510,7 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		if !ok || amountOut.Sign() <= 0 {
 			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "second hop returned invalid amount out"))
 		}
-		settleToChain(instruction.AssetOut, amountOut, instruction.Recipient, instruction.DestinationChain)
+		settleToChain(instruction.AssetOut, amountOut, instruction.Recipient, instruction.DestinationChain, instruction.MaxFee)
 	}
 
 	return secondResult
@@ -510,7 +519,7 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 // settleToChain bridges swap output to an external chain.
 // For HIVE/HBD: uses sdk.HiveWithdraw to send to a Hive account.
 // For mapped assets (BTC, ETH, etc.): calls "unmap" on the mapping contract.
-func settleToChain(asset string, amount *big.Int, toAddress string, chain string) {
+func settleToChain(asset string, amount *big.Int, toAddress string, chain string, maxFee *int64) {
 	assetLower := strings.ToLower(asset)
 
 	if assetLower == "hive" || assetLower == "hbd" {
@@ -531,6 +540,7 @@ func settleToChain(asset string, amount *big.Int, toAddress string, chain string
 		Amount:    amount.String(),
 		To:        toAddress,
 		DeductFee: true,
+		MaxFee:    maxFee,
 	}
 	payload, err := tinyjson.Marshal(&params)
 	if err != nil {
