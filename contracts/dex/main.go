@@ -324,12 +324,12 @@ func Swap(payload *string) *string {
 		minOut, ok := new(big.Int).SetString(*params.MinAmountOut, 10)
 		if !ok {
 			ce.CustomAbort(
-				ce.NewContractError(ce.ErrInitialization, "invalid minimum amount out"),
+				ce.NewContractError(ce.ErrInput, "invalid minimum amount out"),
 			)
 		}
 		if amountOut.Cmp(minOut) < 0 {
 			ce.CustomAbort(
-				ce.NewContractError(ce.ErrInitialization, "slippage tolerance exceeded"),
+				ce.NewContractError(ce.ErrTransaction, "slippage tolerance exceeded"),
 			)
 		}
 	}
@@ -550,12 +550,12 @@ func executeAddLiquidity(amt0, amt1 *big.Int, provider string, params types.AddL
 		minLpOut, ok := new(big.Int).SetString(params.MinLpOut, 10)
 		if !ok {
 			ce.CustomAbort(
-				ce.NewContractError(ce.ErrInitialization, "invalid min_lp_out"),
+				ce.NewContractError(ce.ErrInput, "invalid min_lp_out"),
 			)
 		}
 		if minted.Cmp(minLpOut) < 0 {
 			ce.CustomAbort(
-				ce.NewContractError(ce.ErrInitialization, "insufficient LP minted: slippage"),
+				ce.NewContractError(ce.ErrTransaction, "insufficient LP minted: slippage"),
 			)
 		}
 	}

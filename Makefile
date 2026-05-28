@@ -19,7 +19,9 @@ all: contracts
 # Test all components
 # Use FILTER to run specific tests, e.g.: make test FILTER=TestSwap
 FILTER ?= .
-test:
+# Always (re)build the WASM artifacts first — the tests run against the
+# embedded bin/*.wasm, so stale artifacts would silently test old bytecode.
+test: contracts
 	cd tests && go test -v -p 1 -parallel 1 -run "$(FILTER)" ./...
 	cd contracts/dex/test && go test -v -p 1 -parallel 1 -run "$(FILTER)" ./...
 	cd contracts/dex-router-v2/test && go test -v -p 1 -parallel 1 -run "$(FILTER)" ./...

@@ -144,6 +144,10 @@ type DexInstruction struct {
 	// Asset0/Asset1 are in alphabetical order, matching pool state.
 	Amount0 string `json:"amount0,omitempty"`
 	Amount1 string `json:"amount1,omitempty"`
+	// MinLpOut is the minimum acceptable LP token amount to mint (slippage
+	// protection). Forwarded into AddLiquidityParams.MinLpOut. When
+	// empty/absent, no minimum is enforced (backward compat).
+	MinLpOut string `json:"min_lp_out,omitempty"`
 
 	// --- Withdrawal fields (type "withdrawal") ---
 	LpAmount string `json:"lp_amount,omitempty"`
@@ -156,8 +160,12 @@ type DexInstruction struct {
 	// When set to a non-MAGI chain, the router bridges swap output to the Recipient
 	// address on that chain instead of settling on Magi.
 	DestinationChain string `json:"destination_chain,omitempty"`
-	// MaxFee caps the bridge/unmap fee charged when settling to an external
-	// chain. Threaded into UnmapParams.MaxFee. nil = unchanged behavior.
+	// MaxFee caps the unmap fee charged when settling a *mapped* asset (BTC,
+	// ETH, etc.) to its native chain: it is threaded into UnmapParams.MaxFee
+	// so the mapping contract rejects the unmap if its fee exceeds this cap.
+	// It does NOT apply to HIVE/HBD settlement, which uses sdk.HiveWithdraw
+	// and charges no such fee — MaxFee is ignored on that path.
+	// nil = unchanged behavior (no cap).
 	MaxFee *int64 `json:"max_fee,omitempty"`
 }
 
