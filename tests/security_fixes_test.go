@@ -425,3 +425,138 @@ func TestSecurityDEX09_SettleToChainHonorsMaxFee(t *testing.T) {
 		"expected the mapping contract's max_fee cap to fire, got err=%q ret=%q",
 		r.ErrMsg, r.Ret)
 }
+
+// ============================================================================
+// DEX-06 (router path) — min_lp_out slippage protection reachable via the
+// router's "deposit" instruction.
+//
+// The direct add_liquidity guard (TestSecurityDEX06_AddLiquiditySlippageProtection)
+// only covers callers who hit the pool contract directly. Liquidity provided
+// through dex-router-v2 goes through executeDeposit, which builds
+// AddLiquidityParams itself — so the protection is only real if the router
+// forwards DexInstruction.MinLpOut into that struct.
+//
+// A/B behavior:
+//   - PRE-FIX (no DexInstruction.MinLpOut field, router hardcodes the struct
+//     without it): min_lp_out is dropped, the deposit SUCCEEDS regardless ->
+//     the "must be rejected" assertion FAILS (RED).
+//   - POST-FIX: the router forwards min_lp_out; when the minted LP is below it
+//     the pool aborts with "insufficient LP minted: slippage" -> GREEN.
+//
+// Also asserts a satisfiable min_lp_out still deposits successfully.
+// ============================================================================
+
+func TestSecurityDEX06_RouterDepositSlippageProtection(t *testing.T) {
+	const owner = "hive:milo-hpr"
+	hivehbdDexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
+	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
+
+	ct := test_utils.NewContractTest()
+	t.Cleanup(func() { ct.DataLayer.Stop() })
+
+	ct.RegisterContract(hivehbdDexId, owner, dexcontracts.DexWasm)
+	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
+
+	router := &RouterInfo{ct: &ct, id: routerId}
+	hivehbdDex := &DexInfo{ct: &ct, id: hivehbdDexId}
+
+	r := router.initRouterV2(t, owner)
+	if !r.Success {
+		t.Fatalf("init router: %s", r.Ret)
+	}
+
+	r = router.registerToken(t, owner, types.RegisterTokenParams{
+		Name: "HIVE", TokenInfo: types.TokenInfo{Chain: "HIVE"},
+	})
+	if !r.Success {
+		t.Fatalf("register HIVE: %s", r.Ret)
+	}
+	r = router.registerToken(t, owner, types.RegisterTokenParams{
+		Name: "HBD", TokenInfo: types.TokenInfo{Chain: "HIVE"},
+	})
+	if !r.Success {
+		t.Fatalf("register HBD: %s", r.Ret)
+	}
+	r = router.registerPool(t, owner, types.RegisterPoolParams{
+		Asset0: "hive", Asset1: "hbd", DexContractId: hivehbdDexId,
+	})
+	if !r.Success {
+		t.Fatalf("register hive/hbd pool: %s", r.Ret)
+	}
+
+	// RouterContract must be set so the pool accepts the router's
+	// PreDeposited add_liquidity calls.
+	r = hivehbdDex.initPool(t, owner, &types.InitParams{
+		Asset0:         "hive",
+		Asset1:         "hbd",
+		FeeBps:         30,
+		RouterContract: routerId,
+	})
+	if !r.Success {
+		t.Fatalf("init pool: %s: %s", r.Err, r.ErrMsg)
+	}
+
+	// Fund the LP generously; each router deposit below draws 5000 of each asset.
+	ct.Deposit(owner, 100000, "hive")
+	ct.Deposit(owner, 100000, "hbd")
+
+	// Seed the pool via the router: first liquidity mints sqrt(5000*5000) =
+	// 5000 LP, leaving reserves at 5000/5000. No MinLpOut on the seed.
+	r = routerDeposit(t, router, owner, "5000", "")
+	if !r.Success {
+		t.Fatalf("seed liquidity via router: %s: %s", r.Err, r.ErrMsg)
+	}
+
+	// Adding 5000/5000 proportionally mints min(5000*5000/5000, ...) = 5000 LP.
+	// Demand 999999 LP minimum -> minted (5000) < min -> must be rejected
+	// post-fix; pre-fix the field never reaches the pool and the deposit succeeds.
+	r = routerDeposit(t, router, owner, "5000", "999999")
+	dumpLogs(t, r.Logs)
+	dumpStateDiff(t, r.StateDiff)
+	t.Logf("DEX-06 router high min_lp_out result: success=%v err=%q ret=%q", r.Success, r.ErrMsg, r.Ret)
+
+	assert.False(t, r.Success,
+		"router deposit must be rejected when minted LP is below min_lp_out")
+	combined := r.ErrMsg + r.Ret
+	assert.True(t,
+		strings.Contains(combined, "insufficient LP minted: slippage"),
+		"expected the slippage abort to propagate through the router, got err=%q ret=%q",
+		r.ErrMsg, r.Ret)
+
+	// Satisfiable min_lp_out through the router must still succeed. The prior
+	// deposit was rejected and rolled back, so reserves are still 5000/5000 and
+	// adding 5000/5000 again mints ~5000 LP >= 100.
+	r = routerDeposit(t, router, owner, "5000", "100")
+	t.Logf("DEX-06 router satisfiable min_lp_out result: success=%v err=%q", r.Success, r.ErrMsg)
+	assert.True(t, r.Success,
+		"router deposit with a satisfiable min_lp_out should succeed: %s: %s", r.Err, r.ErrMsg)
+}
+
+// routerDeposit submits a hive/hbd "deposit" instruction through the router
+// with equal amounts of each asset and an optional MinLpOut (empty = unset).
+func routerDeposit(
+	t *testing.T,
+	router *RouterInfo,
+	caller, amount, minLpOut string,
+) *test_utils.ContractTestCallResult {
+	t.Helper()
+	return router.execute(t, caller, &types.DexInstruction{
+		Type:      "deposit",
+		Version:   "1.0.0",
+		Asset0:    "hive",
+		Asset1:    "hbd",
+		Amount0:   amount,
+		Amount1:   amount,
+		Recipient: caller,
+		MinLpOut:  minLpOut,
+	}, []contracts.Intent{
+		{
+			Type: "transfer.allow",
+			Args: map[string]string{"token": "hive", "limit": amount},
+		},
+		{
+			Type: "transfer.allow",
+			Args: map[string]string{"token": "hbd", "limit": amount},
+		},
+	})
+}

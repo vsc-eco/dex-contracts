@@ -623,6 +623,7 @@ func executeDeposit(instruction types.DexInstruction) *string {
 		Amount0:       instruction.Amount0,
 		Amount1:       instruction.Amount1,
 		Recipient:     instruction.Recipient,
+		MinLpOut:      instruction.MinLpOut,
 		PreDeposited0: true,
 		PreDeposited1: true,
 	}
