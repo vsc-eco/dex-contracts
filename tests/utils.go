@@ -13,12 +13,46 @@ import (
 	contract_session "vsc-node/modules/contract/session"
 	"vsc-node/modules/db/vsc/contracts"
 	ledger_db "vsc-node/modules/db/vsc/ledger"
+	pendulumoracle "vsc-node/modules/incentive-pendulum/oracle"
 	state_engine "vsc-node/modules/state-processing"
 
 	"github.com/CosmWasm/tinyjson"
 
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 )
+
+// rcHeadroomHBD is spare HBD granted to an account so it can provide RC
+// (1:1 with HBD balance post-update) and cover the RC-backing exclusion on
+// HBD draws. Comfortably exceeds any single-op gas/exclusion need (≤100k) and
+// is negligible relative to pool reserves.
+const rcHeadroomHBD = 1_000_000
+
+// knownDexPoolIDs is the full set of pool contract IDs used across the test
+// suite. whitelistPendulum always whitelists all of them so a single uniform
+// call works regardless of which pool(s) a given test wires up.
+var knownDexPoolIDs = []string{
+	"vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR",
+	"vsc1BmLNMQep1RaaUdYTPfEhqn1inESqNz4Ekt",
+	"vsc1Bnuikc8sJii5baG5gmxno4V2xTW7joi2vu",
+	"vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3",
+}
+
+// whitelistPendulum wires a deterministic, balanced pendulum geometry (s = 0.5,
+// no §9 redirect cliff) into the contract test and whitelists every known pool
+// contract ID (plus any extras passed). Swap tests must call this (directly or
+// via a setup helper) or the applier rejects every swap with "contract not
+// whitelisted" / "snapshot unavailable". Geometry mirrors go-vsc-node's
+// balancedGeometry fixture.
+func whitelistPendulum(ct *test_utils.ContractTest, extraPools ...string) {
+	ct.SetPendulumGeometry(pendulumoracle.GeometryOutputs{
+		OK:   true,
+		V:    500_000,
+		P:    250_000,
+		E:    1_000_000,
+		T:    1_000_000,
+		SBps: 5000, // s = V/E = 0.5
+	}, append(append([]string{}, knownDexPoolIDs...), extraPools...))
+}
 
 // requireWasm skips the test if the wasm binary is nil (file not found at build time).
 func requireWasm(t *testing.T, name string, wasm []byte) {
@@ -134,7 +168,7 @@ func (c RouterInfo) initRouterV2(
 		ContractId: c.id,
 		Action:     "init",
 		Payload:    []byte{},
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     caller,
 	})
@@ -153,7 +187,7 @@ func (c *RouterInfo) registerToken(
 		ContractId: c.id,
 		Action:     "register_token",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     caller,
 	})
@@ -173,7 +207,7 @@ func (c *RouterInfo) registerPool(
 		ContractId: c.id,
 		Action:     "register_pool",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     caller,
 	})
@@ -191,7 +225,7 @@ func (c *RouterInfo) getSchema(
 		ContractId: c.id,
 		Action:     "get_schema",
 		Payload:    []byte{},
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     caller,
 	})
@@ -212,6 +246,11 @@ func (c *RouterInfo) execute(
 		ContractId: c.id,
 		Action:     "execute",
 		Payload:    payload,
+		// Two-hop / cross-chain (unmap) swaps fan out into several inter-contract
+		// calls; 2000 caps them. Callers are funded with rcHeadroomHBD, so the
+		// larger limit is covered by RC and the exclusion reserve. NOTE: a
+		// HIVE→BTC swap+unmap+BTC-tx-build (TestHiveMainnetToBtcMainnet) needs
+		// ~17.4k RC, above the 10k per-op cap, so that one test remains flagged.
 		RcLimit:    10000,
 		Intents:    intents,
 		Caller:     caller,
@@ -247,7 +286,7 @@ func (d *DexInfo) initPool(
 		ContractId: d.id,
 		Action:     "init",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     caller,
 	})
@@ -263,6 +302,12 @@ func (d *DexInfo) addLiquidity(
 
 	d.ct.Deposit(owner, int64(amount0), ledger_db.Asset(d.asset0))
 	d.ct.Deposit(owner, int64(amount1), ledger_db.Asset(d.asset1))
+	// RC headroom: post-update, RC is 1:1 with HBD balance (plus a 10k free
+	// tier) and HBD draws reserve `rcLimit - freeRemaining` to back RC. Pool
+	// setup drains the owner's HBD into reserves, leaving nothing to provide
+	// RC or cover that reserve on later ops. Grant spare HBD that stays with
+	// the owner (never drawn into the pool, so reserves/LP math are unaffected).
+	d.ct.Deposit(owner, rcHeadroomHBD, ledger_db.Asset("hbd"))
 
 	input := types.AddLiquidityParams{
 		Amount0:   strconv.FormatUint(amount0, 10),
@@ -277,7 +322,7 @@ func (d *DexInfo) addLiquidity(
 		ContractId: d.id,
 		Action:     "add_liquidity",
 		Payload:    payload,
-		RcLimit:    10000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",

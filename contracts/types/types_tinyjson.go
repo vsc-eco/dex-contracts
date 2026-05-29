@@ -918,14 +918,18 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			out.NewXReserve = string(in.String())
 		case "new_y_reserve":
 			out.NewYReserve = string(in.String())
-		case "node_bucket_credited_hbd":
-			out.NodeBucketCreditedHbd = string(in.String())
-		case "multiplier_q8":
-			out.MultiplierQ8 = string(in.String())
-		case "s_after_q8":
-			out.SAfterQ8 = string(in.String())
+		case "multiplier_bps":
+			out.MultiplierBps = string(in.String())
+		case "s_after_bps":
+			out.SAfterBps = string(in.String())
 		case "network_credit_output":
 			out.NetworkCreditOutput = string(in.String())
+		case "lp_share_output":
+			out.LpShareOutput = string(in.String())
+		case "node_share_output":
+			out.NodeShareOutput = string(in.String())
+		case "node_bucket_credited_hbd":
+			out.NodeBucketCreditedHbd = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -956,24 +960,34 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		out.String(string(in.NewYReserve))
 	}
 	{
-		const prefix string = ",\"node_bucket_credited_hbd\":"
+		const prefix string = ",\"multiplier_bps\":"
 		out.RawString(prefix)
-		out.String(string(in.NodeBucketCreditedHbd))
+		out.String(string(in.MultiplierBps))
 	}
 	{
-		const prefix string = ",\"multiplier_q8\":"
+		const prefix string = ",\"s_after_bps\":"
 		out.RawString(prefix)
-		out.String(string(in.MultiplierQ8))
-	}
-	{
-		const prefix string = ",\"s_after_q8\":"
-		out.RawString(prefix)
-		out.String(string(in.SAfterQ8))
+		out.String(string(in.SAfterBps))
 	}
 	{
 		const prefix string = ",\"network_credit_output\":"
 		out.RawString(prefix)
 		out.String(string(in.NetworkCreditOutput))
+	}
+	{
+		const prefix string = ",\"lp_share_output\":"
+		out.RawString(prefix)
+		out.String(string(in.LpShareOutput))
+	}
+	{
+		const prefix string = ",\"node_share_output\":"
+		out.RawString(prefix)
+		out.String(string(in.NodeShareOutput))
+	}
+	{
+		const prefix string = ",\"node_bucket_credited_hbd\":"
+		out.RawString(prefix)
+		out.String(string(in.NodeBucketCreditedHbd))
 	}
 	out.RawByte('}')
 }

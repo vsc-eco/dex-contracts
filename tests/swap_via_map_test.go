@@ -45,6 +45,7 @@ func TestSwapViaMapToHive(t *testing.T) {
 	rawTxHex, blockHeaderRaw := buildSwapMapFixture(t, instruction, swapAmount)
 
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	btcMappingId := "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj"
@@ -277,6 +278,7 @@ func TestSwapViaMap(t *testing.T) {
 	rawTxHex, blockHeaderRaw := buildSwapMapFixture(t, instruction, swapAmount)
 
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	btcMappingId := "vsc1BpQYDaMwcfdsh9T7DSEHZvdma1XaSXMPPj"
@@ -472,6 +474,7 @@ func TestHiveMainnetToBtcMainnet(t *testing.T) {
 	btcDestAddress := swapTestRegtestDestAddress(t)
 
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
@@ -651,6 +654,7 @@ func TestTwoHopSwapForwardsReferralFee(t *testing.T) {
 	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)

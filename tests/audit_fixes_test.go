@@ -43,7 +43,7 @@ func TestAuditH01_DrawAssetFrom_AttackerCannotUseVictimAddress(t *testing.T) {
 		ContractId: dexId,
 		Action:     "swap",
 		Payload:    swapPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -79,7 +79,7 @@ func TestAuditH01_DrawAssetFrom_LegitimateSwap(t *testing.T) {
 		ContractId: dexId,
 		Action:     "swap",
 		Payload:    swapPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -115,7 +115,7 @@ func TestAuditC04_RemoveLiquidity_NonOwnerRejected(t *testing.T) {
 		ContractId: dexId,
 		Action:     "remove_liquidity",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     attacker,
 	})
@@ -137,7 +137,7 @@ func TestAuditC04_RemoveLiquidity_OwnerSucceeds(t *testing.T) {
 		ContractId: dexId,
 		Action:     "remove_liquidity",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -147,6 +147,7 @@ func TestAuditC04_RemoveLiquidity_OwnerSucceeds(t *testing.T) {
 
 func TestAuditC04_RemoveLiquidity_RouterSucceeds(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -156,7 +157,27 @@ func TestAuditC04_RemoveLiquidity_RouterSucceeds(t *testing.T) {
 	ct.RegisterContract(dexId, owner, dexcontracts.DexWasm)
 	ct.RegisterContract(routerId, owner, dexcontracts.DexRouterV2Wasm)
 
+	router := &RouterInfo{ct: &ct, id: routerId}
 	dex := &DexInfo{ct: &ct, id: dexId}
+
+	if r := router.initRouterV2(t, owner); !r.Success {
+		t.Fatalf("init router failed: %s: %s", r.Err, r.ErrMsg)
+	}
+	for _, name := range []string{"HIVE", "HBD"} {
+		if r := router.registerToken(t, owner, types.RegisterTokenParams{
+			Name:      name,
+			TokenInfo: types.TokenInfo{Chain: "HIVE"},
+		}); !r.Success {
+			t.Fatalf("register %s failed: %s: %s", name, r.Err, r.ErrMsg)
+		}
+	}
+	if r := router.registerPool(t, owner, types.RegisterPoolParams{
+		Asset0:        "hive",
+		Asset1:        "hbd",
+		DexContractId: dexId,
+	}); !r.Success {
+		t.Fatalf("register pool failed: %s: %s", r.Err, r.ErrMsg)
+	}
 
 	r := dex.initPool(t, owner, &types.InitParams{
 		Asset0:         "hive",
@@ -173,22 +194,20 @@ func TestAuditC04_RemoveLiquidity_RouterSucceeds(t *testing.T) {
 		t.Fatalf("add liquidity failed: %s: %s", r.Err, r.ErrMsg)
 	}
 
-	// Router calls remove_liquidity on behalf of the owner
-	payload, _ := tinyjson.Marshal(types.RemoveLiquidityParams{
+	// The owner withdraws through the router (a normal user transaction). The
+	// router then calls the pool's remove_liquidity as itself, exercising the
+	// C-04 path: the pool must accept removal initiated by the authorized
+	// router on the LP owner's behalf. RC is paid by the owner, as in production.
+	r = router.execute(t, owner, &types.DexInstruction{
+		Type:      "withdrawal",
+		Version:   "1.0.0",
+		Asset0:    "hbd",
+		Asset1:    "hive",
 		LpAmount:  "500",
 		Recipient: owner,
-	})
-	removeResult := ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(t, "contract:"+routerId),
-		ContractId: dexId,
-		Action:     "remove_liquidity",
-		Payload:    payload,
-		RcLimit:    1000,
-		Intents:    []contracts.Intent{},
-		Caller:     "contract:" + routerId,
-	})
-	assert.True(t, removeResult.Success, "router should be able to remove liquidity on behalf of user, got: %s", removeResult.ErrMsg)
-	t.Log("C-04 router remove result:", removeResult.Ret)
+	}, []contracts.Intent{})
+	assert.True(t, r.Success, "router should be able to remove liquidity on behalf of user, got: %s", r.ErrMsg)
+	t.Log("C-04 router remove result:", r.Ret)
 }
 
 // ============================================================================
@@ -215,7 +234,7 @@ func TestAuditH03_ClaimFees_NativePool(t *testing.T) {
 			ContractId: dexId,
 			Action:     "swap",
 			Payload:    swapPayload,
-			RcLimit:    1000,
+			RcLimit:    2000,
 			Intents: []contracts.Intent{
 				{
 					Type: "transfer.allow",
@@ -238,7 +257,7 @@ func TestAuditH03_ClaimFees_NativePool(t *testing.T) {
 		ContractId: dexId,
 		Action:     "claim_fees",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -250,6 +269,7 @@ func TestAuditH03_ClaimFees_NativePool(t *testing.T) {
 func TestAuditH03_ClaimFees_MappedPool(t *testing.T) {
 	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -302,7 +322,7 @@ func TestAuditH03_ClaimFees_MappedPool(t *testing.T) {
 			ContractId: btchbdDexId,
 			Action:     "swap",
 			Payload:    swapPayload,
-			RcLimit:    1000,
+			RcLimit:    2000,
 			Intents: []contracts.Intent{
 				{
 					Type: "transfer.allow",
@@ -325,7 +345,7 @@ func TestAuditH03_ClaimFees_MappedPool(t *testing.T) {
 		ContractId: btchbdDexId,
 		Action:     "claim_fees",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -370,7 +390,7 @@ func TestAuditM01_SlippageAfterReferral_Fail(t *testing.T) {
 		ContractId: dexId,
 		Action:     "swap",
 		Payload:    swapPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -412,7 +432,7 @@ func TestAuditM01_SlippageAfterReferral_Pass(t *testing.T) {
 		ContractId: dexId,
 		Action:     "swap",
 		Payload:    swapPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -435,6 +455,7 @@ func TestAuditM01_SlippageAfterReferral_Pass(t *testing.T) {
 
 func TestAuditM02_DuplicatePoolRejected(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	routerContractId := "vsc1BfqCB2b5ppiq4snQP74joWrJ3BMUN58pn9"
@@ -484,6 +505,7 @@ func TestAuditM02_DuplicatePoolRejected(t *testing.T) {
 
 func TestAuditM03_AddLiquidity_NegativeAmount0(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	dexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
@@ -515,7 +537,7 @@ func TestAuditM03_AddLiquidity_NegativeAmount0(t *testing.T) {
 		ContractId: dexId,
 		Action:     "add_liquidity",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -540,6 +562,7 @@ func TestAuditM03_AddLiquidity_NegativeAmount0(t *testing.T) {
 
 func TestAuditM03_AddLiquidity_NegativeAmount1(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	dexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
@@ -571,7 +594,7 @@ func TestAuditM03_AddLiquidity_NegativeAmount1(t *testing.T) {
 		ContractId: dexId,
 		Action:     "add_liquidity",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -601,6 +624,7 @@ func TestAuditM03_AddLiquidity_NegativeAmount1(t *testing.T) {
 
 func TestAuditM04_RouterExecute_NonNumericAmount(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -676,6 +700,7 @@ func TestAuditM04_RouterExecute_NonNumericAmount(t *testing.T) {
 
 func TestAuditL03_EmptyMappingContract_Rejected(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -719,7 +744,7 @@ func TestAuditL04_OwnerCanClaimFees(t *testing.T) {
 			ContractId: dexId,
 			Action:     "swap",
 			Payload:    swapPayload,
-			RcLimit:    1000,
+			RcLimit:    2000,
 			Intents: []contracts.Intent{
 				{
 					Type: "transfer.allow",
@@ -742,7 +767,7 @@ func TestAuditL04_OwnerCanClaimFees(t *testing.T) {
 		ContractId: dexId,
 		Action:     "claim_fees",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -761,7 +786,7 @@ func TestAuditL04_NonOwnerSenderRejected(t *testing.T) {
 		ContractId: dexId,
 		Action:     "claim_fees",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     attacker,
 	})
@@ -776,6 +801,7 @@ func TestAuditL04_NonOwnerSenderRejected(t *testing.T) {
 func TestAuditH01_MappedAsset_AttackerCannotUseVictimAddress(t *testing.T) {
 	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -834,7 +860,7 @@ func TestAuditH01_MappedAsset_AttackerCannotUseVictimAddress(t *testing.T) {
 		ContractId: btchbdDexId,
 		Action:     "swap",
 		Payload:    swapPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     attacker,
 	})
@@ -867,7 +893,7 @@ func TestAuditH01_PreDeposited_DirectCallRejected(t *testing.T) {
 		ContractId: dexId,
 		Action:     "swap",
 		Payload:    swapPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     attacker,
 	})
@@ -899,7 +925,7 @@ func TestAuditC04_SecondProvider_CannotStealFirstProviderLP(t *testing.T) {
 		ContractId: dexId,
 		Action:     "add_liquidity",
 		Payload:    addPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -937,7 +963,7 @@ func TestAuditC04_SecondProvider_CannotStealFirstProviderLP(t *testing.T) {
 		ContractId: dexId,
 		Action:     "remove_liquidity",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     alice,
 	})
@@ -954,6 +980,7 @@ func TestAuditC04_SecondProvider_CannotStealFirstProviderLP(t *testing.T) {
 
 func TestAuditInit_Pool_NonOwnerRejected(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -989,7 +1016,7 @@ func TestAuditInit_Pool_ReinitRejected_ReservesPreserved(t *testing.T) {
 		ContractId: dexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1030,7 +1057,7 @@ func TestAuditInit_Pool_ReinitRejected_ReservesPreserved(t *testing.T) {
 		ContractId: dexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1049,6 +1076,7 @@ func TestAuditInit_Pool_ReinitRejected_ReservesPreserved(t *testing.T) {
 
 func TestAuditInit_Router_NonOwnerRejected(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -1066,6 +1094,7 @@ func TestAuditInit_Router_NonOwnerRejected(t *testing.T) {
 
 func TestAuditInit_Router_ReinitRejected(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"

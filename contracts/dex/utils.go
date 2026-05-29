@@ -142,9 +142,22 @@ func contractAssert(cond bool, msgs ...string) {
 	}
 }
 
-func logPendulumSwap(asset string, networkCredit *big.Int, out *types.PendulumSwapFeeOutput) string {
+// logPendulumSwap emits the full fee breakdown for indexers. The three
+// output-side destinations reconcile as lp + ns + nc == grossOut - user_output;
+// nb is the HBD actually moved to pendulum:nodes (equals ns only for HBD-out
+// swaps, otherwise the post-conversion amount). Keys are terse on purpose —
+// these lines are machine-parsed, not read by humans.
+//
+//	a  = output asset
+//	lp = LP-retained fee share        (output-asset base units)
+//	ns = node fee share, pre-convert  (output-asset base units)
+//	nc = network-share credit         (output-asset base units)
+//	nb = node bucket credited         (HBD base units, post-conversion)
+//	m  = stabilizer multiplier        (bps, 1e4-scaled)
+//	s  = geometry ratio s = V/E       (bps, 1e4-scaled)
+func logPendulumSwap(asset string, out *types.PendulumSwapFeeOutput) string {
 	var b strings.Builder
-	b.Grow(128)
+	b.Grow(160)
 
 	b.WriteString("fee")
 	b.WriteString(types.LogDelimiter)
@@ -154,28 +167,34 @@ func logPendulumSwap(asset string, networkCredit *big.Int, out *types.PendulumSw
 	b.WriteString(asset)
 	b.WriteString(types.LogDelimiter)
 
-	// Network-share credit on the output side, in output-asset base units.
-	b.WriteString("nc")
+	b.WriteString("lp")
 	b.WriteString(types.LogKeyDelimiter)
-	b.WriteString(networkCredit.String())
+	b.WriteString(out.LpShareOutput)
 	b.WriteString(types.LogDelimiter)
 
-	// HBD already accrued by the SDK to pendulum:nodes (informational).
+	b.WriteString("ns")
+	b.WriteString(types.LogKeyDelimiter)
+	b.WriteString(out.NodeShareOutput)
+	b.WriteString(types.LogDelimiter)
+
+	b.WriteString("nc")
+	b.WriteString(types.LogKeyDelimiter)
+	b.WriteString(out.NetworkCreditOutput)
+	b.WriteString(types.LogDelimiter)
+
 	b.WriteString("nb")
 	b.WriteString(types.LogKeyDelimiter)
 	b.WriteString(out.NodeBucketCreditedHbd)
 	b.WriteString(types.LogDelimiter)
 
-	// Stabilizer multiplier m(s, r) in SQ64.
-	b.WriteString("mq8")
+	b.WriteString("m")
 	b.WriteString(types.LogKeyDelimiter)
-	b.WriteString(out.MultiplierQ8)
+	b.WriteString(out.MultiplierBps)
 	b.WriteString(types.LogDelimiter)
 
-	// Geometry ratio s = V/E from the snapshot the SDK consumed.
-	b.WriteString("sq8")
+	b.WriteString("s")
 	b.WriteString(types.LogKeyDelimiter)
-	b.WriteString(out.SAfterQ8)
+	b.WriteString(out.SAfterBps)
 
 	return b.String()
 }
