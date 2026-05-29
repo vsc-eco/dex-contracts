@@ -71,19 +71,32 @@ type PendulumSwapFeeInput struct {
 }
 
 // PendulumSwapFeeOutput is the JSON response from system.pendulum_apply_swap_fees.
-// `user_output`, `new_x_reserve`, `new_y_reserve`, `node_bucket_credited_hbd`
-// and `network_credit_output` are decimal-string base-unit amounts;
-// `multiplier_q8` and `s_after_q8` are SQ64 (1e8-scaled) values.
+// `user_output`, `new_x_reserve`, `new_y_reserve`, `node_bucket_credited_hbd`,
+// `network_credit_output`, `lp_share_output` and `node_share_output` are
+// decimal-string base-unit amounts; `multiplier_bps` and `s_after_bps` are
+// basis-point (1e4-scaled) values.
+//
+// The output-side fee components reconcile as
+// `lp_share_output + node_share_output + network_credit_output == grossOut - user_output`.
+// `node_share_output` is the node cut in output-asset units (pre-conversion);
+// `node_bucket_credited_hbd` is the HBD actually moved to pendulum:nodes after
+// the secondary-hop conversion (equal to node_share_output only for HBD-out swaps).
 //
 //tinyjson:json
 type PendulumSwapFeeOutput struct {
-	UserOutput            string `json:"user_output"`
-	NewXReserve           string `json:"new_x_reserve"`
-	NewYReserve           string `json:"new_y_reserve"`
+	UserOutput          string `json:"user_output"`
+	NewXReserve         string `json:"new_x_reserve"`
+	NewYReserve         string `json:"new_y_reserve"`
+	MultiplierBps       string `json:"multiplier_bps"`
+	SAfterBps           string `json:"s_after_bps"`
+	NetworkCreditOutput string `json:"network_credit_output"`
+	LpShareOutput       string `json:"lp_share_output"`
+	NodeShareOutput     string `json:"node_share_output"`
+	// HBD amount deducted for the node runners. Equal to node_share_output
+	// when swap output is HBD, converted back through the pool via a second
+	// swap (calculated internally within system.pendulum_apply_swap_fees)
+	// when output asset is not HBD
 	NodeBucketCreditedHbd string `json:"node_bucket_credited_hbd"`
-	MultiplierQ8          string `json:"multiplier_q8"`
-	SAfterQ8              string `json:"s_after_q8"`
-	NetworkCreditOutput   string `json:"network_credit_output"`
 }
 
 // ROUTER OPERATIONS

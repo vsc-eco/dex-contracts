@@ -357,7 +357,7 @@ func Swap(payload *string) *string {
 
 	// Receipt event for indexers — surfaces stabilizer multiplier, geometry
 	// snapshot, node bucket credit and the network-share credit applied here.
-	sdk.Log(logPendulumSwap(params.AssetOut, networkCredit, &pendulumOut))
+	sdk.Log(logPendulumSwap(params.AssetOut, &pendulumOut))
 	sdk.Log(logSwap(params.AssetIn, params.AssetOut, amountIn, amountOut, params.To))
 
 	// Return swap result — use cached names and local reserve values

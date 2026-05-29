@@ -19,6 +19,7 @@ import (
 
 func TestRegisterPoolRejectsUnregisteredTokens(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	routerContractId := "vsc1BfqCB2b5ppiq4snQP74joWrJ3BMUN58pn9"
@@ -44,6 +45,7 @@ func TestRegisterPoolRejectsUnregisteredTokens(t *testing.T) {
 
 func TestRegisterToken(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
@@ -80,6 +82,7 @@ func TestRegisterToken(t *testing.T) {
 
 func TestRegisterPool(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
@@ -158,6 +161,7 @@ func TestRegisterPool(t *testing.T) {
 
 func TestAddLiquidityNativePool(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	ct.Deposit(owner, 1000, "hbd")
@@ -195,6 +199,7 @@ func TestAddLiquidityNativePool(t *testing.T) {
 func TestAddLiquidityMappedPool(t *testing.T) {
 	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
@@ -251,6 +256,7 @@ func TestAddLiquidityMappedPool(t *testing.T) {
 
 func TestOneHopNative(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -349,6 +355,7 @@ func TestOneHopNative(t *testing.T) {
 // the cap and produces real fee logs to inspect.
 func TestSwap2000HbdInto2250Hbd36500Hive(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -472,6 +479,7 @@ func TestSwap2000HbdInto2250Hbd36500Hive(t *testing.T) {
 func TestOneHopMapped(t *testing.T) {
 	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -573,6 +581,7 @@ func TestOneHopMapped(t *testing.T) {
 func TestTwoHop(t *testing.T) {
 	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	owner := "hive:milo-hpr"
@@ -730,6 +739,7 @@ func strPtr(s string) *string { return &s }
 func setupNativeHiveHbdPool(t *testing.T, liq0, liq1 uint64) (test_utils.ContractTest, *DexInfo, string) {
 	t.Helper()
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	dexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
@@ -772,7 +782,7 @@ func TestRemoveLiquidity(t *testing.T) {
 		ContractId: dexId,
 		Action:     "remove_liquidity",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -789,7 +799,7 @@ func TestRemoveLiquidity(t *testing.T) {
 		ContractId: dexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -821,7 +831,7 @@ func TestRemoveLiquidityAll(t *testing.T) {
 		ContractId: dexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -843,7 +853,7 @@ func TestRemoveLiquidityAll(t *testing.T) {
 		ContractId: dexId,
 		Action:     "remove_liquidity",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -860,7 +870,7 @@ func TestRemoveLiquidityAll(t *testing.T) {
 		ContractId: dexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -902,7 +912,7 @@ func TestSwapSlippageProtection(t *testing.T) {
 		ContractId: dexId,
 		Action:     "swap",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -936,7 +946,7 @@ func TestSwapZeroAmountFails(t *testing.T) {
 		ContractId: dexId,
 		Action:     "swap",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -973,7 +983,7 @@ func TestSwapInsufficientLiquidityFails(t *testing.T) {
 		ContractId: dexId,
 		Action:     "swap",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -992,6 +1002,7 @@ func TestSwapInsufficientLiquidityFails(t *testing.T) {
 
 func TestAddLiquidityZeroAmountFails(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	dexId := "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
@@ -1023,7 +1034,7 @@ func TestAddLiquidityZeroAmountFails(t *testing.T) {
 		ContractId: dexId,
 		Action:     "add_liquidity",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -1060,7 +1071,7 @@ func TestSwapFeeAccumulation(t *testing.T) {
 		ContractId: dexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1091,7 +1102,7 @@ func TestSwapFeeAccumulation(t *testing.T) {
 			ContractId: dexId,
 			Action:     "swap",
 			Payload:    swapPayload,
-			RcLimit:    1000,
+			RcLimit:    2000,
 			Intents: []contracts.Intent{
 				{
 					Type: "transfer.allow",
@@ -1121,7 +1132,7 @@ func TestSwapFeeAccumulation(t *testing.T) {
 		ContractId: dexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1301,7 +1312,7 @@ func TestClaimFees(t *testing.T) {
 			ContractId: dexId,
 			Action:     "swap",
 			Payload:    swapPayload,
-			RcLimit:    1000,
+			RcLimit:    2000,
 			Intents: []contracts.Intent{
 				{
 					Type: "transfer.allow",
@@ -1324,7 +1335,7 @@ func TestClaimFees(t *testing.T) {
 		ContractId: dexId,
 		Action:     "claim_fees",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1355,7 +1366,7 @@ func TestSwapWithReferralFee(t *testing.T) {
 		ContractId: dexId,
 		Action:     "swap",
 		Payload:    swapPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -1389,7 +1400,7 @@ func TestSecondLiquidityProvider(t *testing.T) {
 		ContractId: dexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1413,7 +1424,7 @@ func TestSecondLiquidityProvider(t *testing.T) {
 		ContractId: dexId,
 		Action:     "add_liquidity",
 		Payload:    addPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -1444,7 +1455,7 @@ func TestSecondLiquidityProvider(t *testing.T) {
 		ContractId: dexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1474,6 +1485,7 @@ func TestSecondLiquidityProvider(t *testing.T) {
 func TestRemoveLiquidityMappedPool(t *testing.T) {
 	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
@@ -1524,7 +1536,7 @@ func TestRemoveLiquidityMappedPool(t *testing.T) {
 		ContractId: btchbdDexId,
 		Action:     "remove_liquidity",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1538,7 +1550,7 @@ func TestRemoveLiquidityMappedPool(t *testing.T) {
 		ContractId: btchbdDexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1573,7 +1585,7 @@ func TestRemoveMoreLpThanOwned(t *testing.T) {
 		ContractId: dexId,
 		Action:     "remove_liquidity",
 		Payload:    payload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1583,6 +1595,7 @@ func TestRemoveMoreLpThanOwned(t *testing.T) {
 
 func TestDuplicateTokenRegistration(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	routerContractId := "vsc1BfqCB2b5ppiq4snQP74joWrJ3BMUN58pn9"
@@ -1612,6 +1625,7 @@ func TestDuplicateTokenRegistration(t *testing.T) {
 
 func TestDuplicatePoolRegistration(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	routerContractId := "vsc1BfqCB2b5ppiq4snQP74joWrJ3BMUN58pn9"
@@ -1659,6 +1673,7 @@ func TestDuplicatePoolRegistration(t *testing.T) {
 
 func TestNonOwnerRegisterToken(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	nonOwner := "hive:intruder"
@@ -1683,6 +1698,7 @@ func TestNonOwnerRegisterToken(t *testing.T) {
 
 func TestNonOwnerRegisterPool(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	nonOwner := "hive:intruder"
@@ -1724,6 +1740,7 @@ func TestNonOwnerRegisterPool(t *testing.T) {
 
 func TestRouterGetSchema(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	routerContractId := "vsc1BfqCB2b5ppiq4snQP74joWrJ3BMUN58pn9"
@@ -1758,6 +1775,7 @@ func TestRouterGetSchema(t *testing.T) {
 
 func TestRouterGetPool(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 	routerContractId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
@@ -1827,7 +1845,7 @@ func TestRouterGetPool(t *testing.T) {
 		ContractId: routerContractId,
 		Action:     "get_pool",
 		Payload:    getPoolPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1844,6 +1862,7 @@ func TestRouterGetPool(t *testing.T) {
 func TestSwapMappedToNative(t *testing.T) {
 	requireWasm(t, "btc-mapping", dexcontracts.BTCMappingWasm)
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
@@ -1902,7 +1921,7 @@ func TestSwapMappedToNative(t *testing.T) {
 		ContractId: btchbdDexId,
 		Action:     "swap",
 		Payload:    swapPayload,
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -1919,6 +1938,7 @@ func TestSwapMappedToNative(t *testing.T) {
 
 func TestRouterExecuteDeposit(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
@@ -2012,7 +2032,7 @@ func TestRouterExecuteDeposit(t *testing.T) {
 		ContractId: hivehbdDexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -2028,6 +2048,7 @@ func TestRouterExecuteDeposit(t *testing.T) {
 
 func TestRouterExecuteWithdrawal(t *testing.T) {
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 	owner := "hive:milo-hpr"
 
@@ -2094,7 +2115,7 @@ func TestRouterExecuteWithdrawal(t *testing.T) {
 		ContractId: hivehbdDexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})
@@ -2127,7 +2148,7 @@ func TestRouterExecuteWithdrawal(t *testing.T) {
 		ContractId: hivehbdDexId,
 		Action:     "get_pool",
 		Payload:    []byte("{}"),
-		RcLimit:    1000,
+		RcLimit:    2000,
 		Intents:    []contracts.Intent{},
 		Caller:     owner,
 	})

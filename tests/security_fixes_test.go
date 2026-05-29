@@ -43,6 +43,7 @@ func TestSecurityDEX14_SameAssetSwapRejected(t *testing.T) {
 	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	ct.RegisterContract(hivehbdDexId, owner, dexcontracts.DexWasm)
@@ -145,6 +146,7 @@ func TestSecurityDEX06_AddLiquiditySlippageProtection(t *testing.T) {
 	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	ct.RegisterContract(dexId, owner, dexcontracts.DexWasm)
@@ -227,7 +229,7 @@ func callAddLiquidity(
 		ContractId: dexId,
 		Action:     "add_liquidity",
 		Payload:    payload,
-		RcLimit:    10000,
+		RcLimit:    2000,
 		Intents: []contracts.Intent{
 			{
 				Type: "transfer.allow",
@@ -277,6 +279,7 @@ func TestSecurityDEX09_SettleToChainHonorsMaxFee(t *testing.T) {
 	btcDestAddress := swapTestRegtestDestAddress(t)
 
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	ct.RegisterContract(btcMappingId, owner, dexcontracts.BTCMappingWasm)
@@ -452,6 +455,7 @@ func TestSecurityDEX06_RouterDepositSlippageProtection(t *testing.T) {
 	routerId := "vsc1Bpc3SgDqCRQxzeDrvV7T4XKV6BZuHmME5F"
 
 	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct)
 	t.Cleanup(func() { ct.DataLayer.Stop() })
 
 	ct.RegisterContract(hivehbdDexId, owner, dexcontracts.DexWasm)

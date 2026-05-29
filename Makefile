@@ -12,9 +12,27 @@ TINYGO_IMAGE := tinygo/tinygo:0.39.0
 WORKDIR      := /work
 MODULE       := github.com/vsc-eco/dex-contracts
 
-.PHONY: test build clean contracts services sdk tinyjson contracts-test
+# go-vsc-node module path used by the remote version updater.
+VSC_NODE_MODULE := github.com/vsc-eco/go-vsc-node
+
+.PHONY: test build clean contracts services sdk tinyjson contracts-test update-vsc-node
 
 all: contracts
+
+# Fetch the latest commit on the go-vsc-node main branch and update the remote
+# replace directive in go.mod. The local go.work override (if uncommented) still
+# takes precedence for local builds.
+update-vsc-node:
+	@NEWVER=$$(go list -m github.com/vsc-eco/go-vsc-node@main | awk '{print $$2}') && \
+	CURVER=$$(awk '!/^[[:space:]]*\/\// && /replace vsc-node =>/ {print $$NF}' go.mod) && \
+	if [ "$$NEWVER" != "$$CURVER" ]; then \
+		echo "vsc-node $$CURVER -> $$NEWVER" && \
+		go mod edit -replace=vsc-node=github.com/vsc-eco/go-vsc-node@$$NEWVER && \
+		go mod tidy; \
+	fi
+
+# Run update-vsc-node before any build or test target.
+all contracts build test contracts-test: | update-vsc-node
 
 # Test all components
 # Use FILTER to run specific tests, e.g.: make test FILTER=TestSwap
@@ -88,6 +106,7 @@ contracts:
 			else \
 				docker run --rm \
 					-u $$(id -u):$$(id -g) \
+					$(GOWORK_EXTRA_MOUNTS) \
 					-v $(CURDIR):$(WORKDIR) \
 					-w $(WORKDIR)/$$dir \
 					$(TINYGO_IMAGE) \
