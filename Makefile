@@ -12,8 +12,16 @@ TINYGO_IMAGE := tinygo/tinygo:0.39.0
 WORKDIR      := /work
 MODULE       := github.com/vsc-eco/dex-contracts
 
-# go-vsc-node module path used by the remote version updater.
-VSC_NODE_MODULE := github.com/vsc-eco/go-vsc-node
+# For each local path in go.work (use/replace directives), add a Docker volume
+# mount so the container can resolve the same relative paths as the host.
+# Container path is computed by normalising WORKDIR/relative_path.
+GOWORK_EXTRA_MOUNTS := $(if $(wildcard go.work),$(shell \
+  awk '($$1=="use"||$$1=="replace") && $$NF~/^(\.|\/|~)/ && $$NF!="." {print $$NF}' go.work 2>/dev/null | \
+  while read rel; do \
+    host=$$(realpath "$(CURDIR)/$$rel" 2>/dev/null); \
+    ctr=$$(python3 -c "import os,sys; print(os.path.normpath(sys.argv[1]))" "$(WORKDIR)/$$rel"); \
+    [ -d "$$host" ] && printf -- '-v %s:%s ' "$$host" "$$ctr"; \
+  done),)
 
 .PHONY: test build clean contracts services sdk tinyjson contracts-test update-vsc-node
 
@@ -28,6 +36,13 @@ update-vsc-node:
 	if [ "$$NEWVER" != "$$CURVER" ]; then \
 		echo "vsc-node $$CURVER -> $$NEWVER" && \
 		go mod edit -replace=vsc-node=github.com/vsc-eco/go-vsc-node@$$NEWVER && \
+		go mod tidy; \
+	fi
+	@NEWVER=$$(go list -m github.com/vsc-eco/utxo-mapping/btc-mapping-contract@main | awk '{print $$2}') && \
+	CURVER=$$(awk '!/^[[:space:]]*\/\// && /replace btc-mapping-contract =>/ {print $$NF}' go.mod) && \
+	if [ "$$NEWVER" != "$$CURVER" ]; then \
+		echo "vsc-node $$CURVER -> $$NEWVER" && \
+		go mod edit -replace=vsc-node=github.com/vsc-eco/utxo-mapping/btc-mapping-contract@$$NEWVER && \
 		go mod tidy; \
 	fi
 
