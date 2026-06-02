@@ -15,6 +15,14 @@ import (
 // pin the env-level semantics so a refactor that breaks the
 // fall-through (e.g. accidentally checking the empty-string case
 // wrong) fails loudly.
+//
+// KNOWN GAP (audit R3-08): these tests do NOT cover the four
+// dex-router-v2 call sites under a forwarder-mediated WASM env (where
+// msg.effective_caller is non-empty). A refactor that reverts any of
+// those four sites from env.EffectiveCallerOrCaller() to env.Caller
+// will still pass this test. Full coverage requires extending the
+// WASM test harness to inject effective_caller — tracked as a
+// follow-up alongside TC2-09's dispatchForward integration tests.
 
 func TestEnv_EffectiveCallerOrCaller_PrefersEffectiveWhenSet(t *testing.T) {
 	env := &Env{
