@@ -41,8 +41,8 @@ update-vsc-node:
 	@NEWVER=$$(go list -m github.com/vsc-eco/utxo-mapping/btc-mapping-contract@main | awk '{print $$2}') && \
 	CURVER=$$(awk '!/^[[:space:]]*\/\// && /replace btc-mapping-contract =>/ {print $$NF}' go.mod) && \
 	if [ "$$NEWVER" != "$$CURVER" ]; then \
-		echo "vsc-node $$CURVER -> $$NEWVER" && \
-		go mod edit -replace=vsc-node=github.com/vsc-eco/utxo-mapping/btc-mapping-contract@$$NEWVER && \
+		echo "btc-mapping-contract $$CURVER -> $$NEWVER" && \
+		go mod edit -replace=btc-mapping-contract=github.com/vsc-eco/utxo-mapping/btc-mapping-contract@$$NEWVER && \
 		go mod tidy; \
 	fi
 
