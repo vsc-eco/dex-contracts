@@ -38,17 +38,27 @@ func ParseFromQueryParams(query string) (*SwapInstruction, error) {
 	instruction.AssetOut = values.Get("asset_out")
 	instruction.Recipient = values.Get("recipient")
 
-	// Parse optional fields
+	// Parse optional fields.
+	//
+	// DX-L13: a present-but-unparseable optional int (e.g. min_amount_out=NaN)
+	// must surface an error, not be silently dropped. Dropping it left the field
+	// nil and silently degraded the swap to NO slippage protection while the
+	// user believed they had set a floor. Omit the field entirely to leave it
+	// unset; a present value must be a valid integer.
 	if slippageStr := values.Get("slippage_bps"); slippageStr != "" {
-		if slippage, err := strconv.Atoi(slippageStr); err == nil {
-			instruction.SlippageBps = &slippage
+		slippage, err := strconv.Atoi(slippageStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid slippage_bps %q: %w", slippageStr, err)
 		}
+		instruction.SlippageBps = &slippage
 	}
 
 	if minAmountStr := values.Get("min_amount_out"); minAmountStr != "" {
-		if minAmount, err := strconv.ParseInt(minAmountStr, 10, 64); err == nil {
-			instruction.MinAmountOut = &minAmount
+		minAmount, err := strconv.ParseInt(minAmountStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid min_amount_out %q: %w", minAmountStr, err)
 		}
+		instruction.MinAmountOut = &minAmount
 	}
 
 	if beneficiary := values.Get("beneficiary"); beneficiary != "" {
@@ -56,9 +66,11 @@ func ParseFromQueryParams(query string) (*SwapInstruction, error) {
 	}
 
 	if refBpsStr := values.Get("ref_bps"); refBpsStr != "" {
-		if refBps, err := strconv.Atoi(refBpsStr); err == nil {
-			instruction.RefBps = &refBps
+		refBps, err := strconv.Atoi(refBpsStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ref_bps %q: %w", refBpsStr, err)
 		}
+		instruction.RefBps = &refBps
 	}
 
 	if chain := values.Get("return_address.chain"); chain != "" {
@@ -90,8 +102,12 @@ func ParseFromQueryParams(query string) (*SwapInstruction, error) {
 func ParseFromMemo(memo string) (*SwapInstruction, error) {
 	memo = strings.TrimSpace(memo)
 
-	// Try parsing as JSON first
-	if strings.HasPrefix(memo, "{") && strings.HasSuffix(memo, "}") {
+	// Try parsing as JSON first. Any '{'-prefixed memo is treated as JSON
+	// regardless of suffix (DX-L11): a truncated or trailing-garbage object
+	// like `{"type":"swap"` previously fell through to the query parser and
+	// surfaced a misleading "type is required" error. Surfacing the real JSON
+	// parse error is correct and avoids the misroute.
+	if strings.HasPrefix(memo, "{") {
 		return ParseFromJSON([]byte(memo))
 	}
 

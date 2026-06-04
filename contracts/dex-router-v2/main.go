@@ -73,6 +73,17 @@ func RegisterToken(payload *string) *string {
 	params.Chain = strings.ToUpper(params.Chain)
 	name = strings.ToLower(name)
 
+	// Charset-validate the (normalized) name: lowercase ASCII alphanumeric only.
+	// Closes D-L29 (a comma corrupts the comma-joined keyTokensList) and DX-L55
+	// (a non-UTF-8 byte is silently mutated to U+FFFD by tinyjson on roundtrip).
+	// The same guard also applies to mapped-asset names, which must equal the
+	// mapping contract's lowercased symbol — a symbol with a delimiter or
+	// non-ASCII byte is now rejected here before it can enter state.
+	if !isValidTokenName(name) {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput,
+			"token name must contain only lowercase ASCII letters and digits"))
+	}
+
 	// Validate chain - support HIVE, MAGI, and common mapped chains
 	validChains := map[string]bool{
 		chainHIVE: true, chainMAGI: true,
@@ -232,6 +243,16 @@ func Execute(payload *string) *string {
 	// Common validation
 	if instruction.Type == "" || instruction.Version == "" || instruction.Recipient == "" {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "type, version, and recipient are required"))
+	}
+
+	// Reject any instruction that routes output / LP shares back to THIS router
+	// contract. Tokens transferred to the router's own account have no recovery
+	// export and would be permanently stranded (DX-L07). Use the live
+	// env.ContractId so the guard stays correct across any re-deployment.
+	// Applies to all instruction types: a swap output, a deposit's LP shares,
+	// or a withdrawal's recipient set to the router are all unrecoverable.
+	if instruction.Recipient == "contract:"+env.ContractId {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "recipient cannot be the router contract itself"))
 	}
 
 	// Normalize destination chain
