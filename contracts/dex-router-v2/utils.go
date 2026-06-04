@@ -98,6 +98,31 @@ func updateChainsList(chain string) {
 	}
 }
 
+// isValidTokenName enforces a strict lowercase-ASCII-alphanumeric allowlist for
+// native token names. This is the shared guard for two findings:
+//   - D-L29: a comma (or any delimiter) in a name corrupts the comma-joined
+//     keyTokensList registry (updateTokensList concatenates with ",").
+//   - DX-L55: a non-UTF-8 / non-ASCII byte survives tinyjson.Marshal as the
+//     U+FFFD replacement char, silently mutating the stored name on roundtrip.
+//
+// Restricting to [a-z0-9] forbids commas, spaces, control chars, and every
+// non-ASCII byte in one check. All real chain tickers (hbd, hive, btc, eth,
+// dash, doge, sol, ltc, bch, sui, ...) pass trivially. Iterating over bytes
+// (not runes) is deliberate: a multi-byte UTF-8 sequence has bytes outside the
+// ASCII range and is rejected, and an invalid UTF-8 byte is likewise rejected.
+func isValidTokenName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
+			return false
+		}
+	}
+	return true
+}
+
 // updateTokensList adds a token name to the registered tokens list if not already present
 func updateTokensList(name string) {
 	tokensStr := getStr(keyTokensList)

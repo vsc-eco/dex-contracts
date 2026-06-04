@@ -2,6 +2,7 @@ package schemas
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -255,6 +256,101 @@ func TestParseFromMemo(t *testing.T) {
 			}
 		})
 	}
+}
+
+// --- DX-L11 regression ---
+//
+// A '{'-prefixed memo that is NOT a complete object (truncated, or with
+// trailing garbage) previously fell through to the URL-query parser and
+// surfaced a misleading "type is required" validation error. After the fix it
+// is parsed as JSON and surfaces a real JSON parse error.
+//
+// This test FAILS on the unfixed code: the unfixed ParseFromMemo routed these
+// memos to ParseFromQueryParams, whose error contains "type is required" (or
+// produced a non-JSON error), tripping the assertions below.
+func TestDL11_TruncatedJSONMemoNotMisrouted(t *testing.T) {
+	cases := []string{
+		`{"type":"swap"`,         // truncated object
+		`{partial`,               // truncated, not even valid JSON start
+		`{"a":1}  extra`,         // valid object with trailing garbage
+		`{"type":"swap","version":"1.0.0","asset_in":"BTC"`, // truncated mid-object
+	}
+	for _, memo := range cases {
+		t.Run(memo, func(t *testing.T) {
+			_, err := ParseFromMemo(memo)
+			require.Error(t, err, "expected an error for malformed JSON memo")
+			// Must NOT be the query-parser misroute error.
+			if strings.Contains(err.Error(), "type is required") {
+				t.Fatalf("memo %q misrouted to query parser: %v", memo, err)
+			}
+			// Must be a JSON parse error (ParseFromJSON wraps with "failed to parse JSON").
+			if !strings.Contains(err.Error(), "failed to parse JSON") {
+				t.Fatalf("expected JSON parse error for memo %q, got: %v", memo, err)
+			}
+		})
+	}
+}
+
+// A complete, valid JSON object memo must still parse successfully (control —
+// guards against the fix over-broadening rejection).
+func TestDL11_ValidJSONMemoStillParses(t *testing.T) {
+	memo := `{"type":"swap","version":"1.0.0","asset_in":"BTC","asset_out":"HBD","recipient":"alice"}`
+	res, err := ParseFromMemo(memo)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Equal(t, "swap", res.InstructionType)
+}
+
+// --- DX-L13 regression ---
+//
+// A present-but-unparseable optional int field was silently dropped, leaving
+// the field nil and degrading the swap to NO slippage protection. After the fix
+// it returns an explicit "invalid <field>" error.
+//
+// This test FAILS on the unfixed code: the unfixed ParseFromQueryParams dropped
+// the parse error, so err would be nil (or only a downstream validation error
+// that does not mention the bad field), tripping the assertions below.
+func TestDL13_BadOptionalIntReturnsError(t *testing.T) {
+	cases := []struct {
+		key string
+		val string
+	}{
+		{"min_amount_out", "NOTANUMBER"},
+		{"ref_bps", "abc"},
+		{"slippage_bps", "xyz"},
+		{"min_amount_out", "12.5"}, // non-integer
+		{"slippage_bps", ""},       // empty handled separately — should NOT error (covered below)
+	}
+	for _, tc := range cases {
+		if tc.val == "" {
+			continue // empty values are intentionally left unset, not an error
+		}
+		t.Run(tc.key+"="+tc.val, func(t *testing.T) {
+			qs := "type=swap&version=1.0.0&asset_in=HBD&asset_out=HIVE&recipient=alice&" +
+				tc.key + "=" + tc.val
+			_, err := ParseFromQueryParams(qs)
+			require.Error(t, err, "expected error for invalid %s=%s", tc.key, tc.val)
+			if !strings.Contains(err.Error(), "invalid "+tc.key) {
+				t.Fatalf("expected 'invalid %s' in error, got: %v", tc.key, err)
+			}
+		})
+	}
+}
+
+// Well-formed optional ints must still parse (control — the fix must not reject
+// valid integers).
+func TestDL13_ValidOptionalIntsStillParse(t *testing.T) {
+	qs := "type=swap&version=1.0.0&asset_in=HBD&asset_out=HIVE&recipient=alice&" +
+		"slippage_bps=200&min_amount_out=50000&ref_bps=500"
+	res, err := ParseFromQueryParams(qs)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.NotNil(t, res.SlippageBps)
+	require.NotNil(t, res.MinAmountOut)
+	require.NotNil(t, res.RefBps)
+	assert.Equal(t, 200, *res.SlippageBps)
+	assert.Equal(t, int64(50000), *res.MinAmountOut)
+	assert.Equal(t, 500, *res.RefBps)
 }
 
 // Helper functions for creating pointers

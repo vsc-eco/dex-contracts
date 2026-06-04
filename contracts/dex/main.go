@@ -305,6 +305,46 @@ func Swap(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "user output exceeds output reserve decrease"))
 	}
 
+	// DX-L38 — dust-fee floor. For a dust input the pendulum's integer fee math
+	// floors every bucket to zero (lp/ns/nc all 0) while still returning a
+	// positive user output, so the swap pays NO protocol fee. We do NOT reject
+	// the swap and we do NOT change happy-path math: when the pendulum already
+	// returned a non-zero fee bucket this branch is skipped entirely. Only when
+	// ALL output-side fee buckets are zero yet the swap produced output do we
+	// charge the rounded-up minimum fee of 1 base unit, taken from the user's
+	// output slice and credited to the output-side network-share bucket — the
+	// same destination network_credit_output already flows into. The net effect
+	// on the output reserve is zero (see the newROut offset below, which cancels
+	// DX-H1's downstream network-credit subtraction), so AMM conservation is
+	// preserved. Requires amountOut > 1 so the user still receives a positive
+	// output after the 1-unit fee; an amountOut of exactly 1 is an irreducible
+	// rounding floor with no fee extractable without zeroing the user, so it is
+	// left as-is.
+	lpShare, lpOK := new(big.Int).SetString(pendulumOut.LpShareOutput, 10)
+	if !lpOK {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pendulum returned invalid lp_share_output"))
+	}
+	nodeShare, nodeOK := new(big.Int).SetString(pendulumOut.NodeShareOutput, 10)
+	if !nodeOK {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pendulum returned invalid node_share_output"))
+	}
+	if lpShare.Sign() == 0 && nodeShare.Sign() == 0 && networkCredit.Sign() == 0 &&
+		amountOut.Cmp(big.NewInt(1)) > 0 {
+		one := big.NewInt(1)
+		amountOut.Sub(amountOut, one)
+		networkCredit.Add(networkCredit, one)
+		// DX-H1 subtracts networkCredit from the output reserve downstream
+		// (newROut -= networkCredit). Pre-add the same unit here so the dust fee
+		// is funded ONLY from the user's output slice, not the reserve — keeping
+		// newROut at its honest-path value and preserving the invariant
+		// balance == reserve + systemFee. Without this offset the unit is removed
+		// twice (once from the user, once from the reserve), leaking 1 base unit
+		// per dust swap.
+		newROut.Add(newROut, one)
+		// Keep the indexer receipt consistent with what was actually credited.
+		pendulumOut.NetworkCreditOutput = networkCredit.String()
+	}
+
 	maybeEnv := types.MaybeEnv{}
 
 	if sdk.VerifyAddress(params.From) == "unknown" {
