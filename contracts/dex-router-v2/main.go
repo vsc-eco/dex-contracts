@@ -215,7 +215,7 @@ func Execute(payload *string) *string {
 	callerIsContract := sdk.VerifyAddress(env.Caller.String()) == "contract"
 	senderHasAuth := false
 	for _, auth := range env.Sender.RequiredAuths {
-		if auth == env.Sender.Address {
+		if auth != "" && auth == env.Sender.Address {
 			senderHasAuth = true
 			break
 		}
@@ -394,7 +394,13 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 		if !ok || amountOut.Sign() <= 0 {
 			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "swap returned invalid amount out"))
 		}
-		settleToChain(instruction.AssetOut, amountOut, instruction.Recipient, instruction.DestinationChain, instruction.MaxFee)
+		settleToChain(
+			instruction.AssetOut,
+			amountOut,
+			instruction.Recipient,
+			instruction.DestinationChain,
+			instruction.MaxFee,
+		)
 	}
 
 	return result
@@ -510,7 +516,13 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 		if !ok || amountOut.Sign() <= 0 {
 			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "second hop returned invalid amount out"))
 		}
-		settleToChain(instruction.AssetOut, amountOut, instruction.Recipient, instruction.DestinationChain, instruction.MaxFee)
+		settleToChain(
+			instruction.AssetOut,
+			amountOut,
+			instruction.Recipient,
+			instruction.DestinationChain,
+			instruction.MaxFee,
+		)
 	}
 
 	return secondResult
