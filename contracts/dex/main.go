@@ -278,6 +278,18 @@ func Swap(payload *string) *string {
 	if networkCredit.Sign() < 0 {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pendulum returned a negative network credit"))
 	}
+	// DX-H7: the input reserve must not shrink (the input is added to it), and the
+	// output reserve must stay at or above the constant-product floor
+	// floor(rIn*rOut/(rIn+amountIn)) — the most the pool can pay out for this input.
+	// Both hold for every honest swap (fees only retain value in the pool) and
+	// reject a host trying to collapse k (e.g. returning 1/1 reserves).
+	if newRIn.Cmp(rIn) < 0 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "input reserve decreased (constant-product violation)"))
+	}
+	cpmmFloor := new(big.Int).Div(new(big.Int).Mul(rIn, rOut), new(big.Int).Add(rIn, amountIn))
+	if newROut.Cmp(cpmmFloor) < 0 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "output reserve below constant-product floor (k collapse)"))
+	}
 
 	maybeEnv := types.MaybeEnv{}
 
