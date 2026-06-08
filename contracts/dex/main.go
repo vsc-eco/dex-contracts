@@ -263,6 +263,22 @@ func Swap(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pendulum returned invalid network_credit_output"))
 	}
 
+	// DX-H2 / DX-H7: the pendulum applier runs in consensus; a compromised host
+	// (the CRIT-3 cartel) could hand back corrupt reserves. setBigInt stores the
+	// big.Int MAGNITUDE (sign dropped), so a NEGATIVE NewYReserve would be silently
+	// persisted as its positive value, corrupting the pool (DX-H2). And nothing
+	// stopped the host from collapsing the constant product — e.g. returning 1/1 —
+	// which mis-prices the pool and lets the next swapper drain it (DX-H7). Enforce
+	// contract-side post-conditions the host cannot lie past.
+	//
+	// DX-H2: reserves must be strictly positive and the network credit non-negative.
+	if newRIn.Sign() <= 0 || newROut.Sign() <= 0 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pendulum returned a non-positive reserve"))
+	}
+	if networkCredit.Sign() < 0 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "pendulum returned a negative network credit"))
+	}
+
 	maybeEnv := types.MaybeEnv{}
 
 	if sdk.VerifyAddress(params.From) == "unknown" {
