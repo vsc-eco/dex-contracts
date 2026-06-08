@@ -534,6 +534,23 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 func settleToChain(asset string, amount *big.Int, toAddress string, chain string, maxFee *int64) {
 	assetLower := strings.ToLower(asset)
 
+	// DX-H4: the requested settlement chain was previously IGNORED — the
+	// destination was derived solely from the asset, so a swap that asked to
+	// settle to chain X for an asset that lives on chain Y silently delivered on
+	// Y (proven: destination_chain "BTC" on a HIVE output just HiveWithdrew HIVE
+	// to a Hive account). Validate the request against the asset's registered
+	// chain so a mismatch aborts loudly instead of misrouting funds to a chain
+	// the caller never asked for.
+	assetChain := getAssetChain(assetLower)
+	if assetChain == "" {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput,
+			"asset "+asset+" is not registered; cannot settle to chain "+chain))
+	}
+	if !strings.EqualFold(assetChain, chain) {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput,
+			"destination_chain "+chain+" does not match asset "+asset+" chain "+assetChain))
+	}
+
 	if assetLower == "hive" || assetLower == "hbd" {
 		sdk.HiveWithdraw(sdk.Address(toAddress), amount, sdk.Asset(assetLower))
 		return
