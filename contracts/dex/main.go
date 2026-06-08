@@ -330,12 +330,26 @@ func Swap(payload *string) *string {
 	}
 
 	// --- EFFECTS: update reserves BEFORE external transfers (reentrancy protection) ---
-	// Reserves come straight from the pendulum SDK (it already folded the
-	// LP-retained portion of the fees into them); apply byte-for-byte.
+	// Reserves come straight from the pendulum SDK, which folds the LP-RETAINED
+	// portion of the fees into them but leaves the NETWORK-share credit inside the
+	// output reserve too ("fees stay in pool implicitly", applier.go:260 —
+	// newY = yReserve - userOutput, network credit not subtracted).
 	if networkCredit.Sign() == 1 {
 		currentShare := getBigInt(networkShareKey)
 		currentShare.Add(currentShare, networkCredit)
 		setBigInt(networkShareKey, currentShare)
+		// DX-H1: the network credit is now accrued to the claimable system-fee
+		// bucket, so it must be REMOVED from the output reserve — otherwise the
+		// same tokens are counted twice (once as LP-backed reserve, once as
+		// owner-claimable fee). claim_fees later pays the fee out without touching
+		// reserves, so leaving it in the reserve overstates pool liquidity and
+		// strands the last LP. Subtracting it keeps the invariant
+		// balance == reserve + systemFee exactly (conservation verified for both
+		// the HBD-output and secondary-hop branches of the applier).
+		newROut = new(big.Int).Sub(newROut, networkCredit)
+		if newROut.Sign() < 0 {
+			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "network credit exceeds output reserve"))
+		}
 	}
 	setBigInt(rInKey, newRIn)
 	setBigInt(rOutKey, newROut)
