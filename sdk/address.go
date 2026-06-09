@@ -14,6 +14,11 @@ type Sender struct {
 //tinyjson:json
 type ContractCallOptions struct {
 	Intents []Intent `json:"intents,omitempty"`
+	// Try opts this call into try/catch mode: a reverting callee no longer traps
+	// the caller (its state/ledger writes are rolled back to a savepoint and the
+	// caller gets a structured outcome). Requires consensus version >= 0.2.0;
+	// ignored below it. See sdk.TryContractCall.
+	Try bool `json:"try,omitempty"`
 }
 
 type AddressDomain string
