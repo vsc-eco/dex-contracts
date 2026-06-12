@@ -486,12 +486,12 @@ github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6Kllzaw
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.57.0 h1:Xw8SjWGEP/+wAAgyy5XTvgrWlOD1+TxbbvNADYCm1Tg=
 github.com/valyala/fasthttp v1.57.0/go.mod h1:h6ZBaPRlzpZ6O3H5t2gEk1Qi33+TmLvfwgLLp0t9CpE=
-github.com/vsc-eco/go-vsc-node v0.0.0-20260602170550-0cb33e9d4713 h1:O8PEHieeWNS+pMNDAX4PQ8j/lQIynv1a8tz7ntwycCY=
-github.com/vsc-eco/go-vsc-node v0.0.0-20260602170550-0cb33e9d4713/go.mod h1:29pRsp3pebFZXvJ8+40zX8MxOFOLqHUupctF7w/1RfM=
+github.com/vsc-eco/go-vsc-node v0.0.0-20260603163117-d1bcb4112419 h1:kkIPe04blC9WbD9T13dccdCu6gYvd0lnk3XxpMQ01Ck=
+github.com/vsc-eco/go-vsc-node v0.0.0-20260603163117-d1bcb4112419/go.mod h1:29pRsp3pebFZXvJ8+40zX8MxOFOLqHUupctF7w/1RfM=
 github.com/vsc-eco/hivego v0.0.0-20260224180332-508b8c394435 h1:ecSftlzwXr/JmFicV67CiPAtQRyx6mk91lhGXmRG1aY=
 github.com/vsc-eco/hivego v0.0.0-20260224180332-508b8c394435/go.mod h1:YTtRIiFkjGYkThkqWE4zf+mKZIJkNXrjJDiRW5D2Py8=
-github.com/vsc-eco/utxo-mapping/btc-mapping-contract v0.0.0-20260529080000-ac1f2a5ae127 h1:XJ2ND1YzdzCDY2FnuiJF86BMPyiuKVKipwsA8oYLzMg=
-github.com/vsc-eco/utxo-mapping/btc-mapping-contract v0.0.0-20260529080000-ac1f2a5ae127/go.mod h1:quKoaf4AAmJK3OBTJD12M7EvxGfirRvy4/T874awgY4=
+github.com/vsc-eco/utxo-mapping/btc-mapping-contract v0.0.0-20260609004026-81e495118b1a h1:Req0D0IsxcNQgcgGH11t2l2KYOctFHdRGJhoWmkqJVI=
+github.com/vsc-eco/utxo-mapping/btc-mapping-contract v0.0.0-20260609004026-81e495118b1a/go.mod h1:ZQNl1aAaOr+8UL5yybWq334bqCx+mqNnoIuWipAUK18=
 github.com/warpfork/go-testmark v0.12.1 h1:rMgCpJfwy1sJ50x0M0NgyphxYYPMOODIJHhsXyEHU0s=
 github.com/warpfork/go-testmark v0.12.1/go.mod h1:kHwy7wfvGSPh1rQJYKayD4AbtNaeyZdcGi9tNJTaa5Y=
 github.com/warpfork/go-wish v0.0.0-20220906213052-39a1cc7a02d0 h1:GDDkbFiaK8jsSDJfjId/PEGEShv6ugrt4kYsC5UIDaQ=

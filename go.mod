@@ -11,15 +11,16 @@ toolchain go1.25.10
 // use .
 // replace vsc-node => path-to-local-node
 
-replace vsc-node => github.com/vsc-eco/go-vsc-node v0.0.0-20260602170550-0cb33e9d4713
+replace vsc-node => github.com/vsc-eco/go-vsc-node v0.0.0-20260603163117-d1bcb4112419
 
-replace btc-mapping-contract => github.com/vsc-eco/utxo-mapping/btc-mapping-contract v0.0.0-20260529080000-ac1f2a5ae127
+replace btc-mapping-contract => github.com/vsc-eco/utxo-mapping/btc-mapping-contract v0.0.0-20260609004026-81e495118b1a
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 
 require (
 	btc-mapping-contract v0.0.0
 	github.com/CosmWasm/tinyjson v0.9.0
+	github.com/JustinKnueppel/go-result v1.0.0
 	github.com/btcsuite/btcd v0.25.0
 	github.com/btcsuite/btcd/btcutil v1.2.0
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.2.0
@@ -30,7 +31,6 @@ require (
 require (
 	filippo.io/bigmod v0.1.1-0.20260103110540-f8a47775ebe5 // indirect
 	filippo.io/keygen v0.0.0-20260114151900-8e2790ea4c5b // indirect
-	github.com/JustinKnueppel/go-result v1.0.0 // indirect
 	github.com/agl/ed25519 v0.0.0-20200225211852-fd4d107ace12 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect

@@ -27,3 +27,33 @@ func TestReview8_DXH7_ConstantProductCollapseRejected(t *testing.T) {
 	assert.False(t, r.Success,
 		"DX-H7: collapsed reserves (constant-product drop) from the host must be rejected")
 }
+
+// Isolates the output-reserve floor check: the input reserve is honest
+// (rIn + amountIn) so the `newRIn < rIn` guard does NOT fire first; only the
+// constant-product floor branch can reject this. Pool is 1_000_000/1_000_000,
+// amountIn 10_000, so the floor is floor(1e6*1e6/1_010_000) = 990_099.
+func TestReview8_DXH7_OutputBelowFloorRejected(t *testing.T) {
+	r := swapHbdToHiveWithMaliciousHost(t, wasm_context.PendulumSwapFeeResult{
+		UserOutput:          100,
+		NewXReserve:         1_010_000, // honest: rIn + amountIn (passes the shrink guard)
+		NewYReserve:         990_098,   // one below the constant-product floor
+		NetworkCreditOutput: 0,
+	})
+	assert.False(t, r.Success,
+		"DX-H7: an output reserve below the constant-product floor must be rejected")
+}
+
+// The reserve bounds are necessary but not sufficient: a host can return
+// PLAUSIBLE reserves (input grown, output at the floor) while inflating
+// user_output to drain the pool. The payout cap (user_output <= rOut - newROut)
+// must reject this even though both reserve post-conditions pass.
+func TestReview8_DXH7_InflatedUserOutputRejected(t *testing.T) {
+	r := swapHbdToHiveWithMaliciousHost(t, wasm_context.PendulumSwapFeeResult{
+		UserOutput:          500_000,   // honest output is ~9_800; this is 50x the reserve drop
+		NewXReserve:         1_010_000, // honest-looking (rIn + amountIn)
+		NewYReserve:         990_099,   // exactly the constant-product floor — passes the floor check
+		NetworkCreditOutput: 0,
+	})
+	assert.False(t, r.Success,
+		"DX-H7: a user_output exceeding the output-reserve decrease must be rejected (pool drain)")
+}

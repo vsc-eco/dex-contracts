@@ -290,6 +290,20 @@ func Swap(payload *string) *string {
 	if newROut.Cmp(cpmmFloor) < 0 {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "output reserve below constant-product floor (k collapse)"))
 	}
+	// DX-H7: bounding the reserves alone is necessary but NOT sufficient — the
+	// payout is a separate host-controlled value. Nothing above ties user_output
+	// to the reserve delta, so a host could return plausible reserves (input
+	// grown, output at the floor) yet an inflated user_output and drain the pool
+	// (proven: user_output 500_000 on a swap whose honest output is ~9_800 stored
+	// reserves that passed every check while paying out 50× the reserve drop).
+	// The pool can release at most what leaves the output reserve, so cap the
+	// payout there. Use the RAW newROut (pre DX-H1 network-credit subtraction):
+	//   non-HBD output: rOut - newROut == user_output            (exact)
+	//   HBD output:     rOut - newROut == user_output + nodeShare (slack)
+	// so every honest swap satisfies user_output <= rOut - newROut.
+	if amountOut.Cmp(new(big.Int).Sub(rOut, newROut)) > 0 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "user output exceeds output reserve decrease"))
+	}
 
 	maybeEnv := types.MaybeEnv{}
 
