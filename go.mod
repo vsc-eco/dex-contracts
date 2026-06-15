@@ -15,10 +15,16 @@ replace vsc-node => github.com/vsc-eco/go-vsc-node v0.0.0-20260603163117-d1bcb41
 
 replace btc-mapping-contract => github.com/vsc-eco/utxo-mapping/btc-mapping-contract v0.0.0-20260609004026-81e495118b1a
 
+// dash-mapping-contract is consumed via a local replace (sibling dash_work
+// clone) because the dash IS-login work is still pre-release. Bump to a
+// remote @<commit> pin once the dash-mapping-contract changes land upstream.
+replace dash-mapping-contract => ../utxo-mapping/dash-mapping-contract
+
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 
 require (
 	btc-mapping-contract v0.0.0
+	dash-mapping-contract v0.0.0-00010101000000-000000000000
 	github.com/CosmWasm/tinyjson v0.9.0
 	github.com/JustinKnueppel/go-result v1.0.0
 	github.com/btcsuite/btcd v0.25.0
