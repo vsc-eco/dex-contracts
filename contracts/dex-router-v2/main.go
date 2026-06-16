@@ -363,7 +363,13 @@ func findPool(assetA, assetB string) string {
 // Execute direct swap within a single DEX pool
 func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *string {
 	env := sdk.GetEnv()
-	userAddr := env.Caller.String()
+	// Use EffectiveCallerOrCaller so forwarder-mediated calls (Dash
+	// IS-login flow — see go-vsc-node modules/contract/execution-context
+	// CallAs) credit the real user (the DashDID), not the forwarder
+	// contract that's transporting the call. For direct user calls
+	// EffectiveCaller is empty and this falls back to Caller — no change
+	// in behaviour for the existing flows.
+	userAddr := env.EffectiveCallerOrCaller().String()
 	contractAccId := "contract:" + env.ContractId
 
 	// Pre-fund input asset into the pool (mapped via transferFrom, native via HiveDraw+HiveTransfer).
@@ -443,7 +449,8 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 	var mEnv types.MaybeEnv
 	env := mEnv.UseEnv()
 	contractAccId := "contract:" + env.ContractId
-	userAddr := env.Caller.String()
+	// Forwarder-aware: see comment in executeDirectSwap.
+	userAddr := env.EffectiveCallerOrCaller().String()
 
 	// --- First hop: AssetIn → HBD ---
 	// Pre-fund input asset into pool1 (mapped via transferFrom, native via HiveDraw+HiveTransfer).
@@ -612,10 +619,17 @@ func preFundAsset(asset string, amount string, toPool string, env *sdk.Env) erro
 	mappingContract := getMappingContract(strings.ToLower(asset))
 	if mappingContract != "" {
 		// Mapped asset: transfer via ERC-20 allowance (user → pool).
+		// CRITICAL: use EffectiveCallerOrCaller so forwarder-mediated
+		// swaps draw from the real user (DashDID), not the forwarder
+		// contract. If we used env.Caller alone, the mapping contract
+		// would try to draw from the forwarder's balance and reject for
+		// insufficient allowance — breaking the entire Dash IS-login
+		// swap path. For direct user calls this still falls back to
+		// env.Caller, no behaviour change.
 		input := types.MappingContractInput{
 			Amount: amount,
 			To:     "contract:" + toPool,
-			From:   env.Caller.String(),
+			From:   env.EffectiveCallerOrCaller().String(),
 		}
 		payload, err := tinyjson.Marshal(input)
 		if err != nil {
@@ -693,8 +707,12 @@ func executeDeposit(instruction types.DexInstruction) *string {
 // Execute withdrawal (remove liquidity)
 func executeWithdrawal(instruction types.DexInstruction) *string {
 	// Only the LP owner can withdraw their own liquidity via the router.
+	// Use EffectiveCallerOrCaller so forwarder-mediated withdrawals (e.g.
+	// Dash user removing LP via dash-forwarder-contract) authorise against
+	// the real user's DashDID, not the forwarder. Direct user calls fall
+	// back to env.Caller — no behaviour change.
 	env := sdk.GetEnv()
-	if instruction.Recipient != env.Caller.String() {
+	if instruction.Recipient != env.EffectiveCallerOrCaller().String() {
 		ce.CustomAbort(ce.NewContractError(ce.ErrNoPermission, "can only withdraw your own liquidity"))
 	}
 

@@ -15,5 +15,8 @@ data/
 init-service
 !init-service/
 
+# Stray build artifact from `go build ./contracts/dex-router-v2` at repo root.
+/dex-router-v2
+
 go.work
 go.work.sum
