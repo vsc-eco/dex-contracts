@@ -23,9 +23,20 @@ GOWORK_EXTRA_MOUNTS := $(if $(wildcard go.work),$(shell \
     [ -d "$$host" ] && printf -- '-v %s:%s ' "$$host" "$$ctr"; \
   done),)
 
-.PHONY: test build clean contracts services sdk tinyjson contracts-test update-vsc-node
+.PHONY: test build clean contracts services sdk tinyjson contracts-test update-vsc-node check-no-local-replace release-gate
 
 all: contracts
+
+# Audit M11: refuse a release build when go.mod has any local-path
+# replace directive (../foo, /abs/foo, ~/foo). Wire `make release-gate`
+# into CI before any release-tag wasm build.
+check-no-local-replace:
+	@./scripts/check-no-local-replace.sh
+
+# Composite gate for release builds: dependency pins are clean +
+# go mod verify passes + every wasm target builds.
+release-gate: check-no-local-replace
+	@go build ./...
 
 # Fetch the latest commit on the go-vsc-node main branch and update the remote
 # replace directive in go.mod. The local go.work override (if uncommented) still
