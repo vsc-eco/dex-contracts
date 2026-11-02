@@ -61,6 +61,7 @@ func Init(payload *string) *string {
 	if params.Asset0 > params.Asset1 {
 		params.Asset0, params.Asset1 = params.Asset1, params.Asset0
 		params.Asset0MappingContract, params.Asset1MappingContract = params.Asset1MappingContract, params.Asset0MappingContract
+		params.Decimals0, params.Decimals1 = params.Decimals1, params.Decimals0
 	}
 
 	if params.Asset0MappingContract != "" && sdk.VerifyAddress("contract:"+params.Asset0MappingContract) != "contract" {
@@ -90,6 +91,20 @@ func Init(payload *string) *string {
 		)
 	}
 
+	// StableSwap pool: A and both decimals, fixed for the pool's life.
+	if params.Curve != "" {
+		if params.Curve != types.CurveStable {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "curve must be empty or \"stable\""))
+		}
+		if params.Amp < 1 || params.Amp > uint64(StableMaxAmp) {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "amp must be 1.."+strconv.FormatInt(StableMaxAmp, 10)))
+		}
+		if params.Decimals0 == nil || params.Decimals1 == nil ||
+			*params.Decimals0 > StablePrecisionDecimals || *params.Decimals1 > StablePrecisionDecimals {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "a stable pool needs decimals0 and decimals1, each 0..18"))
+		}
+	}
+
 	// Initialize pool state (already lowercased and alphabetically ordered above)
 	setStr(types.KeyAsset0Name, params.Asset0)
 	setStr(types.KeyAsset1Name, params.Asset1)
@@ -109,6 +124,12 @@ func Init(payload *string) *string {
 		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "router_contract must be a valid contract ID"))
 	}
 	setStr(types.KeyRouter, params.RouterContract)
+	if params.Curve == types.CurveStable {
+		setStr(types.KeyCurve, types.CurveStable)
+		setStr(types.KeyAmp, strconv.FormatUint(params.Amp, 10))
+		setStr(types.KeyDecimals0, strconv.FormatUint(*params.Decimals0, 10))
+		setStr(types.KeyDecimals1, strconv.FormatUint(*params.Decimals1, 10))
+	}
 	setStr(types.KeyMigrateVer, "4")
 
 	sdk.Log(logPoolInit(params.Asset0, params.Asset1, params.FeeBps))
@@ -235,6 +256,15 @@ func Swap(payload *string) *string {
 		XReserve: rIn.String(),
 		YReserve: rOut.String(),
 	}
+	// StableSwap pool: hand the node the pool's own curve parameters (it
+	// prices on the curve only when they equal the network's listing).
+	stable := loadStablePool(inputIsAsset0)
+	if stable != nil {
+		pendulumIn.Curve = types.CurveStable
+		pendulumIn.Amp = strconv.FormatInt(stable.amp, 10)
+		pendulumIn.DecIn = strconv.FormatUint(uint64(stable.decIn), 10)
+		pendulumIn.DecOut = strconv.FormatUint(uint64(stable.decOut), 10)
+	}
 	pendulumInJSON, err := tinyjson.Marshal(&pendulumIn)
 	if err != nil {
 		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "failed to encode pendulum input"))
@@ -286,9 +316,17 @@ func Swap(payload *string) *string {
 	if newRIn.Cmp(rIn) < 0 {
 		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "input reserve decreased (constant-product violation)"))
 	}
-	cpmmFloor := new(big.Int).Div(new(big.Int).Mul(rIn, rOut), new(big.Int).Add(rIn, amountIn))
-	if newROut.Cmp(cpmmFloor) < 0 {
-		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "output reserve below constant-product floor (k collapse)"))
+	if stable == nil {
+		cpmmFloor := new(big.Int).Div(new(big.Int).Mul(rIn, rOut), new(big.Int).Add(rIn, amountIn))
+		if newROut.Cmp(cpmmFloor) < 0 {
+			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "output reserve below constant-product floor (k collapse)"))
+		}
+	} else if pendulumOut.Curve != types.CurveStable {
+		// The pool trades only on its curve. A node that priced it on the
+		// constant product (curve not yet active, pool not listed) is refused
+		// rather than accepted on the weaker floor. The stable floor itself is
+		// checked on the reserves stored below.
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "stable pool: the node did not price the swap on the stable curve"))
 	}
 	// DX-H7: bounding the reserves alone is necessary but NOT sufficient — the
 	// payout is a separate host-controlled value. Nothing above ties user_output
@@ -431,6 +469,19 @@ func Swap(payload *string) *string {
 		newROut = new(big.Int).Sub(newROut, networkCredit)
 		if newROut.Sign() < 0 {
 			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "network credit exceeds output reserve"))
+		}
+	}
+	// DX-H7 for a StableSwap pool: the reserves stored must sit on or above
+	// the pre-swap invariant (the most the curve pays for this input), the
+	// stable analogue of the constant-product floor, which would refuse every
+	// honest stable swap larger than dust.
+	if stable != nil {
+		floor, err := StableFloorY(newRIn, rIn, rOut, stable.rateIn, stable.rateOut, stable.amp)
+		if err != nil {
+			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "stable pool: "+err.Error()))
+		}
+		if new(big.Int).Mul(newROut, stable.rateOut).Cmp(floor) < 0 {
+			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "output reserve below the stable curve floor"))
 		}
 	}
 	setBigInt(rInKey, newRIn)
