@@ -104,7 +104,12 @@ func RegisterToken(payload *string) *string {
 
 	// Resolve decimals: query mapping contract for mapped assets, use payload value for native
 	if params.MappingContract != "" {
-		infoResult := sdk.ContractCall(params.MappingContract, "getInfo", "", nil)
+		// Ask for THIS asset: a multi-asset mapping contract (the EVM bridge:
+		// "eth" and its registered tokens) answers for the named symbol;
+		// single-asset contracts (BTC, LTC, ...) ignore the payload. `name`
+		// passed isValidTokenName above (lowercase alphanumeric), so it is
+		// safe inside the JSON string.
+		infoResult := sdk.ContractCall(params.MappingContract, "getInfo", `{"symbol":"`+name+`"}`, nil)
 		if infoResult == nil {
 			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "failed to query getInfo on mapping contract"))
 		}
@@ -616,6 +621,7 @@ func preFundAsset(asset string, amount string, toPool string, env *sdk.Env) erro
 			Amount: amount,
 			To:     "contract:" + toPool,
 			From:   env.Caller.String(),
+			Asset:  strings.ToLower(asset),
 		}
 		payload, err := tinyjson.Marshal(input)
 		if err != nil {

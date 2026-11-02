@@ -1106,6 +1106,8 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			out.To = string(in.String())
 		case "from":
 			out.From = string(in.String())
+		case "asset":
+			out.Asset = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1134,6 +1136,11 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		const prefix string = ",\"from\":"
 		out.RawString(prefix)
 		out.String(string(in.From))
+	}
+	if in.Asset != "" {
+		const prefix string = ",\"asset\":"
+		out.RawString(prefix)
+		out.String(string(in.Asset))
 	}
 	out.RawByte('}')
 }
