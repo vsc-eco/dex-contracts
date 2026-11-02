@@ -118,6 +118,7 @@ func (ma *MappedAsset) DrawAssetFrom(amount *big.Int, from sdk.Address, mEnv typ
 		Amount: amount.String(),
 		To:     "contract:" + env.ContractId,
 		From:   from.String(),
+		Asset:  ma.Asset,
 	}
 	payload, err := tinyjson.Marshal(input)
 	if err != nil {
@@ -132,6 +133,7 @@ func (ma *MappedAsset) TransferAsset(to string, amount *big.Int) error {
 	input := types.MappingContractInput{
 		Amount: amount.String(),
 		To:     to,
+		Asset:  ma.Asset,
 	}
 	payload, err := tinyjson.Marshal(input)
 	if err != nil {

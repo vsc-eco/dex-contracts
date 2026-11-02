@@ -236,6 +236,11 @@ type MappingContractInput struct {
 	Amount string `json:"amount"`
 	To     string `json:"to"`
 	From   string `json:"from,omitempty"`
+	// Asset names the asset on a multi-asset mapping contract (the EVM
+	// bridge holds "eth" and registered token symbols such as "usdc" and
+	// refuses a transfer without it). Single-asset mapping contracts (BTC,
+	// LTC, ...) skip the key.
+	Asset string `json:"asset,omitempty"`
 }
 
 // UnmapParams is the input for the "unmap" action on mapping contracts,
