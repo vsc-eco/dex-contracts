@@ -930,6 +930,8 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			out.NodeShareOutput = string(in.String())
 		case "node_bucket_credited_hbd":
 			out.NodeBucketCreditedHbd = string(in.String())
+		case "curve":
+			out.Curve = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -989,6 +991,11 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		out.RawString(prefix)
 		out.String(string(in.NodeBucketCreditedHbd))
 	}
+	if in.Curve != "" {
+		const prefix string = ",\"curve\":"
+		out.RawString(prefix)
+		out.String(string(in.Curve))
+	}
 	out.RawByte('}')
 }
 
@@ -1030,6 +1037,14 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			out.XReserve = string(in.String())
 		case "y_reserve":
 			out.YReserve = string(in.String())
+		case "curve":
+			out.Curve = string(in.String())
+		case "amp":
+			out.Amp = string(in.String())
+		case "dec_in":
+			out.DecIn = string(in.String())
+		case "dec_out":
+			out.DecOut = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1068,6 +1083,26 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		const prefix string = ",\"y_reserve\":"
 		out.RawString(prefix)
 		out.String(string(in.YReserve))
+	}
+	if in.Curve != "" {
+		const prefix string = ",\"curve\":"
+		out.RawString(prefix)
+		out.String(string(in.Curve))
+	}
+	if in.Amp != "" {
+		const prefix string = ",\"amp\":"
+		out.RawString(prefix)
+		out.String(string(in.Amp))
+	}
+	if in.DecIn != "" {
+		const prefix string = ",\"dec_in\":"
+		out.RawString(prefix)
+		out.String(string(in.DecIn))
+	}
+	if in.DecOut != "" {
+		const prefix string = ",\"dec_out\":"
+		out.RawString(prefix)
+		out.String(string(in.DecOut))
 	}
 	out.RawByte('}')
 }
@@ -1385,6 +1420,30 @@ func tinyjsonA17a9c65DecodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 			out.Asset1MappingContract = string(in.String())
 		case "router_contract":
 			out.RouterContract = string(in.String())
+		case "curve":
+			out.Curve = string(in.String())
+		case "amp":
+			out.Amp = uint64(in.Uint64())
+		case "decimals0":
+			if in.IsNull() {
+				in.Skip()
+				out.Decimals0 = nil
+			} else {
+				if out.Decimals0 == nil {
+					out.Decimals0 = new(uint64)
+				}
+				*out.Decimals0 = uint64(in.Uint64())
+			}
+		case "decimals1":
+			if in.IsNull() {
+				in.Skip()
+				out.Decimals1 = nil
+			} else {
+				if out.Decimals1 == nil {
+					out.Decimals1 = new(uint64)
+				}
+				*out.Decimals1 = uint64(in.Uint64())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -1428,6 +1487,26 @@ func tinyjsonA17a9c65EncodeGithubComVscEcoDexContractsContractsTypesTinyjsonTmp1
 		const prefix string = ",\"router_contract\":"
 		out.RawString(prefix)
 		out.String(string(in.RouterContract))
+	}
+	if in.Curve != "" {
+		const prefix string = ",\"curve\":"
+		out.RawString(prefix)
+		out.String(string(in.Curve))
+	}
+	if in.Amp != 0 {
+		const prefix string = ",\"amp\":"
+		out.RawString(prefix)
+		out.Uint64(uint64(in.Amp))
+	}
+	if in.Decimals0 != nil {
+		const prefix string = ",\"decimals0\":"
+		out.RawString(prefix)
+		out.Uint64(uint64(*in.Decimals0))
+	}
+	if in.Decimals1 != nil {
+		const prefix string = ",\"decimals1\":"
+		out.RawString(prefix)
+		out.Uint64(uint64(*in.Decimals1))
 	}
 	out.RawByte('}')
 }

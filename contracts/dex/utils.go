@@ -338,3 +338,38 @@ func logMigrate(version, asset0, asset1 string) string {
 
 	return b.String()
 }
+
+// stablePool is a StableSwap pool's parameters, oriented for one swap.
+type stablePool struct {
+	amp             int64
+	decIn, decOut   uint8
+	rateIn, rateOut *big.Int
+}
+
+// loadStablePool returns the pool's StableSwap parameters oriented for a swap
+// whose input is asset0 (inputIsAsset0) or asset1, or nil for a
+// constant-product pool. Stored values were validated by Init; a corrupt one
+// aborts.
+func loadStablePool(inputIsAsset0 bool) *stablePool {
+	if getStr(types.KeyCurve) != types.CurveStable {
+		return nil
+	}
+	amp, err1 := strconv.ParseInt(getStr(types.KeyAmp), 10, 64)
+	d0, err2 := strconv.ParseUint(getStr(types.KeyDecimals0), 10, 8)
+	d1, err3 := strconv.ParseUint(getStr(types.KeyDecimals1), 10, 8)
+	if err1 != nil || err2 != nil || err3 != nil {
+		ce.CustomAbort(ce.NewContractError(ce.ErrStateAccess, "stable pool parameters unreadable"))
+	}
+	p := &stablePool{amp: amp, decIn: uint8(d0), decOut: uint8(d1)}
+	if !inputIsAsset0 {
+		p.decIn, p.decOut = p.decOut, p.decIn
+	}
+	var err error
+	if p.rateIn, err = StableRate(p.decIn); err != nil {
+		ce.CustomAbort(ce.NewContractError(ce.ErrStateAccess, "stable pool decimals invalid"))
+	}
+	if p.rateOut, err = StableRate(p.decOut); err != nil {
+		ce.CustomAbort(ce.NewContractError(ce.ErrStateAccess, "stable pool decimals invalid"))
+	}
+	return p
+}

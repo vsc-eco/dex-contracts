@@ -24,7 +24,15 @@ const (
 	KeyFeeLastClaim  = "flc"
 	KeyRouter        = "rtr" // authorized router contract ID
 	KeyMigrateVer    = "mv"  // migration version tracker
+	// StableSwap pool parameters (absent on constant-product pools).
+	KeyCurve     = "cv"  // "stable"
+	KeyAmp       = "amp" // amplification A, decimal
+	KeyDecimals0 = "d0"  // asset0 decimals, decimal
+	KeyDecimals1 = "d1"  // asset1 decimals, decimal
 )
+
+// CurveStable marks a StableSwap pool.
+const CurveStable = "stable"
 
 const DirPathDelimiter = "-"
 

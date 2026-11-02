@@ -14,6 +14,15 @@ type InitParams struct {
 	// RouterContract is the authorized router that can set PreDeposited flags.
 	// If empty, PreDeposited is rejected for all callers.
 	RouterContract string `json:"router_contract,omitempty"`
+	// Curve "stable" makes this a StableSwap pool (two assets, amplification
+	// Amp, each asset's decimals). Empty = the constant product. Fixed for
+	// the pool's life. The network must also list the pool (node
+	// system-config StablePools) with the same values, or its swaps are
+	// refused.
+	Curve     string  `json:"curve,omitempty"`
+	Amp       uint64  `json:"amp,omitempty"`
+	Decimals0 *uint64 `json:"decimals0,omitempty"`
+	Decimals1 *uint64 `json:"decimals1,omitempty"`
 }
 
 //tinyjson:json
@@ -68,6 +77,11 @@ type PendulumSwapFeeInput struct {
 	X        string `json:"x"`
 	XReserve string `json:"x_reserve"`
 	YReserve string `json:"y_reserve"`
+	// A stable pool's parameters; omitted by constant-product pools.
+	Curve  string `json:"curve,omitempty"`
+	Amp    string `json:"amp,omitempty"`
+	DecIn  string `json:"dec_in,omitempty"`
+	DecOut string `json:"dec_out,omitempty"`
 }
 
 // PendulumSwapFeeOutput is the JSON response from system.pendulum_apply_swap_fees.
@@ -97,6 +111,8 @@ type PendulumSwapFeeOutput struct {
 	// swap (calculated internally within system.pendulum_apply_swap_fees)
 	// when output asset is not HBD
 	NodeBucketCreditedHbd string `json:"node_bucket_credited_hbd"`
+	// "stable" when the node priced the swap on the StableSwap curve.
+	Curve string `json:"curve,omitempty"`
 }
 
 // ROUTER OPERATIONS
