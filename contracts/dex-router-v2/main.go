@@ -426,6 +426,7 @@ func executeDirectSwap(dexContractId string, instruction types.DexInstruction) *
 			instruction.Recipient,
 			instruction.DestinationChain,
 			instruction.MaxFee,
+			userAddr,
 		)
 	}
 
@@ -548,6 +549,7 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 			instruction.Recipient,
 			instruction.DestinationChain,
 			instruction.MaxFee,
+			userAddr,
 		)
 	}
 
@@ -556,8 +558,10 @@ func executeTwoHopSwap(instruction types.DexInstruction) *string {
 
 // settleToChain bridges swap output to an external chain.
 // For HIVE/HBD: uses sdk.HiveWithdraw to send to a Hive account.
-// For mapped assets (BTC, ETH, etc.): calls "unmap" on the mapping contract.
-func settleToChain(asset string, amount *big.Int, toAddress string, chain string, maxFee *int64) {
+// For Ethereum assets: the EVM bridge's unmapETH / unmapERC20 (settleToEVM).
+// For other mapped assets (BTC, LTC, ...): calls "unmap" on the mapping contract.
+// refundTo is the router's caller: a refund of the withdrawal is theirs.
+func settleToChain(asset string, amount *big.Int, toAddress string, chain string, maxFee *int64, refundTo string) {
 	assetLower := strings.ToLower(asset)
 
 	// DX-H4: the requested settlement chain was previously IGNORED — the
@@ -590,6 +594,10 @@ func settleToChain(asset string, amount *big.Int, toAddress string, chain string
 			ce.NewContractError(ce.ErrTransaction, "no mapping contract found for asset: "+asset),
 		)
 	}
+	if strings.EqualFold(chain, "ETH") {
+		settleToEVM(mappingContract, assetLower, amount, toAddress, maxFee, refundTo)
+		return
+	}
 
 	params := types.UnmapParams{
 		Amount:    amount.String(),
@@ -606,6 +614,62 @@ func settleToChain(asset string, amount *big.Int, toAddress string, chain string
 		ce.CustomAbort(
 			ce.NewContractError(ce.ErrTransaction, "unmap failed for "+asset),
 		)
+	}
+}
+
+// settleToEVM withdraws swap output the router holds through the EVM bridge,
+// which has no "unmap": ETH via unmapETH with its L1 fee taken from the amount
+// (as "deduct_fee" does on the BTC side), a token via unmapERC20 (its gas is
+// paid from the bridge's reserve). The bridge charges its proof fee on top of
+// what it withdraws, so the router withdraws the output less that fee (the
+// THORChain outbound fee rule: it comes out of what is sent). refund_to names
+// the caller: a refund credited to the router could never leave it.
+func settleToEVM(bridge, asset string, amount *big.Int, to string, maxFee *int64, refundTo string) {
+	infoResult := sdk.ContractCall(bridge, "getInfo", `{"symbol":"`+asset+`"}`, nil)
+	if infoResult == nil {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "failed to query getInfo on the EVM bridge for "+asset))
+	}
+	var info types.MappingContractInfoReturn
+	if err := tinyjson.Unmarshal([]byte(*infoResult), &info); err != nil {
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "failed to parse the EVM bridge's getInfo"))
+	}
+	if strings.ToLower(info.Symbol) != asset {
+		ce.CustomAbort(ce.NewContractError(ce.ErrInput, "the EVM bridge does not hold "+asset))
+	}
+	fee := new(big.Int)
+	if info.ProofFee != "" {
+		if _, ok := fee.SetString(info.ProofFee, 10); !ok || fee.Sign() < 0 {
+			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "invalid proof fee from the EVM bridge: "+info.ProofFee))
+		}
+	}
+	net := new(big.Int).Sub(amount, fee)
+	if net.Sign() <= 0 {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction,
+			"swap output "+amount.String()+" does not cover the EVM bridge's proof fee "+fee.String()))
+	}
+	params := types.EvmUnmapParams{Amount: net.String(), To: to, Asset: asset, RefundTo: refundTo}
+	if maxFee != nil {
+		if *maxFee <= 0 {
+			ce.CustomAbort(ce.NewContractError(ce.ErrInput, "max_fee must be positive"))
+		}
+		params.MaxFee = strconv.FormatInt(*maxFee, 10)
+	}
+	action := "unmapETH"
+	if asset == "eth" {
+		params.DeductFee = true
+	} else {
+		if info.TokenAddress == "" {
+			ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, "the EVM bridge gave no token address for "+asset))
+		}
+		params.TokenAddress = info.TokenAddress
+		action = "unmapERC20"
+	}
+	payload, err := tinyjson.Marshal(&params)
+	if err != nil {
+		ce.CustomAbort(ce.WrapContractError(ce.ErrJson, err, "failed to marshal EVM unmap params"))
+	}
+	if result := sdk.ContractCall(bridge, action, string(payload), &sdk.ContractCallOptions{}); result == nil {
+		ce.CustomAbort(ce.NewContractError(ce.ErrTransaction, action+" failed for "+asset))
 	}
 }
 

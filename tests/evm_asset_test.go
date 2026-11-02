@@ -89,6 +89,9 @@ func setupUsdcHbdPoolWith(t *testing.T, init types.InitParams, wire func(*test_u
 	ct.StateSet(evmBridgeId, "as-usdc", "1")
 	ct.StateSet(evmBridgeId, "a-"+usdcLp+"-usdc", strconv.Itoa(usdcPoolLiq))
 	ct.StateSet(evmBridgeId, "a-"+usdcTrader+"-usdc", "10000000000") // 10k USDC
+	// The bridge's books for those deposits (Active|User|Fee|BaseFee): a
+	// withdrawal debits them.
+	ct.StateSet(evmBridgeId, "s-usdc", strconv.Itoa(usdcPoolLiq+10_000_000_000)+"|"+strconv.Itoa(usdcPoolLiq+10_000_000_000)+"|0|0")
 
 	payload, _ := tinyjson.Marshal(&init)
 	r := ct.Call(state_engine.TxVscCallContract{
@@ -193,4 +196,145 @@ func TestSP0b_RouterRegistersAndRoutesUsdc(t *testing.T) {
 	require.True(t, r.Success, "routed HBD->USDC: %s: %s", r.Err, r.ErrMsg)
 	usdcAfter, _ := strconv.ParseInt(bridgeBalance(&ct, usdcTrader, "usdc"), 10, 64)
 	require.Greater(t, usdcAfter, usdcBefore)
+}
+
+// SP-0c: a swap settled to Ethereum through the router. The EVM bridge has no
+// "unmap"; the router now calls unmapERC20 (a token) / unmapETH, withdraws the
+// output less the bridge's proof fee, and names the trader as refund_to, so a
+// refund (here: the trader cancels the queued withdrawal) reaches the trader
+// and not the router, which could never move it.
+func TestSP0c_RouterSettlesUsdcToEthereum(t *testing.T) {
+	ct := setupUsdcHbdPool(t)
+	router := &RouterInfo{ct: &ct, id: usdcRouter}
+	r := router.initRouterV2(t, usdcOwner)
+	require.True(t, r.Success, "init router: %s: %s", r.Err, r.ErrMsg)
+	ref := "11155111-1c7d4b196cb0c7b01d743fbc6116a902379c7238"
+	ct.StateSet(evmBridgeId, "ts-usdc", ref)
+	ct.StateSet(evmBridgeId, "t-"+ref, "usdc|6|1")
+	ct.StateSet(evmBridgeId, "pf-usdc", "150000")   // 0.15 USDC proof fee
+	ct.StateSet(evmBridgeId, "chainid", "11155111") // the bridge's own chain (Sepolia), as registered
+	r = router.registerToken(t, usdcOwner, types.RegisterTokenParams{Name: "HBD", TokenInfo: types.TokenInfo{Chain: "HIVE"}})
+	require.True(t, r.Success, "register hbd: %s: %s", r.Err, r.ErrMsg)
+	regPayload, _ := tinyjson.Marshal(types.RegisterTokenParams{Name: "usdc", TokenInfo: types.TokenInfo{Chain: "ETH", MappingContract: evmBridgeId}})
+	reg := ct.Call(state_engine.TxVscCallContract{
+		Self: *basicSelf(t, usdcOwner), ContractId: usdcRouter, Action: "register_token", Payload: regPayload,
+		RcLimit: usdcRcLimit, Intents: []contracts.Intent{}, Caller: usdcOwner,
+	})
+	require.True(t, reg.Success, "register usdc: %s: %s", reg.Err, reg.ErrMsg)
+	r = router.registerPool(t, usdcOwner, types.RegisterPoolParams{Asset0: "hbd", Asset1: "usdc", DexContractId: usdcPoolId})
+	require.True(t, r.Success, "register pool: %s: %s", r.Err, r.ErrMsg)
+
+	// 1 HBD -> USDC, settled to an Ethereum address.
+	const l1To = "0x00000000000000000000000000000000000000e2"
+	ct.Deposit(usdcTrader, 1_000+rcHeadroomHBD, ledger_db.Asset("hbd"))
+	usdcBefore := bridgeBalance(&ct, usdcTrader, "usdc")
+	maxFee := int64(3_000_000_000_000_000) // the trader's cap on the reserve-paid gas (wei)
+	r = router.execute(t, usdcTrader, &types.DexInstruction{
+		Type: "swap", Version: "1.0.0", AssetIn: "hbd", AssetOut: "usdc", AmountIn: "1000",
+		Recipient: l1To, DestinationChain: "ETH", MaxFee: &maxFee,
+	}, []contracts.Intent{{Type: "transfer.allow", Args: map[string]string{"token": "hbd", "limit": "1000"}}})
+	require.True(t, r.Success, "SP-0c: routed HBD->USDC settled to Ethereum: %s: %s", r.Err, r.ErrMsg)
+	t.Logf("router swap + unmapERC20: %d RC", r.RcUsed)
+
+	// The withdrawal is queued (no TSS key here) from the router, for the
+	// trader, of the output less the proof fee; the router keeps nothing.
+	tail, _ := strconv.Atoi(ct.StateGet(evmBridgeId, "wqt"))
+	require.Equal(t, 1, tail, "one queued withdrawal")
+	var q struct {
+		From, To, Asset string
+		Amount          json.Number
+		RefundTo        string      `json:"refund_to"`
+		TokenAddress    string      `json:"token_address"`
+		MaxFee          json.Number `json:"max_fee"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(ct.StateGet(evmBridgeId, "wq-0")), &q), ct.StateGet(evmBridgeId, "wq-0"))
+	t.Logf("queued withdrawal: %+v", q)
+	require.Equal(t, "contract:"+usdcRouter, q.From)
+	require.Equal(t, usdcTrader, q.RefundTo)
+	require.Equal(t, l1To, q.To)
+	require.Equal(t, "usdc", q.Asset)
+	require.Equal(t, "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238", q.TokenAddress)
+	require.Equal(t, "3000000000000000", string(q.MaxFee), "the trader's max_fee reaches the bridge (as its decimal string)")
+	amt, _ := strconv.ParseInt(string(q.Amount), 10, 64)
+	require.Greater(t, amt, int64(800_000), "~0.99 USDC less the 0.15 fee")
+	require.Contains(t, []string{"", "0"}, bridgeBalance(&ct, "contract:"+usdcRouter, "usdc"), "the router holds nothing")
+	require.Equal(t, "150000", bridgeBalance(&ct, "hive:altera.app", "usdc"), "the bridge charged its proof fee (ProofFeeRecipient)")
+
+	// The trader cancels: the refund is the trader's, not the router's.
+	cr := bridgeCall(t, &ct, usdcTrader, "cancelQueuedWithdrawal", map[string]any{"seq": 0})
+	require.True(t, cr.Success, "trader cancels: %s: %s", cr.Err, cr.ErrMsg)
+	before, _ := strconv.ParseInt(usdcBefore, 10, 64)
+	after, _ := strconv.ParseInt(bridgeBalance(&ct, usdcTrader, "usdc"), 10, 64)
+	require.Equal(t, before+amt, after, "the refund reached the trader")
+	require.Contains(t, []string{"", "0"}, bridgeBalance(&ct, "contract:"+usdcRouter, "usdc"), "nothing stranded in the router")
+}
+
+// SP-0c for ETH: unmapETH with the L1 fee taken from the amount (deduct_fee)
+// and the proof fee netted out by the router, on a 100 ETH pool (SP-0d: past
+// int64 in wei, so this also needs the 0.13.0 big swap amounts, and proves
+// they reach a pool swapping inside the router's call).
+func TestSP0c_RouterSettlesEthToEthereum(t *testing.T) {
+	requireWasm(t, "dex", dexcontracts.DexWasm)
+	bridge := evmBridgeWasm(t)
+	const ethPool = "vsc1BquGPy8B766YpstdcL5cSF2GkWVVsVxJS3"
+	ct := test_utils.NewContractTest()
+	whitelistPendulum(&ct, ethPool)
+	// 0.13.0 (SP-0d): 100 ETH is 1e20 wei, past int64; before 0.13 every swap
+	// of this pool is refused "invalid argument".
+	ct.BigSwapAmountsActive = true
+	t.Cleanup(func() { ct.DataLayer.Stop() })
+	ct.RegisterContract(evmBridgeId, usdcOwner, bridge)
+	ct.RegisterContract(ethPool, usdcOwner, dexcontracts.DexWasm)
+	ct.RegisterContract(usdcRouter, usdcOwner, dexcontracts.DexRouterV2Wasm)
+	const lpEth = "100000000000000000000" // 100 ETH
+	ct.StateSet(evmBridgeId, "a-"+usdcLp+"-eth", lpEth)
+	ct.StateSet(evmBridgeId, "s-eth", lpEth+"|"+lpEth+"|0|0")
+	ct.StateSet(evmBridgeId, "pf-eth", "50000000000000") // 0.00005 ETH proof fee
+
+	payload, _ := tinyjson.Marshal(&types.InitParams{Asset0: "eth", Asset0MappingContract: evmBridgeId, Asset1: "hbd", FeeBps: 8, RouterContract: usdcRouter})
+	r := ct.Call(state_engine.TxVscCallContract{Self: *basicSelf(t, usdcOwner), ContractId: ethPool, Action: "init", Payload: payload, RcLimit: usdcRcLimit, Intents: []contracts.Intent{}, Caller: usdcOwner})
+	require.True(t, r.Success, "init: %s: %s", r.Err, r.ErrMsg)
+	r = bridgeCall(t, &ct, usdcLp, "approve", map[string]string{"spender": "contract:" + ethPool, "amount": lpEth, "asset": "eth"})
+	require.True(t, r.Success, "approve: %s: %s", r.Err, r.ErrMsg)
+	ct.Deposit(usdcLp, hbdPoolLiq+rcHeadroomHBD, ledger_db.Asset("hbd"))
+	lp, _ := tinyjson.Marshal(types.AddLiquidityParams{Amount0: lpEth, Amount1: strconv.Itoa(hbdPoolLiq), Recipient: usdcLp})
+	r = ct.Call(state_engine.TxVscCallContract{Self: *basicSelf(t, usdcLp), ContractId: ethPool, Action: "add_liquidity", Payload: lp, RcLimit: usdcRcLimit, Caller: usdcLp,
+		Intents: []contracts.Intent{{Type: "transfer.allow", Args: map[string]string{"token": "hbd", "limit": strconv.Itoa(hbdPoolLiq)}}}})
+	require.True(t, r.Success, "add_liquidity ETH: %s: %s", r.Err, r.ErrMsg)
+
+	router := &RouterInfo{ct: &ct, id: usdcRouter}
+	require.True(t, router.initRouterV2(t, usdcOwner).Success)
+	require.True(t, router.registerToken(t, usdcOwner, types.RegisterTokenParams{Name: "HBD", TokenInfo: types.TokenInfo{Chain: "HIVE"}}).Success)
+	regPayload, _ := tinyjson.Marshal(types.RegisterTokenParams{Name: "eth", TokenInfo: types.TokenInfo{Chain: "ETH", MappingContract: evmBridgeId}})
+	reg := ct.Call(state_engine.TxVscCallContract{Self: *basicSelf(t, usdcOwner), ContractId: usdcRouter, Action: "register_token", Payload: regPayload, RcLimit: usdcRcLimit, Intents: []contracts.Intent{}, Caller: usdcOwner})
+	require.True(t, reg.Success, "register eth: %s: %s", reg.Err, reg.ErrMsg)
+	require.True(t, router.registerPool(t, usdcOwner, types.RegisterPoolParams{Asset0: "eth", Asset1: "hbd", DexContractId: ethPool}).Success)
+
+	// 1,000 HBD (1% of the pool) -> ~0.99 ETH, settled to an Ethereum address.
+	const l1To = "0x00000000000000000000000000000000000000e3"
+	ct.Deposit(usdcTrader, 1_000_000+rcHeadroomHBD, ledger_db.Asset("hbd"))
+	rx := router.execute(t, usdcTrader, &types.DexInstruction{
+		Type: "swap", Version: "1.0.0", AssetIn: "hbd", AssetOut: "eth", AmountIn: "1000000",
+		Recipient: l1To, DestinationChain: "ETH",
+	}, []contracts.Intent{{Type: "transfer.allow", Args: map[string]string{"token": "hbd", "limit": "1000000"}}})
+	require.True(t, rx.Success, "SP-0c: routed HBD->ETH settled to Ethereum: %s: %s", rx.Err, rx.ErrMsg)
+	t.Logf("router swap + unmapETH: %d RC", rx.RcUsed)
+	var q struct {
+		From, To, Asset string
+		Amount          json.Number
+		Debit           json.Number
+		RefundTo        string `json:"refund_to"`
+		DeductFee       bool   `json:"deduct_fee"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(ct.StateGet(evmBridgeId, "wq-0")), &q), ct.StateGet(evmBridgeId, "wq-0"))
+	t.Logf("queued withdrawal: %+v", q)
+	require.Equal(t, "contract:"+usdcRouter, q.From)
+	require.Equal(t, usdcTrader, q.RefundTo)
+	require.Equal(t, l1To, q.To)
+	require.True(t, q.DeductFee, "the L1 fee comes out of the amount")
+	require.Contains(t, []string{"", "0"}, bridgeBalance(&ct, "contract:"+usdcRouter, "eth"), "the router holds nothing")
+	require.Equal(t, "50000000000000", bridgeBalance(&ct, "hive:altera.app", "eth"), "proof fee charged")
+	cr := bridgeCall(t, &ct, usdcTrader, "cancelQueuedWithdrawal", map[string]any{"seq": 0})
+	require.True(t, cr.Success, "trader cancels: %s: %s", cr.Err, cr.ErrMsg)
+	require.Equal(t, string(q.Debit), bridgeBalance(&ct, usdcTrader, "eth"), "the refund reached the trader")
 }
