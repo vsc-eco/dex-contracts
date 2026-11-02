@@ -149,6 +149,11 @@ type MappingContractInfoReturn struct {
 	Name     string `json:"name"`
 	Symbol   string `json:"symbol"`
 	Decimals string `json:"decimals"`
+	// The EVM bridge, asked for one asset, also answers what a contract
+	// withdrawing it needs: the proof fee it charges on top of a withdrawal
+	// (base units of the asset) and a token's L1 address.
+	ProofFee     string `json:"proof_fee,omitempty"`
+	TokenAddress string `json:"token_address,omitempty"`
 }
 
 //tinyjson:json
@@ -269,4 +274,19 @@ type UnmapParams struct {
 	From      string `json:"from,omitempty"`
 	DeductFee bool   `json:"deduct_fee,omitempty"`
 	MaxFee    *int64 `json:"max_fee,omitempty"`
+}
+
+// EvmUnmapParams is the input for the EVM bridge's unmapETH / unmapERC20 (it
+// has no "unmap"). max_fee is a decimal string there (wei), and refund_to
+// names the Magi account a refund of the withdrawal goes to.
+//
+//tinyjson:json
+type EvmUnmapParams struct {
+	Amount       string `json:"amount"`
+	To           string `json:"to"`
+	Asset        string `json:"asset,omitempty"`
+	TokenAddress string `json:"token_address,omitempty"`
+	DeductFee    bool   `json:"deduct_fee,omitempty"`
+	MaxFee       string `json:"max_fee,omitempty"`
+	RefundTo     string `json:"refund_to,omitempty"`
 }
