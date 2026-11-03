@@ -2,6 +2,8 @@ package tests
 
 import (
 	"btc-mapping-contract/contract/constants"
+	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 	"vsc-node/lib/test_utils"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/CosmWasm/tinyjson"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	dexcontracts "github.com/vsc-eco/dex-contracts"
 	"github.com/vsc-eco/dex-contracts/contracts/types"
 )
@@ -361,47 +364,39 @@ func TestAuditH03_ClaimFees_MappedPool(t *testing.T) {
 // ============================================================================
 
 func TestAuditM01_SlippageAfterReferral_Fail(t *testing.T) {
-	ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
 	owner := "hive:milo-hpr"
-
-	ct.Deposit(owner, 100000, ledger_db.Asset("hive"))
-
-	// For a 1:1 pool of 1M/1M with 30bps fee, swapping 50000 in gives roughly 45422 out.
-	// With 5% (500 bps) referral, post-referral = ~45422 * 0.95 = ~43150.
-	// Set min_amount_out to 44000, which is between gross and post-referral.
-	// This should FAIL because slippage check happens AFTER referral deduction.
-	minAmountStr := "44000"
-	t.Logf("M-01: min_amount_out = %s (between gross ~45422 and post-referral ~43150)", minAmountStr)
-
-	beneficiary := "hive:referrer"
-	refBps := uint64(500) // 5% referral
-	swapPayload, _ := tinyjson.Marshal(types.SwapParams{
-		AssetIn:      "hive",
-		AmountIn:     "50000",
-		AssetOut:     "hbd",
-		From:         owner,
-		To:           owner,
-		MinAmountOut: &minAmountStr,
-		Beneficiary:  &beneficiary,
-		RefBps:       &refBps,
-	})
-	r := ct.Call(state_engine.TxVscCallContract{
-		Self:       *basicSelf(t, owner),
-		ContractId: dexId,
-		Action:     "swap",
-		Payload:    swapPayload,
-		RcLimit:    2000,
-		Intents: []contracts.Intent{
-			{
-				Type: "transfer.allow",
-				Args: map[string]string{
-					"token": "hive",
-					"limit": "50000",
-				},
-			},
-		},
-		Caller: owner,
-	})
+	swap := func(min *string, withRef bool) test_utils.ContractTestCallResult {
+		ct, _, dexId := setupNativeHiveHbdPool(t, 1000000, 1000000)
+		ct.Deposit(owner, 100000, ledger_db.Asset("hive"))
+		params := types.SwapParams{AssetIn: "hive", AmountIn: "50000", AssetOut: "hbd", From: owner, To: owner, MinAmountOut: min}
+		if withRef {
+			beneficiary, refBps := "hive:referrer", uint64(500) // 5% referral
+			params.Beneficiary, params.RefBps = &beneficiary, &refBps
+		}
+		payload, _ := tinyjson.Marshal(params)
+		return ct.Call(state_engine.TxVscCallContract{
+			Self: *basicSelf(t, owner), ContractId: dexId, Action: "swap", Payload: payload, RcLimit: 2000,
+			Intents: []contracts.Intent{{Type: "transfer.allow", Args: map[string]string{"token": "hive", "limit": "50000"}}},
+			Caller:  owner,
+		})
+	}
+	// The output without a referral, on a fresh pool: the fee model's own
+	// number, so the bound below never goes stale (it was hard-coded for a
+	// flat 30 bps fee and drifted under the pendulum fees: 45,032 paid after a
+	// 5% referral was above the old 44,000 bound, so the swap rightly passed).
+	plain := swap(nil, false)
+	require.True(t, plain.Success, "plain swap: %s: %s", plain.Err, plain.ErrMsg)
+	var res struct {
+		AmountOut string `json:"amount_out"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(plain.Ret), &res), plain.Ret)
+	gross, err := strconv.ParseInt(res.AmountOut, 10, 64)
+	require.NoError(t, err)
+	// min_amount_out between the post-referral output (~95% of gross) and gross:
+	// the check is after the referral, so this must fail.
+	minAmountStr := strconv.FormatInt(gross-gross*250/10000, 10)
+	t.Logf("M-01: output without referral %d, min_amount_out %s, post-referral ~%d", gross, minAmountStr, gross*95/100)
+	r := swap(&minAmountStr, true)
 	assert.False(t, r.Success, "swap should fail: min_amount_out > post-referral output")
 	assert.Contains(t, r.ErrMsg, "slippage", "error should mention slippage")
 	t.Log("M-01 slippage fail error:", r.ErrMsg)
