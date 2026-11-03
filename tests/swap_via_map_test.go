@@ -605,7 +605,9 @@ func TestHiveMainnetToBtcMainnet(t *testing.T) {
 	swapAmount := "5000000" // 5M HIVE units
 	ct.Deposit(owner, 10000000, "hive")
 
-	r = router.execute(t, owner, &types.DexInstruction{
+	// ~17.4k RC (swap, unmap, BTC tx build and signing): the caller sets an
+	// rc_limit above the 10k free tier, as a real one with HBD-backed RC does.
+	r = router.executeRc(t, owner, &types.DexInstruction{
 		Type:             "swap",
 		Version:          "1.0.0",
 		AssetIn:          "hive",
@@ -621,7 +623,7 @@ func TestHiveMainnetToBtcMainnet(t *testing.T) {
 				"limit": swapAmount,
 			},
 		},
-	})
+	}, 30000)
 
 	dumpLogs(t, r.Logs)
 	dumpStateDiff(t, r.StateDiff)

@@ -239,6 +239,22 @@ func (c *RouterInfo) execute(
 	intents []contracts.Intent,
 ) *test_utils.ContractTestCallResult {
 	t.Helper()
+	return c.executeRc(t, caller, instruction, intents, 10000)
+}
+
+// executeRc is execute with the caller's own rc_limit. Two-hop / cross-chain
+// (unmap) swaps fan out into several inter-contract calls; 10000 (the free
+// tier) covers most. A HIVE->BTC swap + unmap + BTC tx build needs ~17.4k RC:
+// a caller with HBD-backed RC sets a higher rc_limit (the node caps a dry run
+// at 100,000, not an op at 10,000).
+func (c *RouterInfo) executeRc(
+	t *testing.T,
+	caller string,
+	instruction *types.DexInstruction,
+	intents []contracts.Intent,
+	rcLimit uint64,
+) *test_utils.ContractTestCallResult {
+	t.Helper()
 
 	payload, _ := tinyjson.Marshal(instruction)
 	callOpts := state_engine.TxVscCallContract{
@@ -246,12 +262,7 @@ func (c *RouterInfo) execute(
 		ContractId: c.id,
 		Action:     "execute",
 		Payload:    payload,
-		// Two-hop / cross-chain (unmap) swaps fan out into several inter-contract
-		// calls; 2000 caps them. Callers are funded with rcHeadroomHBD, so the
-		// larger limit is covered by RC and the exclusion reserve. NOTE: a
-		// HIVE→BTC swap+unmap+BTC-tx-build (TestHiveMainnetToBtcMainnet) needs
-		// ~17.4k RC, above the 10k per-op cap, so that one test remains flagged.
-		RcLimit:    10000,
+		RcLimit:    rcLimit,
 		Intents:    intents,
 		Caller:     caller,
 	}
