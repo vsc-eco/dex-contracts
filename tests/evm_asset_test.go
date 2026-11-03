@@ -338,3 +338,81 @@ func TestSP0c_RouterSettlesEthToEthereum(t *testing.T) {
 	require.True(t, cr.Success, "trader cancels: %s: %s", cr.Err, cr.ErrMsg)
 	require.Equal(t, string(q.Debit), bridgeBalance(&ct, usdcTrader, "eth"), "the refund reached the trader")
 }
+
+// SP-0c on the two-hop route: HIVE -> HBD -> USDC settled to an Ethereum
+// address (no direct HIVE/USDC pool, so the router swaps through HBD and
+// settles the second hop's output). The queued withdrawal is from the router
+// with refund_to = the trader, as on the one-hop route; the router keeps
+// nothing, and the trader's cancel refunds the trader.
+func TestSP0c_TwoHopSettlesUsdcToEthereum(t *testing.T) {
+	const hiveHbdPoolId = "vsc1Bjn53csDr6wUoYsjXiN9Nhadu458Tw9wvR"
+	ct := setupUsdcHbdPoolWith(t, types.InitParams{
+		Asset0: "usdc", Asset0MappingContract: evmBridgeId, Asset1: "hbd", FeeBps: 8, RouterContract: usdcRouter,
+	}, func(ct *test_utils.ContractTest) { whitelistPendulum(ct, usdcPoolId, hiveHbdPoolId) })
+	ct.RegisterContract(hiveHbdPoolId, usdcOwner, dexcontracts.DexWasm)
+	hivePool := &DexInfo{ct: &ct, id: hiveHbdPoolId}
+	r := hivePool.initPool(t, usdcOwner, &types.InitParams{Asset0: "hbd", Asset1: "hive", FeeBps: 8, RouterContract: usdcRouter})
+	require.True(t, r.Success, "init hive/hbd pool: %s: %s", r.Err, r.ErrMsg)
+	r = hivePool.addLiquidity(t, usdcOwner, 100_000_000, 100_000_000)
+	require.True(t, r.Success, "hive/hbd liquidity: %s: %s", r.Err, r.ErrMsg)
+
+	router := &RouterInfo{ct: &ct, id: usdcRouter}
+	r = router.initRouterV2(t, usdcOwner)
+	require.True(t, r.Success, "init router: %s: %s", r.Err, r.ErrMsg)
+	ref := "11155111-1c7d4b196cb0c7b01d743fbc6116a902379c7238"
+	ct.StateSet(evmBridgeId, "ts-usdc", ref)
+	ct.StateSet(evmBridgeId, "t-"+ref, "usdc|6|1")
+	ct.StateSet(evmBridgeId, "pf-usdc", "150000")
+	ct.StateSet(evmBridgeId, "chainid", "11155111")
+	for _, name := range []string{"HBD", "HIVE"} {
+		r = router.registerToken(t, usdcOwner, types.RegisterTokenParams{Name: name, TokenInfo: types.TokenInfo{Chain: "HIVE"}})
+		require.True(t, r.Success, "register %s: %s: %s", name, r.Err, r.ErrMsg)
+	}
+	regPayload, _ := tinyjson.Marshal(types.RegisterTokenParams{Name: "usdc", TokenInfo: types.TokenInfo{Chain: "ETH", MappingContract: evmBridgeId}})
+	reg := ct.Call(state_engine.TxVscCallContract{
+		Self: *basicSelf(t, usdcOwner), ContractId: usdcRouter, Action: "register_token", Payload: regPayload,
+		RcLimit: usdcRcLimit, Intents: []contracts.Intent{}, Caller: usdcOwner,
+	})
+	require.True(t, reg.Success, "register usdc: %s: %s", reg.Err, reg.ErrMsg)
+	r = router.registerPool(t, usdcOwner, types.RegisterPoolParams{Asset0: "hbd", Asset1: "usdc", DexContractId: usdcPoolId})
+	require.True(t, r.Success, "register hbd/usdc: %s: %s", r.Err, r.ErrMsg)
+	r = router.registerPool(t, usdcOwner, types.RegisterPoolParams{Asset0: "hive", Asset1: "hbd", DexContractId: hiveHbdPoolId})
+	require.True(t, r.Success, "register hive/hbd: %s: %s", r.Err, r.ErrMsg)
+
+	const l1To = "0x00000000000000000000000000000000000000e3"
+	ct.Deposit(usdcTrader, 1_000, ledger_db.Asset("hive"))
+	ct.Deposit(usdcTrader, rcHeadroomHBD, ledger_db.Asset("hbd"))
+	usdcBefore := bridgeBalance(&ct, usdcTrader, "usdc")
+	maxFee := int64(3_000_000_000_000_000)
+	r = router.execute(t, usdcTrader, &types.DexInstruction{
+		Type: "swap", Version: "1.0.0", AssetIn: "hive", AssetOut: "usdc", AmountIn: "1000",
+		Recipient: l1To, DestinationChain: "ETH", MaxFee: &maxFee,
+	}, []contracts.Intent{{Type: "transfer.allow", Args: map[string]string{"token": "hive", "limit": "1000"}}})
+	require.True(t, r.Success, "two-hop HIVE->HBD->USDC settled to Ethereum: %s: %s", r.Err, r.ErrMsg)
+	t.Logf("two-hop router swap + unmapERC20: %d RC", r.RcUsed)
+
+	tail, _ := strconv.Atoi(ct.StateGet(evmBridgeId, "wqt"))
+	require.Equal(t, 1, tail, "one queued withdrawal")
+	var q struct {
+		From, To, Asset string
+		Amount          json.Number
+		RefundTo        string `json:"refund_to"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(ct.StateGet(evmBridgeId, "wq-0")), &q), ct.StateGet(evmBridgeId, "wq-0"))
+	t.Logf("queued withdrawal: %+v", q)
+	require.Equal(t, "contract:"+usdcRouter, q.From)
+	require.Equal(t, usdcTrader, q.RefundTo, "the two-hop route names the trader as refund_to too")
+	require.Equal(t, l1To, q.To)
+	require.Equal(t, "usdc", q.Asset)
+	amt, _ := strconv.ParseInt(string(q.Amount), 10, 64)
+	require.Greater(t, amt, int64(700_000), "~0.98 USDC after two pool fees, less the 0.15 proof fee")
+	require.Contains(t, []string{"", "0"}, bridgeBalance(&ct, "contract:"+usdcRouter, "usdc"), "the router holds no USDC")
+	require.Equal(t, int64(0), ct.GetBalance("contract:"+usdcRouter, ledger_db.Asset("hbd")), "the router keeps no intermediate HBD")
+
+	cr := bridgeCall(t, &ct, usdcTrader, "cancelQueuedWithdrawal", map[string]any{"seq": 0})
+	require.True(t, cr.Success, "trader cancels: %s: %s", cr.Err, cr.ErrMsg)
+	before, _ := strconv.ParseInt(usdcBefore, 10, 64)
+	after, _ := strconv.ParseInt(bridgeBalance(&ct, usdcTrader, "usdc"), 10, 64)
+	require.Equal(t, before+amt, after, "the refund reached the trader")
+	require.Contains(t, []string{"", "0"}, bridgeBalance(&ct, "contract:"+usdcRouter, "usdc"), "nothing stranded in the router")
+}
